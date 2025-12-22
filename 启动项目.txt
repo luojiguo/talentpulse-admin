@@ -1,0 +1,6 @@
+
+cd c:\Users\28349\Desktop\temp\talentpulse-admin\backend
+npm run dev
+
+cd c:\Users\28349\Desktop\temp\talentpulse-admin\Front_End
+npm run dev
