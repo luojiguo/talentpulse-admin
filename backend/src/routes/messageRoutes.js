@@ -76,7 +76,7 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
         u1.avatar AS candidate_avatar,
         COALESCE(u2.name, '招聘者') AS recruiter_name,
         COALESCE(u2.avatar, '') AS recruiter_avatar,
-        COALESCE(u2.id, c.recruiter_id) AS recruiterUserId
+        COALESCE(u2.id, r.user_id) AS recruiterUserId
       FROM conversations c
       LEFT JOIN jobs j ON c.job_id = j.id
       LEFT JOIN companies co ON j.company_id = co.id
@@ -651,7 +651,7 @@ async function getUnreadField(conversationId, senderId) {
   if (conversation.rows.length === 0) return 'recruiter_unread'; // 默认
   
   const { candidate_user_id } = conversation.rows[0];
-  return senderId == candidate_user_id ? 'recruiter_unread' : 'candidate_unread';
+  return senderId === candidate_user_id ? 'recruiter_unread' : 'candidate_unread';
 }
 
 module.exports = router;

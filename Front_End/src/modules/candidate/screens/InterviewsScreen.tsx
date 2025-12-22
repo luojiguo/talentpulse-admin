@@ -38,7 +38,7 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
       try {
         setLoading(true);
         const response = await interviewAPI.getAllInterviews();
-        if (response.status === 'success') {
+        if ((response as any).status === 'success') {
           // 只显示当前用户的面试（通过applicationId关联）
           const userInterviews = (response.data || []).filter((interview: Interview) => {
             // TODO: 需要根据applicationId关联到candidateId来过滤
@@ -59,18 +59,18 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
 
   const filteredInterviews = useMemo(() => {
     return interviews.filter(interview => {
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         interview.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         interview.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'all' || interview.status === statusFilter;
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [interviews, searchTerm, statusFilter]);
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'scheduled': return 'bg-blue-100 text-blue-700';
       case 'completed': return 'bg-green-100 text-green-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
@@ -79,7 +79,7 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
   };
 
   const getStatusText = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'scheduled': return '已安排';
       case 'completed': return '已完成';
       case 'cancelled': return '已取消';
@@ -88,7 +88,7 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
   };
 
   const getTypeIcon = (type: string) => {
-    switch(type) {
+    switch (type) {
       case '电话': return <Phone className="w-4 h-4" />;
       case '视频': return <Video className="w-4 h-4" />;
       case '现场': return <Building2 className="w-4 h-4" />;
@@ -97,7 +97,7 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
   };
 
   const getResultColor = (result?: string) => {
-    switch(result) {
+    switch (result) {
       case '通过': return 'bg-green-100 text-green-700';
       case '未通过': return 'bg-red-100 text-red-700';
       case '待定': return 'bg-yellow-100 text-yellow-700';
@@ -116,11 +116,11 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
         <div className="p-4 border-b border-gray-200 flex gap-4 justify-between items-center flex-wrap">
           <div className="flex gap-2 items-center w-full md:w-auto">
             <Search className="text-gray-400 w-5 h-5" />
-            <input 
-              type="text" 
-              placeholder="搜索职位、公司..." 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
+            <input
+              type="text"
+              placeholder="搜索职位、公司..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
               className="bg-transparent focus:outline-none text-sm w-full md:w-64 border border-gray-300 rounded-lg px-3 py-2"
             />
           </div>

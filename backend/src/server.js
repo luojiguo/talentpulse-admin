@@ -142,7 +142,7 @@ app.use('/api/companies', companyRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/candidates', candidateRoutes);
-app.use('/api/activity', activityRoutes);
+app.use('/api/activities', activityRoutes);
 app.use('/api/ai-sessions', aiSessionRoutes);
 app.use('/api/resumes', resumeRoutes);
 app.use('/api/recruiter', recruiterRoutes);

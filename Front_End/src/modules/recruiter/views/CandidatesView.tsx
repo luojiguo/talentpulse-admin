@@ -56,7 +56,7 @@ export const CandidatesView: React.FC<CandidatesViewProps> = ({ candidates }) =>
 
     // Extract unique job titles from candidates
     const uniqueJobs = Array.from(new Set(candidates.map(c => c.jobTitle)));
-    
+
     // Extract unique stages from candidates
     const uniqueStages = Array.from(new Set(candidates.map(c => c.stage)));
 
@@ -66,8 +66,8 @@ export const CandidatesView: React.FC<CandidatesViewProps> = ({ candidates }) =>
             setLoading(true);
             try {
                 const response = await interviewAPI.getAllInterviews();
-                if (response.status === 'success' && response.data) {
-                    setInterviews(response.data);
+                if ((response as any).status === 'success' && (response as any).data) {
+                    setInterviews((response as any).data);
                 }
             } catch (error) {
                 console.error('获取面试数据失败:', error);
@@ -86,7 +86,7 @@ export const CandidatesView: React.FC<CandidatesViewProps> = ({ candidates }) =>
         // Apply search filter
         if (searchTerm) {
             const lowerCaseSearch = searchTerm.toLowerCase();
-            result = result.filter(candidate => 
+            result = result.filter(candidate =>
                 candidate.candidateName.toLowerCase().includes(lowerCaseSearch) ||
                 candidate.jobTitle.toLowerCase().includes(lowerCaseSearch)
             );
@@ -274,7 +274,7 @@ export const CandidatesView: React.FC<CandidatesViewProps> = ({ candidates }) =>
                                             <td className="py-3 px-4 hidden md:table-cell">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-12 h-6 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div 
+                                                        <div
                                                             className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                                                             style={{ width: `${candidate.matchScore || 0}%` }}
                                                         />
@@ -314,12 +314,12 @@ export const CandidatesView: React.FC<CandidatesViewProps> = ({ candidates }) =>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 text-right">
-                                                <button 
+                                                <button
                                                     className="text-emerald-600 hover:text-emerald-800 mr-3 text-sm font-medium"
                                                 >
                                                     查看详情
                                                 </button>
-                                                <button 
+                                                <button
                                                     className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                                                 >
                                                     发送消息

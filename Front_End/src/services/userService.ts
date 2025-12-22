@@ -6,25 +6,24 @@ import { SystemUser as User } from '@/types/types';
  */
 export const userAPI = {
   // 获取所有用户
-  getAllUsers: () => request.get('/users'),
+  getAllUsers: () => request.get('/api/users') as Promise<any>,
 
   // 获取单个用户
-  getUserById: (id: string | number) => request.get(`/users/${id}`),
+  getUserById: (id: string | number) => request.get(`/api/users/${id}`) as Promise<any>,
 
   // 登录
   login: (credentials: { identifier: string; password: string; userType: string }) => {
-    // 确保请求路径正确匹配后端路由
-    return request.post('/users/login', credentials);
+    return request.post('/api/users/login', credentials) as Promise<any>;
   },
 
   // 注册
   register: (userData: any) => {
-    return request.post('/users/register', userData);
+    return request.post('/api/users/register', userData) as Promise<any>;
   },
 
   // 切换角色
   switchRole: (data: { userId: number; newRole: string; companyName?: string }) => {
-    return request.post('/users/switch-role', data);
+    return request.post('/api/users/switch-role', data) as Promise<any>;
   },
 
   // 上传用户头像
@@ -32,18 +31,18 @@ export const userAPI = {
     const formData = new FormData();
     formData.append('avatar', file);
 
-    return request.post(`/users/${id}/avatar`, formData, {
+    return request.post(`/api/users/${id}/avatar`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-    });
+    }) as Promise<any>;
   },
 
   // 更新用户信息
   updateUser: (id: string, userData: any) => {
-    return request.put(`/users/${id}`, userData);
+    return request.put(`/api/users/${id}`, userData) as Promise<any>;
   },
 
   // 获取性别选项配置
-  getGenderOptions: () => request.get('/users/config/genders'),
+  getGenderOptions: () => request.get('/api/users/config/genders') as Promise<any>,
 };

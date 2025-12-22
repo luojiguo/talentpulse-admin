@@ -39,7 +39,7 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
       try {
         setLoading(true);
         const response = await interviewAPI.getAllInterviews();
-        if (response.status === 'success') {
+        if ((response as any).status === 'success') {
           // 只显示当前招聘者的面试
           const recruiterInterviews = (response.data || []).filter(
             (interview: Interview) => interview.interviewerId === currentUserId
@@ -58,18 +58,18 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
 
   const filteredInterviews = useMemo(() => {
     return interviews.filter(interview => {
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         interview.candidateName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         interview.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'all' || interview.status === statusFilter;
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [interviews, searchTerm, statusFilter]);
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'scheduled': return 'bg-blue-100 text-blue-700';
       case 'completed': return 'bg-green-100 text-green-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
@@ -78,7 +78,7 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
   };
 
   const getStatusText = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'scheduled': return '已安排';
       case 'completed': return '已完成';
       case 'cancelled': return '已取消';
@@ -87,7 +87,7 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
   };
 
   const getResultColor = (result?: string) => {
-    switch(result) {
+    switch (result) {
       case '通过': return 'bg-green-100 text-green-700';
       case '未通过': return 'bg-red-100 text-red-700';
       case '待定': return 'bg-yellow-100 text-yellow-700';
@@ -109,11 +109,11 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
         <div className="p-4 border-b border-gray-200 flex gap-4 justify-between items-center flex-wrap">
           <div className="flex gap-2 items-center w-full md:w-auto">
             <Search className="text-gray-400 w-5 h-5" />
-            <input 
-              type="text" 
-              placeholder="搜索候选人、职位..." 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
+            <input
+              type="text"
+              placeholder="搜索候选人、职位..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
               className="bg-transparent focus:outline-none text-sm w-full md:w-64"
             />
           </div>

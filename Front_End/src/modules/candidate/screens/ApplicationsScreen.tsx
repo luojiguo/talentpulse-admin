@@ -30,11 +30,11 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ currentUser }) 
   useEffect(() => {
     const fetchApplications = async () => {
       if (!currentUser?.id) return;
-      
+
       try {
         setLoading(true);
         const response = await applicationAPI.getCandidateApplications(currentUser.id);
-        if (response.status === 'success') {
+        if ((response as any).status === 'success') {
           setApplications(response.data || []);
         }
       } catch (error) {
@@ -49,18 +49,18 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ currentUser }) 
 
   const filteredApplications = useMemo(() => {
     return applications.filter(app => {
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         app.jobTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         app.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [applications, searchTerm, statusFilter]);
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'New': return 'bg-blue-100 text-blue-700';
       case 'Screening': return 'bg-indigo-100 text-indigo-700';
       case 'Interview': return 'bg-amber-100 text-amber-700';
@@ -94,11 +94,11 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ currentUser }) 
         <div className="p-4 border-b border-gray-200 flex gap-4 justify-between items-center flex-wrap">
           <div className="flex gap-2 items-center w-full md:w-auto">
             <Search className="text-gray-400 w-5 h-5" />
-            <input 
-              type="text" 
-              placeholder="搜索职位、公司..." 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
+            <input
+              type="text"
+              placeholder="搜索职位、公司..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
               className="bg-transparent focus:outline-none text-sm w-full md:w-64 border border-gray-300 rounded-lg px-3 py-2"
             />
           </div>
@@ -129,8 +129,8 @@ const ApplicationsScreen: React.FC<ApplicationsScreenProps> = ({ currentUser }) 
           ) : (
             <div className="divide-y divide-gray-200">
               {filteredApplications.map(application => (
-                <div 
-                  key={application.id} 
+                <div
+                  key={application.id}
                   className="p-6 hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => navigate(`/job/${application.jobId}`)}
                 >

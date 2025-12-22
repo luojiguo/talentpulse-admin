@@ -6,28 +6,36 @@ import { JobPosting } from '@/types/types';
  */
 export const jobAPI = {
   // 获取所有职位
-  getAllJobs: () => request.get('/jobs', { timeout: 60000 }),
+  getAllJobs: () => request.get('/api/jobs', { timeout: 60000 }),
 
   // 获取智能推荐的职位（基于用户信息）
-  getRecommendedJobs: (userId: string | number) => {
-    return request.get(`/jobs/recommended/${userId}`, { timeout: 60000 });
+  getRecommendedJobs: (userId: string | number, triggerAI: boolean = false) => {
+    return request.get(`/api/jobs/recommended/${userId}`, {
+      params: { triggerAI },
+      timeout: 60000
+    });
+  },
+
+  // Check AI recommendation status
+  getRecommendedJobsStatus: (userId: string | number) => {
+    return request.get(`/api/jobs/recommended/${userId}/status`);
   },
 
   // 获取单个职位
-  getJobById: (id: string | number) => request.get(`/jobs/${id}`),
+  getJobById: (id: string | number) => request.get(`/api/jobs/${id}`),
 
   // 创建新职位
   createJob: (jobData: any) => {
-    return request.post('/jobs', jobData);
+    return request.post('/api/jobs', jobData);
   },
 
   // 更新职位
   updateJob: (id: string | number, jobData: any) => {
-    return request.put(`/jobs/${id}`, jobData);
+    return request.put(`/api/jobs/${id}`, jobData);
   },
 
   // 删除职位
   deleteJob: (id: string | number) => {
-    return request.delete(`/jobs/${id}`);
+    return request.delete(`/api/jobs/${id}`);
   },
 };

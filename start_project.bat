@@ -8,7 +8,7 @@ start cmd /k "cd /d c:\Users\28349\Desktop\temp\talentpulse-admin\backend && npm
 
 echo 正在启动前端服务...
 timeout /t 3 /nobreak >nul
-start cmd /k "cd /d c:\Users\28349\Desktop\temp\talentpulse-admin\Front End && npm run dev"
+start cmd /k "cd /d c:\Users\28349\Desktop\temp\talentpulse-admin\Front_End && npm run dev"
 
 echo 项目启动完成！
 echo 前端访问地址：http://localhost:3000

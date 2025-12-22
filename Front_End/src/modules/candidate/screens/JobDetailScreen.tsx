@@ -81,7 +81,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
             try {
                 // 获取职位详情
                 const jobResponse = await jobAPI.getJobById(parseInt(id));
-                if (jobResponse.status !== 'success') {
+                if ((jobResponse as any).status !== 'success') {
                     throw new Error('获取职位详情失败');
                 }
                 setJob(jobResponse.data);
@@ -134,7 +134,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
             try {
                 // 获取用户收藏的所有职位
                 const savedJobsResponse = await candidateAPI.getCandidateSavedJobs(currentUser.id);
-                if (savedJobsResponse.status === 'success') {
+                if ((savedJobsResponse as any).status === 'success') {
                     const savedJobIds = (savedJobsResponse.data || []).map((j: any) => j.id);
                     setIsSaved(savedJobIds.includes(job.id));
                 }
@@ -152,7 +152,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
 
         try {
             setSaving(true);
-            
+
             if (isSaved) {
                 // 取消收藏
                 await candidateAPI.removeSavedJob(currentUser.id, job.id);
@@ -363,11 +363,10 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                             <button
                                                 onClick={toggleSaveJob}
                                                 disabled={saving}
-                                                className={`p-2 rounded-lg border transition-all ${
-                                                    isSaved
+                                                className={`p-2 rounded-lg border transition-all ${isSaved
                                                         ? 'bg-indigo-50 border-indigo-300 text-indigo-600 hover:bg-indigo-100'
                                                         : 'bg-white border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-300'
-                                                } ${saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                    } ${saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                                 title={isSaved ? '取消收藏' : '收藏职位'}
                                             >
                                                 <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
@@ -404,9 +403,9 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                         <div className="flex items-center">
                                             <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-xl mr-3 border-2 border-white shadow-sm overflow-hidden">
                                                 {recruiter?.avatar ? (
-                                                    <img 
-                                                        src={recruiter.avatar} 
-                                                        alt={recruiter.name} 
+                                                    <img
+                                                        src={recruiter.avatar}
+                                                        alt={recruiter.name}
                                                         className="w-full h-full object-cover"
                                                     />
                                                 ) : (

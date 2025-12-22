@@ -45,7 +45,7 @@ const ApplicationDetailView: React.FC = () => {
   useEffect(() => {
     const fetchApplicationDetail = async () => {
       if (!id) return;
-      
+
       try {
         setLoading(true);
         // TODO: 创建获取申请详情的API
@@ -53,10 +53,10 @@ const ApplicationDetailView: React.FC = () => {
         // if (response.status === 'success') {
         //   setApplication(response.data);
         // }
-        
+
         // 获取该申请的面试记录
         const interviewsResponse = await interviewAPI.getInterviewsByApplicationId(id);
-        if (interviewsResponse.status === 'success') {
+        if ((interviewsResponse as any).status === 'success') {
           setInterviews(interviewsResponse.data || []);
         }
       } catch (error) {
@@ -92,7 +92,7 @@ const ApplicationDetailView: React.FC = () => {
   }
 
   const getStatusColor = (status: string) => {
-    switch(status) {
+    switch (status) {
       case 'New': return 'bg-blue-100 text-blue-700';
       case 'Screening': return 'bg-indigo-100 text-indigo-700';
       case 'Interview': return 'bg-amber-100 text-amber-700';
@@ -162,8 +162,8 @@ const ApplicationDetailView: React.FC = () => {
                 <div className="text-sm text-slate-500 mb-1">匹配度</div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full" 
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
                       style={{ width: `${application.matchScore}%` }}
                     />
                   </div>
@@ -200,13 +200,12 @@ const ApplicationDetailView: React.FC = () => {
                           {new Date(interview.interviewDate).toLocaleDateString('zh-CN')} {interview.interviewTime}
                         </div>
                       </div>
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        interview.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        interview.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${interview.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          interview.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                        }`}>
                         {interview.status === 'completed' ? '已完成' :
-                         interview.status === 'scheduled' ? '已安排' : '已取消'}
+                          interview.status === 'scheduled' ? '已安排' : '已取消'}
                       </span>
                     </div>
                     <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
@@ -214,11 +213,10 @@ const ApplicationDetailView: React.FC = () => {
                     </div>
                     {interview.interviewResult && (
                       <div className="mt-2">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          interview.interviewResult === '通过' ? 'bg-green-100 text-green-700' :
-                          interview.interviewResult === '未通过' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${interview.interviewResult === '通过' ? 'bg-green-100 text-green-700' :
+                            interview.interviewResult === '未通过' ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-100 text-yellow-700'
+                          }`}>
                           {interview.interviewResult}
                         </span>
                       </div>
@@ -246,9 +244,8 @@ const ApplicationDetailView: React.FC = () => {
                 {application.statusHistory.map((history, index) => (
                   <div key={index} className="flex items-start gap-3">
                     <div className="flex flex-col items-center">
-                      <div className={`w-2 h-2 rounded-full ${
-                        index === 0 ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
-                      }`} />
+                      <div className={`w-2 h-2 rounded-full ${index === 0 ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                        }`} />
                       {index < application.statusHistory!.length - 1 && (
                         <div className="w-0.5 h-8 bg-slate-300 dark:bg-slate-600" />
                       )}

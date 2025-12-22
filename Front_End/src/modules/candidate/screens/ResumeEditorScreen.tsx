@@ -131,7 +131,7 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
           return { status: 'success', data: [] };
         }
         const response = await resumeAPI.getUserResumes(userId);
-        return response;
+        return response as any;
       } catch (error) {
         console.error('获取简历列表失败:', error);
         return { status: 'success', data: [] };
@@ -147,7 +147,7 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
       // 如果有简历，使用第一个作为默认编辑对象
       const firstResume = resumesData.data[0];
       setResumeId(firstResume.id);
-      
+
       // 将数据库中的JSON数据转换为组件需要的格式
       const formattedData: ResumeData = {
         resume_title: firstResume.resume_title || '',
@@ -164,7 +164,7 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
         patents: Array.isArray(firstResume.patents) ? firstResume.patents : initialResumeData.patents,
         portfolio_links: Array.isArray(firstResume.portfolio_links) ? firstResume.portfolio_links : initialResumeData.portfolio_links
       };
-      
+
       setResumeData(formattedData);
     }
   }, [resumesData]);
@@ -177,7 +177,7 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
     const { value } = e.target;
     setResumeData(prev => ({
       ...prev,
-      [section]: prev[section as keyof ResumeData].map((item, i) => 
+      [section]: prev[section as keyof ResumeData].map((item, i) =>
         i === index ? { ...(item as any), [field]: value } : item
       )
     }));
@@ -188,7 +188,7 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
     const { value } = e.target;
     setResumeData(prev => ({
       ...prev,
-      [section]: prev[section as keyof ResumeData].map((item, i) => 
+      [section]: prev[section as keyof ResumeData].map((item, i) =>
         i === index ? value : item
       )
     }));
@@ -349,7 +349,7 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
       if (!userId) {
         throw new Error('未找到用户ID');
       }
-      
+
       // 确保简历数据格式正确
       const processedResumeData = {
         ...resumeData,
@@ -365,18 +365,18 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
         patents: Array.isArray(resumeData.patents) ? resumeData.patents : [],
         portfolio_links: Array.isArray(resumeData.portfolio_links) ? resumeData.portfolio_links : []
       };
-      
+
       // 调用保存简历的API，传入resumeId实现更新或创建
       const result = await resumeAPI.saveResume(userId, resumeId, processedResumeData);
-      
+
       // 如果是新创建的简历，保存返回的resumeId
-      if (!resumeId && result.status === 'success' && result.data?.id) {
+      if (!resumeId && (result as any).status === 'success' && result.data?.id) {
         setResumeId(result.data.id);
       }
-      
+
       // 保存成功后刷新简历列表
       await refetchResumes();
-      
+
       setMessage({ type: 'success', text: resumeId ? '简历更新成功' : '简历创建成功' });
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message || '保存简历失败' });

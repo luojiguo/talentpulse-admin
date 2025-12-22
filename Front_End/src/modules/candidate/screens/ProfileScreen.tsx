@@ -53,7 +53,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
+
     // 简历相关状态
     const [resumes, setResumes] = useState<any[]>([]);
     const [resumeLoading, setResumeLoading] = useState(false);
@@ -169,7 +169,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
             setLoading(false);
         }
     };
-    
+
     // 获取简历列表
     const fetchResumes = async () => {
         try {
@@ -178,9 +178,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
             if (!userId) {
                 throw new Error('未找到用户ID');
             }
-            
+
             const res = await resumeAPI.getUserResumes(userId);
-            if (res.status === 'success') {
+            if ((res as any).status === 'success') {
                 setResumes(res.data || []);
             }
         } catch (error: any) {
@@ -189,21 +189,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
             setResumeLoading(false);
         }
     };
-    
+
     // 上传简历
     const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
+
         try {
             setSaving(true);
             const userId = currentUser?.id || localStorage.getItem('userId');
             if (!userId) {
                 throw new Error('未找到用户ID');
             }
-            
+
             const res = await resumeAPI.uploadResume(userId, file);
-            if (res.status === 'success') {
+            if ((res as any).status === 'success') {
                 setMessage({ type: 'success', text: '简历上传成功' });
                 await fetchResumes(); // 刷新简历列表
             }
@@ -213,13 +213,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
             setSaving(false);
         }
     };
-    
+
     // 删除简历
     const handleResumeDelete = async (id: number) => {
         try {
             setSaving(true);
             const res = await resumeAPI.deleteResume(id);
-            if (res.status === 'success') {
+            if ((res as any).status === 'success') {
                 setMessage({ type: 'success', text: '简历删除成功' });
                 await fetchResumes(); // 刷新简历列表
             }
@@ -584,97 +584,97 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
                                 />
                             </div>
                         </div>
-                </div>
-
-                {/* 第四部分：简历管理 */}
-                <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">简历管理</h3>
-                    
-                    {/* 上传按钮 */}
-                    <div className="mb-6">
-                        <div className="flex items-center gap-4">
-                            <button
-                                type="button"
-                                onClick={() => resumeFileInputRef.current?.click()}
-                                disabled={saving}
-                                className={`px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
-                            >
-                                {saving ? '正在上传...' : '上传简历'}
-                            </button>
-                            <input
-                                type="file"
-                                ref={resumeFileInputRef}
-                                className="hidden"
-                                accept=".pdf,.doc,.docx,.txt"
-                                onChange={handleResumeUpload}
-                            />
-                            <span className="text-sm text-gray-500">支持 PDF、Word 等格式，单个文件大小不超过 10MB</span>
-                        </div>
                     </div>
-                    
-                    {/* 简历列表 */}
-                    <div className="bg-gray-50 rounded-lg p-4">
-                        {resumeLoading ? (
-                            <div className="text-center py-4 text-gray-500">正在加载简历列表...</div>
-                        ) : resumes.length === 0 ? (
-                            <div className="text-center py-4 text-gray-500">暂无上传的简历</div>
-                        ) : (
-                            <div className="space-y-3">
-                                {resumes.map((resume) => (
-                                    <div key={resume.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                                            <div className="text-blue-600">
-                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1-3a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                                                </svg>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900 truncate">{fixFilenameEncoding(resume.resume_file_name)}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-xs text-gray-500">
-                                                        {resume.created_at ? new Date(resume.created_at).toLocaleString() : ''}
-                                                    </span>
-                                                    <span className="text-xs text-gray-500">
-                                                        {(resume.resume_file_size / (1024 * 1024)).toFixed(2)}MB
-                                                    </span>
+
+                    {/* 第四部分：简历管理 */}
+                    <div className="mb-8">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">简历管理</h3>
+
+                        {/* 上传按钮 */}
+                        <div className="mb-6">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => resumeFileInputRef.current?.click()}
+                                    disabled={saving}
+                                    className={`px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
+                                >
+                                    {saving ? '正在上传...' : '上传简历'}
+                                </button>
+                                <input
+                                    type="file"
+                                    ref={resumeFileInputRef}
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.txt"
+                                    onChange={handleResumeUpload}
+                                />
+                                <span className="text-sm text-gray-500">支持 PDF、Word 等格式，单个文件大小不超过 10MB</span>
+                            </div>
+                        </div>
+
+                        {/* 简历列表 */}
+                        <div className="bg-gray-50 rounded-lg p-4">
+                            {resumeLoading ? (
+                                <div className="text-center py-4 text-gray-500">正在加载简历列表...</div>
+                            ) : resumes.length === 0 ? (
+                                <div className="text-center py-4 text-gray-500">暂无上传的简历</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {resumes.map((resume) => (
+                                        <div key={resume.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                <div className="text-blue-600">
+                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1-3a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 truncate">{fixFilenameEncoding(resume.resume_file_name)}</p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-xs text-gray-500">
+                                                            {resume.created_at ? new Date(resume.created_at).toLocaleString() : ''}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500">
+                                                            {(resume.resume_file_size / (1024 * 1024)).toFixed(2)}MB
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <div className="flex items-center gap-2">
+                                                {/* 查看按钮 - 可下载简历 */}
+                                                <a
+                                                    href={resume.resume_file_url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
+                                                >
+                                                    查看
+                                                </a>
+                                                {/* 删除按钮 */}
+                                                <button
+                                                    onClick={() => handleResumeDelete(Number(resume.id))}
+                                                    disabled={saving}
+                                                    className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition"
+                                                >
+                                                    删除
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            {/* 查看按钮 - 可下载简历 */}
-                                            <a
-                                                href={resume.resume_file_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
-                                            >
-                                                查看
-                                            </a>
-                                            {/* 删除按钮 */}
-                                            <button
-                                                onClick={() => handleResumeDelete(Number(resume.id))}
-                                                disabled={saving}
-                                                className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition"
-                                            >
-                                                删除
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
 
-                <div className="flex justify-end pt-6 border-t border-gray-100">
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className={`px-8 py-3 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
-                    >
-                        {saving ? '正在保存...' : '保存修改'}
-                    </button>
-                </div>
+                    <div className="flex justify-end pt-6 border-t border-gray-100">
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className={`px-8 py-3 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
+                        >
+                            {saving ? '正在保存...' : '保存修改'}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

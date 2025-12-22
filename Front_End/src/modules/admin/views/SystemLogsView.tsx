@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Calendar, AlertCircle, CheckCircle, XCircle, Info, Filter } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
 import { Language } from '@/types/types';
+import { activityAPI } from '@/services/activityService';
 
 interface SystemLog {
   id: number;
@@ -32,6 +33,7 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
   const t = TRANSLATIONS[lang];
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [logTypeFilter, setLogTypeFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
@@ -40,22 +42,50 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
     const fetchLogs = async () => {
       try {
         setLoading(true);
-        // TODO: 创建system logs API endpoint
-        // const response = await systemLogsAPI.getAllLogs();
-        // if (response.status === 'success') {
-        //   setLogs(response.data || []);
-        // }
-        // 临时使用空数组
-        setLogs([]);
+        setError(null);
+        // 从后端获取系统日志
+        const response = await activityAPI.getSystemLogs({
+          limit: 100, // 获取更多日志以便筛选
+          logType: logTypeFilter === 'all' ? undefined : logTypeFilter
+        });
+        if (response.success) {
+          // 将后端数据映射到前端SystemLog类型
+          const mappedLogs = response.data.map((log: any) => ({
+            id: log.id,
+            userId: log.user_id,
+            action: log.action,
+            description: log.description,
+            ipAddress: log.ip_address,
+            createdAt: log.created_at,
+            logType: log.log_type,
+            resourceType: log.resource_type,
+            resourceId: log.resource_id,
+            requestMethod: log.request_method,
+            requestUrl: log.request_url,
+            responseStatus: log.response_status,
+            responseTime: log.response_time,
+            errorCode: log.error_code,
+            errorMessage: log.error_message,
+            userAgent: log.user_agent,
+            deviceType: log.device_type,
+            browser: log.browser,
+            os: log.os,
+            country: log.country,
+            region: log.region,
+            city: log.city
+          }));
+          setLogs(mappedLogs);
+        }
       } catch (error) {
         console.error('获取系统日志失败:', error);
+        setError(error instanceof Error ? error.message : '获取系统日志失败，请稍后重试');
       } finally {
         setLoading(false);
       }
     };
 
     fetchLogs();
-  }, []);
+  }, [logTypeFilter]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
@@ -187,6 +217,65 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
                     加载中...
                   </td>
                 </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-red-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <AlertCircle className="w-8 h-8 text-red-400" />
+                      <p>获取系统日志失败: {error}</p>
+                      <button 
+                        onClick={() => {
+                          setLoading(true);
+                          const fetchLogs = async () => {
+                            try {
+                              setError(null);
+                              const response = await activityAPI.getSystemLogs({
+                                limit: 100,
+                                logType: logTypeFilter === 'all' ? undefined : logTypeFilter
+                              });
+                              if (response.success) {
+                                const mappedLogs = response.data.map((log: any) => ({
+                                  id: log.id,
+                                  userId: log.user_id,
+                                  action: log.action,
+                                  description: log.description,
+                                  ipAddress: log.ip_address,
+                                  createdAt: log.created_at,
+                                  logType: log.log_type,
+                                  resourceType: log.resource_type,
+                                  resourceId: log.resource_id,
+                                  requestMethod: log.request_method,
+                                  requestUrl: log.request_url,
+                                  responseStatus: log.response_status,
+                                  responseTime: log.response_time,
+                                  errorCode: log.error_code,
+                                  errorMessage: log.error_message,
+                                  userAgent: log.user_agent,
+                                  deviceType: log.device_type,
+                                  browser: log.browser,
+                                  os: log.os,
+                                  country: log.country,
+                                  region: log.region,
+                                  city: log.city
+                                }));
+                                setLogs(mappedLogs);
+                              }
+                            } catch (err) {
+                              console.error('重新获取系统日志失败:', err);
+                              setError(err instanceof Error ? err.message : '获取系统日志失败，请稍后重试');
+                            } finally {
+                              setLoading(false);
+                            }
+                          };
+                          fetchLogs();
+                        }} 
+                        className="mt-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        重试
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center text-slate-500">
@@ -222,13 +311,7 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
                     </td>
                     <td className="px-6 py-4">
                       {log.responseStatus ? (
-                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                          log.responseStatus >= 200 && log.responseStatus < 300 
-                            ? 'bg-green-100 text-green-700' 
-                            : log.responseStatus >= 400 
-                            ? 'bg-red-100 text-red-700' 
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${log.responseStatus >= 200 && log.responseStatus < 300 ? 'bg-green-100 text-green-700' : log.responseStatus >= 400 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
                           {log.responseStatus}
                         </span>
                       ) : (

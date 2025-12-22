@@ -663,7 +663,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         <LoadingSpinner fullScreen text="加载中..." />
       )}
       <Routes>
-      <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={jobsError} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
+      <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
       <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} /></CandidateLayout>} />
 
       {/* Message Center Routes */}
@@ -685,6 +685,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
             filterUnread={filterUnread}
             setFilterUnread={setFilterUnread}
             currentUser={localCurrentUser}
+            conversationError={conversationError}
           />
         </CandidateLayout>
       }
@@ -706,6 +707,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
             filterUnread={filterUnread}
             setFilterUnread={setFilterUnread}
             currentUser={localCurrentUser}
+            conversationError={conversationError}
           />
         </CandidateLayout>
       }

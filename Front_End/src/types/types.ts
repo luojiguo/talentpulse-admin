@@ -45,14 +45,17 @@ export enum InsightStatus {
 
 // System User Management Type
 export interface SystemUser {
-  id: string;
+  id: string | number;
   name: string;
   email: string;
   role: UserRole;
+  roles?: UserRole[]; // Support for multiple roles
   status: 'Active' | 'Inactive' | 'Suspended';
   lastLogin: string;
   avatar?: string;
   createdAt: string;
+  created_at?: string; // Backend snake_case support
+  updated_at?: string; // Backend snake_case support
   // 个人基本信息
   phone?: string;
   gender?: string;
@@ -171,10 +174,11 @@ export interface Message {
   sender_name?: string;
   sender_avatar?: string;
   status?: string;
+  file_url?: string;
 }
 
 export interface Conversation {
-  id: string;
+  id: string; // The ID from the DB is numeric but often handled as string in frontend or bigserial
   jobId: string | number;
   candidateId: string | number;
   recruiterId: string | number;
@@ -188,14 +192,37 @@ export interface Conversation {
   status: string;
   createdAt: string;
   updatedAt: string;
-  messages: Message[];
-  // 关联信息
+
+  // Joins
   job_title: string;
   company_name: string;
   candidate_name: string;
   candidate_avatar: string;
   recruiter_name: string;
   recruiter_avatar: string;
+  recruiterUserId: string | number;
+
+  // Optional (populated in detailed view)
+  messages?: Message[];
+
+  // Legacy/Compatibility fields (marked optional to discourage use if not needed)
+  jobTitle?: string;
+  companyName?: string;
+  last_message?: string; // some older code might check this
+  last_time?: string;
+}
+
+export interface MergedConversation extends Conversation {
+  isMerged: boolean;
+  relatedConversationIds: string[];
+  allJobs: Array<{
+    id: string; // conversation ID
+    jobId: string | number;
+    jobTitle: string;
+    companyName: string;
+    updatedAt: string;
+    lastMessage: string;
+  }>;
 }
 
 export interface UserProfile {

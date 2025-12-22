@@ -46,12 +46,12 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
       setLoading(true);
       if (activeTab === 'jobs') {
         const response = await candidateAPI.getCandidateSavedJobs(currentUser.id);
-        if (response.status === 'success') {
+        if ((response as any).status === 'success') {
           setSavedJobs(response.data || []);
         }
       } else {
         const response = await candidateAPI.getCandidateSavedCompanies(currentUser.id);
-        if (response.status === 'success') {
+        if ((response as any).status === 'success') {
           setSavedCompanies(response.data || []);
         }
       }
@@ -66,7 +66,7 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
     e.stopPropagation();
     try {
       const response = await candidateAPI.removeSavedJob(currentUser.id, jobId);
-      if (response.status === 'success') {
+      if ((response as any).status === 'success') {
         setSavedJobs(prev => prev.filter(job => job.id !== jobId));
       }
     } catch (error: any) {
@@ -79,7 +79,7 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
     e.stopPropagation();
     try {
       const response = await candidateAPI.removeSavedCompany(currentUser.id, companyId);
-      if (response.status === 'success') {
+      if ((response as any).status === 'success') {
         setSavedCompanies(prev => prev.filter(company => company.id !== companyId));
       }
     } catch (error: any) {
@@ -120,22 +120,20 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
         <div className="flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab('jobs')}
-            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
-              activeTab === 'jobs'
+            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${activeTab === 'jobs'
                 ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-            }`}
+              }`}
           >
             <Briefcase className="w-5 h-5 inline-block mr-2" />
             收藏的职位 ({savedJobs.length})
           </button>
           <button
             onClick={() => setActiveTab('companies')}
-            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
-              activeTab === 'companies'
+            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${activeTab === 'companies'
                 ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-            }`}
+              }`}
           >
             <Building className="w-5 h-5 inline-block mr-2" />
             收藏的公司 ({savedCompanies.length})

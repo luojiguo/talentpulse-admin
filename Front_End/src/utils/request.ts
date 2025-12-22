@@ -41,16 +41,19 @@ service.interceptors.response.use(
   (response: AxiosResponse) => {
     // 对响应数据做点什么
     // 这里可以根据后端返回的状态码进行统一处理
-    // 假设后端直接返回数据，或者返回 { data: ..., code: ..., message: ... }
+    // 后端实际返回格式：{ status: 'success', data: ... } 或 { status: 'error', message: ... }
     
-    // 如果后端返回的是标准格式
     const res = response.data;
     
-    // 注意：这里需要根据实际后端返回格式进行调整
-    // 如果后端直接返回数据对象，而不是包装在 { code: 200, data: ... } 中
-    // 那么直接返回 res
-    
-    return res;
+    // 转换为前端期望的ApiResponse格式
+    return {
+      code: res.status === 'success' ? 200 : 500,
+      message: res.message || (res.status === 'success' ? 'success' : 'error'),
+      data: res.data,
+      success: res.status === 'success',
+      // 保留原始后端返回的所有字段
+      ...res
+    };
   },
   (error: any) => {
     // 对响应错误做点什么

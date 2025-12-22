@@ -59,7 +59,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
       query("SELECT 'user' as type, id as activity_id, name as user, '注册账号' as action, '用户' as target, created_at as timestamp, 'success' as status FROM users ORDER BY created_at DESC LIMIT 5"),
       query("SELECT 'company' as type, id as activity_id, name as user, '注册公司' as action, '公司' as target, created_at as timestamp, 'success' as status FROM companies ORDER BY created_at DESC LIMIT 5"),
       query("SELECT 'job' as type, j.id as activity_id, c.name as user, '发布职位' as action, j.title as target, j.created_at as timestamp, 'success' as status FROM jobs j JOIN companies c ON j.company_id = c.id ORDER BY j.created_at DESC LIMIT 5"),
-      query("SELECT 'application' as type, a.id as activity_id, u.name as user, '申请职位' as action, j.title as target, a.created_at as timestamp, 'success' as status FROM applications a JOIN users u ON a.user_id = u.id JOIN jobs j ON a.job_id = j.id ORDER BY a.created_at DESC LIMIT 5")
+      query("SELECT 'application' as type, a.id as activity_id, u.name as user, '申请职位' as action, j.title as target, a.created_at as timestamp, 'success' as status FROM applications a JOIN candidates c ON a.candidate_id = c.id JOIN users u ON c.user_id = u.id JOIN jobs j ON a.job_id = j.id ORDER BY a.created_at DESC LIMIT 5")
     ]);
 
     // 格式化趋势数据

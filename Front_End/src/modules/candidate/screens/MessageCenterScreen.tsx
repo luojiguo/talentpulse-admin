@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Search, MessageSquare, Phone, MoreVertical, Send as SendIcon, Plus, Image as ImageIcon, Camera, MapPin, Trash2, ArrowLeft, ChevronDown, Copy, Reply } from 'lucide-react';
-import { Conversation, JobPosting, Message } from '@/types/types';
+import { Conversation, JobPosting, Message, MergedConversation } from '@/types/types';
 import { formatDateTime } from '@/utils/dateUtils';
 import { useDeviceType } from '@/hooks/useMediaQuery';
-import { 
-    getMessageContainerHeight, 
+import {
+    getMessageContainerHeight,
     getMessageContainerPadding,
     getChatWindowClasses,
     getMessageListClasses,
@@ -27,14 +27,16 @@ interface MessageCenterScreenProps {
     filterUnread: boolean;
     setFilterUnread: (filter: boolean) => void;
     currentUser: any;
+    conversationError?: string | null;
 }
 
 const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     conversations, jobs, activeConversationId,
     onSelectConversation,
-    onSendMessage, onUploadImage, onDeleteMessage, onDeleteConversation, 
+    onSendMessage, onUploadImage, onDeleteMessage, onDeleteConversation,
     onLoadMoreMessages,
-    searchText, setSearchText, filterUnread, setFilterUnread, currentUser
+    searchText, setSearchText, filterUnread, setFilterUnread, currentUser,
+    conversationError
 }) => {
     const navigate = useNavigate();
     const { conversationId: paramConversationId } = useParams<{ conversationId: string }>();
@@ -43,11 +45,11 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     const [input, setInput] = useState('');
     const [showExtrasMenu, setShowExtrasMenu] = useState(false);
     // 回复状态
-    const [replyingTo, setReplyingTo] = useState<{ 
-        msgId: number | string, 
-        text: string, 
+    const [replyingTo, setReplyingTo] = useState<{
+        msgId: number | string,
+        text: string,
         senderName: string,
-        isMe: boolean 
+        isMe: boolean
     } | null>(null);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(false);
@@ -61,7 +63,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
             if (paramConversationId && paramConversationId !== activeConversationId) {
                 // 标记正在切换对话，避免 UI 闪烁
                 setIsInitialLoading(true);
-                
+
                 try {
                     // 调用父组件的选择函数（异步获取详情）
                     await onSelectConversation(paramConversationId);
@@ -94,14 +96,14 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     const chatWidth = getChatWindowWidth(isMobile, isTablet);
 
     // Context Menu State
-    const [contextMenu, setContextMenu] = useState<{ 
-        visible: boolean, 
-        x: number, 
-        y: number, 
+    const [contextMenu, setContextMenu] = useState<{
+        visible: boolean,
+        x: number,
+        y: number,
         msgId: number | string | null,
         msgText: string,
         senderName: string,
-        isMe: boolean 
+        isMe: boolean
     }>({
         visible: false, x: 0, y: 0, msgId: null, msgText: '', senderName: '', isMe: false
     });
@@ -110,20 +112,20 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     const handleContextMenu = (e: React.MouseEvent, msg: Message, isMe: boolean) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // 计算菜单位置，确保不超出屏幕
         const menuWidth = 150;
         const menuHeight = 180;
         let x = e.clientX;
         let y = e.clientY;
-        
+
         if (x + menuWidth > window.innerWidth) {
             x = window.innerWidth - menuWidth - 10;
         }
         if (y + menuHeight > window.innerHeight) {
             y = window.innerHeight - menuHeight - 10;
         }
-        
+
         setContextMenu({
             visible: true,
             x,
@@ -161,7 +163,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                 setContextMenu(prev => ({ ...prev, visible: false }));
             }
         };
-        
+
         if (contextMenu.visible) {
             document.addEventListener('click', handleClickOutside);
             document.addEventListener('contextmenu', handleClickOutside);
@@ -175,79 +177,79 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     // 使用 useMemo 优化合并逻辑，避免每次渲染都重新计算
     const mergedConversations = React.useMemo(() => {
         const recruiterMap = new Map<string | number, Conversation[]>();
-        
+
         // 按招聘者ID分组
-        conversations.forEach((conv: any) => {
-            const recruiterId = conv.recruiterUserId || conv.recruiter_user_id || conv.recruiterId || conv.recruiter_id || conv.RecruiterId;
+        conversations.forEach((conv) => {
+            const recruiterId = conv.recruiterUserId;
             if (!recruiterId) return;
             if (!recruiterMap.has(recruiterId)) {
                 recruiterMap.set(recruiterId, []);
             }
             recruiterMap.get(recruiterId)!.push(conv);
         });
-        
-        const merged: Conversation[] = [];
+
+        const merged: MergedConversation[] = [];
         recruiterMap.forEach((convsForRecruiter) => {
-            convsForRecruiter.sort((a: any, b: any) => {
-                const aTime = new Date(a.updatedAt || a.updated_at || a.lastTime || a.last_time || 0).getTime();
-                const bTime = new Date(b.updatedAt || b.updated_at || b.lastTime || b.last_time || 0).getTime();
+            convsForRecruiter.sort((a, b) => {
+                const aTime = new Date(a.updatedAt || a.lastTime || 0).getTime();
+                const bTime = new Date(b.updatedAt || b.lastTime || 0).getTime();
                 return bTime - aTime;
             });
-            
+
             const latestConv = convsForRecruiter[0];
-            const mergedConv: any = {
+            const mergedConv: MergedConversation = {
                 ...latestConv,
                 isMerged: true,
-                relatedConversationIds: convsForRecruiter.map((c: any) => c.id),
-                allJobs: convsForRecruiter.map((c: any) => ({
+                relatedConversationIds: convsForRecruiter.map((c) => c.id),
+                allJobs: convsForRecruiter.map((c) => ({
                     id: c.id,
-                    jobId: c.jobId || c.job_id,
-                    jobTitle: c.job_title || c.jobTitle,
+                    jobId: c.jobId,
+                    jobTitle: c.job_title || c.jobTitle || '职位',
                     companyName: c.company_name,
-                    updatedAt: c.updatedAt || c.updated_at || c.lastTime || c.last_time,
-                    lastMessage: c.lastMessage || c.last_message
+                    updatedAt: c.updatedAt || c.lastTime,
+                    lastMessage: c.lastMessage
                 })),
-                unreadCount: convsForRecruiter.reduce((sum: number, c: any) => sum + (c.unreadCount || c.unread_count || 0), 0),
-                lastTime: latestConv.lastTime || latestConv.last_time || latestConv.updatedAt || latestConv.updated_at,
-                lastMessage: latestConv.lastMessage || latestConv.last_message
+                unreadCount: convsForRecruiter.reduce((sum, c) => sum + (c.unreadCount || 0), 0),
+                lastTime: latestConv.lastTime || latestConv.updatedAt,
+                lastMessage: latestConv.lastMessage
             };
-            
+
             merged.push(mergedConv);
         });
-        
-        return merged.sort((a: any, b: any) => {
-            const aTime = new Date(a.lastTime || a.updatedAt || a.updated_at || 0).getTime();
-            const bTime = new Date(b.lastTime || b.updatedAt || b.updated_at || 0).getTime();
+
+        return merged.sort((a, b) => {
+            const aTime = new Date(a.lastTime || a.updatedAt || 0).getTime();
+            const bTime = new Date(b.lastTime || b.updatedAt || 0).getTime();
             return bTime - aTime;
         });
     }, [conversations]);
 
     // 使用 useMemo 优化搜索过滤
     const filteredConversations = React.useMemo(() => {
-        return mergedConversations.filter((conv: any) => {
+        return mergedConversations.filter((conv) => {
             const recruiterName = conv.recruiter_name || '招聘者';
             const companyName = conv.company_name || '';
-            const matchesSearch = searchText === '' || 
+            const matchesSearch = searchText === '' ||
                 recruiterName.toLowerCase().includes(searchText.toLowerCase()) ||
                 companyName.toLowerCase().includes(searchText.toLowerCase());
             return matchesSearch;
         });
     }, [mergedConversations, searchText]);
 
-    const activeConv = React.useMemo(() => 
+    const activeConv = React.useMemo(() =>
         conversations.find((c: Conversation) => c.id.toString() === activeConversationId?.toString()),
-    [conversations, activeConversationId]);
-    
+        [conversations, activeConversationId]);
+
     // 查找当前对话所属的合并对话组
     const mergedConvForActive = React.useMemo(() => {
         if (!activeConversationId) return null;
-        return filteredConversations.find((conv: any) => 
-            conv.isMerged && conv.relatedConversationIds?.map((id: any) => id.toString()).includes(activeConversationId.toString())
+        return filteredConversations.find((conv) =>
+            conv.isMerged && conv.relatedConversationIds?.map((id) => id.toString()).includes(activeConversationId.toString())
         );
     }, [filteredConversations, activeConversationId]);
     const [showJobSelector, setShowJobSelector] = useState(false);
     const jobSelectorRef = useRef<HTMLDivElement>(null);
-    
+
     // 点击外部关闭职位选择器
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -255,7 +257,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                 setShowJobSelector(false);
             }
         };
-        
+
         if (showJobSelector) {
             document.addEventListener('mousedown', handleClickOutside);
             return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -282,7 +284,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     // 监听滚动
     const handleScroll = async (e: React.UIEvent<HTMLDivElement>) => {
         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-        
+
         // 显示"回到最新"按钮：距离底部超过 300px
         const distanceToBottom = scrollHeight - scrollTop - clientHeight;
         setShowScrollToNew(distanceToBottom > 300);
@@ -292,10 +294,10 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
             setIsLoadingMore(true);
             const container = e.currentTarget;
             const prevScrollHeight = container.scrollHeight;
-            
+
             const count = activeConv?.messages?.length || 0;
             const loaded = await onLoadMoreMessages(activeConversationId, count);
-            
+
             if (!loaded) {
                 setHasMore(false);
             } else {
@@ -377,11 +379,17 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        {/* 显示对话错误信息 */}
+                        {conversationError && typeof conversationError === 'string' && (
+                            <div className="m-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                                {conversationError}
+                            </div>
+                        )}
                         {filteredConversations.length > 0 ? (
-                            filteredConversations.map((conv: any) => {
+                            filteredConversations.map((conv) => {
                                 // 检查当前活动对话是否属于这个合并的对话组
-                                const isActive = conv.isMerged 
-                                    ? conv.relatedConversationIds?.some((id: any) => id.toString() === activeConversationId?.toString())
+                                const isActive = conv.isMerged
+                                    ? conv.relatedConversationIds?.some((id) => id.toString() === activeConversationId?.toString())
                                     : conv.id.toString() === activeConversationId?.toString();
                                 const recruiterName = conv.recruiter_name || '招聘者';
                                 const recruiterAvatar = conv.recruiter_avatar || '';
@@ -469,8 +477,8 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                             <div className="p-4 border-b bg-white flex justify-between items-center shadow-sm z-10 shrink-0">
                                 <div className="flex items-center gap-3">
                                     {isMobile && (
-                                        <button 
-                                            onClick={() => navigate('/messages')} 
+                                        <button
+                                            onClick={() => navigate('/messages')}
                                             className="p-1 -ml-2 mr-1 text-gray-600 hover:text-indigo-600 transition-colors"
                                             aria-label="返回消息列表"
                                         >
@@ -496,12 +504,12 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                     <ChevronDown className={`w-3 h-3 transition-transform ${showJobSelector ? 'rotate-180' : ''}`} />
                                                 </button>
                                                 {showJobSelector && (
-                                                    <div 
+                                                    <div
                                                         ref={jobSelectorRef}
                                                         className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-60 overflow-y-auto"
                                                     >
-                                                        {mergedConvForActive.allJobs.map((job: any) => {
-                                                            const isCurrentJob = job.id === activeConversationId;
+                                                        {mergedConvForActive.allJobs.map((job) => {
+                                                            const isCurrentJob = job.id.toString() === activeConversationId?.toString();
                                                             return (
                                                                 <button
                                                                     key={job.id}
@@ -509,9 +517,8 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                         navigate(`/messages/${job.id}`);
                                                                         setShowJobSelector(false);
                                                                     }}
-                                                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 transition-colors ${
-                                                                        isCurrentJob ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-700'
-                                                                    }`}
+                                                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 transition-colors ${isCurrentJob ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-700'
+                                                                        }`}
                                                                 >
                                                                     <div className="font-medium">{job.jobTitle || '职位'}</div>
                                                                     <div className="text-gray-500 truncate">{job.companyName || activeConv.company_name}</div>
@@ -581,7 +588,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                         {msg.sender_avatar ? <img src={msg.sender_avatar} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs">{msg.sender_name?.[0]}</span>}
                                                     </div>
                                                 )}
-                                                <div 
+                                                <div
                                                     className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
                                                     ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'}
                                                     hover:shadow-md transition-shadow
@@ -590,9 +597,9 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 >
                                                     {msg.type === 'image' && msg.file_url ? (
                                                         <div className="space-y-1">
-                                                            <img 
-                                                                src={msg.file_url} 
-                                                                alt="图片消息" 
+                                                            <img
+                                                                src={msg.file_url}
+                                                                alt="图片消息"
                                                                 className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                                                                 onClick={() => window.open(msg.file_url, '_blank')}
                                                                 loading="lazy"
@@ -606,8 +613,8 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                 {/* 回复引用部分 */}
                                                                 <div className={`
                                                                     px-2.5 py-1.5 rounded-lg text-xs border-l-2
-                                                                    ${isMe 
-                                                                        ? 'bg-indigo-500/30 border-indigo-300/50 text-indigo-100' 
+                                                                    ${isMe
+                                                                        ? 'bg-indigo-500/30 border-indigo-300/50 text-indigo-100'
                                                                         : 'bg-gray-100 border-gray-300 text-gray-500'
                                                                     }
                                                                 `}>
@@ -636,10 +643,10 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         );
                                     })}
                                 </div>
-                                
+
                                 {/* 回到最新消息按钮 */}
                                 {showScrollToNew && (
-                                    <button 
+                                    <button
                                         onClick={() => scrollToLatest(true)}
                                         className="absolute bottom-4 right-4 p-2 bg-white text-indigo-600 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 transition-all"
                                         aria-label="回到最新消息"
@@ -651,10 +658,10 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
 
                             {/* 右键菜单 */}
                             {contextMenu.visible && (
-                                <div 
+                                <div
                                     className="fixed bg-white rounded-xl shadow-2xl border border-gray-100 py-2 z-50 min-w-[140px] animate-in fade-in zoom-in-95 duration-150"
-                                    style={{ 
-                                        left: contextMenu.x, 
+                                    style={{
+                                        left: contextMenu.x,
                                         top: contextMenu.y,
                                     }}
                                     onClick={(e) => e.stopPropagation()}
@@ -713,7 +720,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                     {replyingTo.text || '[图片]'}
                                                 </p>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => setReplyingTo(null)}
                                                 className="flex-shrink-0 p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white/60 rounded-full transition-colors"
                                                 aria-label="取消回复"
@@ -754,16 +761,16 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                 </div>
                                 {showExtrasMenu && (
                                     <div className="p-4 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-2">
-                                        <input 
-                                            type="file" 
-                                            ref={fileInputRef} 
-                                            onChange={handleFileChange} 
-                                            accept="image/*" 
-                                            className="hidden" 
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleFileChange}
+                                            accept="image/*"
+                                            className="hidden"
                                         />
                                         {[
-                                            { icon: ImageIcon, label: '图片', action: () => fileInputRef.current?.click() }, 
-                                            { icon: Camera, label: '拍摄', action: () => {} }, 
+                                            { icon: ImageIcon, label: '图片', action: () => fileInputRef.current?.click() },
+                                            { icon: Camera, label: '拍摄', action: () => { } },
                                             { icon: MapPin, label: '位置', action: () => handleSend('广东省深圳市...', 'location') }
                                         ].map((item, i) => (
                                             <button key={i} className="flex flex-col items-center gap-2" onClick={item.action}>

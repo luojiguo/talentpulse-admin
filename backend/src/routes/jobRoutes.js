@@ -4,94 +4,25 @@ const router = express.Router();
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
 
-// 智能推荐职位 - 根据用户信息使用AI分析匹配度
-router.get('/recommended/:userId', asyncHandler(async (req, res) => {
-    const { userId } = req.params;
-    
-    // 获取用户信息
-    const userResult = await query(`
-        SELECT 
-            u.major,
-            u.desired_position,
-            u.skills,
-            u.education,
-            u.work_experience_years,
-            c.preferred_locations,
-            c.availability_status
-        FROM users u
-        LEFT JOIN candidates c ON u.id = c.user_id
-        WHERE u.id = $1
-    `, [userId], 30000);
-    
-    if (userResult.rows.length === 0) {
-        const error = new Error('用户不存在');
-        error.statusCode = 404;
-        error.errorCode = 'USER_NOT_FOUND';
-        throw error;
-    }
-    
-    const userInfo = userResult.rows[0];
-    const { major, desired_position, skills, education, work_experience_years, preferred_locations, availability_status } = userInfo;
-    
-    // 获取所有活跃职位
-    const allJobsResult = await query(`
-        SELECT 
-          j.id,
-          j.title,
-          j.location,
-          j.salary,
-          j.description,
-          j.experience,
-          j.degree,
-          j.type,
-          j.work_mode,
-          j.job_level,
-          j.department,
-          j.status,
-          j.publish_date,
-          j.created_at,
-          j.updated_at,
-          j.company_id,
-          j.recruiter_id,
-          j.required_skills,
-          j.preferred_skills,
-          j.benefits,
-          c.name AS company_name,
-          u.name AS recruiter_name,
-          u.avatar AS recruiter_avatar,
-          r.position AS recruiter_position,
-          r.id AS recruiter_table_id
-        FROM jobs j
-        LEFT JOIN companies c ON j.company_id = c.id
-        LEFT JOIN recruiters r ON j.recruiter_id = r.id
-        LEFT JOIN users u ON r.user_id = u.id
-        WHERE j.status = 'active'
-        ORDER BY j.created_at DESC
-        LIMIT 200
-    `, [], 30000);
-    
-    const allJobs = allJobsResult.rows;
-    
-    // 如果没有用户专业和期望职位信息，返回所有职位
-    if (!major && !desired_position) {
-        return res.json({
-            status: 'success',
-            data: allJobs,
-            count: allJobs.length,
-            message: '用户信息不完整，返回所有职位'
-        });
-    }
-    
-    // 尝试使用AI进行智能匹配 - 默认禁用AI以提高性能，除非明确需要
-    let matchedJobs = [];
-    const aiApiKey = process.env.QIANWEN_API_KEY || process.env.VITE_QIANWEN_API_KEY;
-    const useAI = req.query.useAI === 'true'; // 只有明确要求才使用AI
-    
-    if (aiApiKey && useAI) {
-        try {
-            // ... 保持原有AI逻辑 ...
-            // 构建用户信息摘要
-            const userContext = `
+// --- Helper function for non-blocking AI recommendation ---
+const triggerAIRecommendation = async (userId, userInfo, allJobs) => {
+    console.log(`Triggering AI recommendation for user ${userId}`);
+    try {
+        // Mark existing recommendations as outdated or create a new entry
+        await query(
+            `INSERT INTO job_recommendations (user_id, status) VALUES ($1, 'pending')
+             ON CONFLICT (user_id) DO UPDATE SET status = 'pending', updated_at = CURRENT_TIMESTAMP`,
+            [userId]
+        );
+
+        const { major, desired_position, skills, education, work_experience_years, preferred_locations } = userInfo;
+        const aiApiKey = process.env.QIANWEN_API_KEY || process.env.VITE_QIANWEN_API_KEY;
+
+        if (!aiApiKey) {
+            throw new Error('AI API key is not configured.');
+        }
+
+        const userContext = `
 用户信息：
 - 专业：${major || '未填写'}
 - 期望职位：${desired_position || '未填写'}
@@ -99,102 +30,193 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
 - 工作经验：${work_experience_years || 0}年
 - 技能：${Array.isArray(skills) ? skills.join(', ') : (skills || '未填写')}
 - 期望地点：${preferred_locations || '未填写'}
-            `.trim();
-            
-            // 构建职位信息摘要（只取前50个职位，避免token过多）
-            const jobsSummary = allJobs.slice(0, 50).map((job, index) => {
-                const requiredSkills = Array.isArray(job.required_skills) 
-                    ? job.required_skills.join(', ') 
-                    : (job.required_skills || '');
-                return `${index + 1}. 职位：${job.title}，地点：${job.location}，要求：${job.experience}经验，${job.degree}学历，技能：${requiredSkills}`;
-            }).join('\n');
-            
-            const aiPrompt = `你是一个专业的职位匹配助手。请根据以下用户信息，从职位列表中选择最匹配的职位ID（返回格式：用逗号分隔的职位序号，如：1,3,5,7）。
+        `.trim();
+        
+        const jobsSummary = allJobs.slice(0, 50).map((job, index) => {
+            const requiredSkills = Array.isArray(job.required_skills) ? job.required_skills.join(', ') : (job.required_skills || '');
+            return `${index + 1}. 职位ID ${job.id}：${job.title}，地点：${job.location}，要求：${job.experience}经验，${job.degree}学历，技能：${requiredSkills}`;
+        }).join('\n');
+
+        const aiPrompt = `你是一个专业的职位匹配助手。请根据以下用户信息，从职位列表中选择最匹配的职位ID（返回格式：用逗号分隔的职位ID，如：1,3,5,7）。
 
 ${userContext}
 
 职位列表：
 ${jobsSummary}
 
-请只返回最匹配的职位序号（最多20个），用逗号分隔，不要其他文字。如果没有匹配的，返回空字符串。`;
+请只返回最匹配的职位ID（最多20个），用逗号分隔，不要其他文字。如果没有匹配的，返回空字符串。`;
+
+        const aiUrl = process.env.QIANWEN_API_URL || process.env.VITE_QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for AI
+
+        const aiResponse = await fetch(aiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${aiApiKey}`
+            },
+            body: JSON.stringify({
+                model: 'qwen-turbo',
+                messages: [{ role: 'system', content: '你是一个专业的职位匹配助手，只返回匹配的职位ID，用逗号分隔。' }, { role: 'user', content: aiPrompt }],
+                temperature: 0.3
+            }),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!aiResponse.ok) {
+            throw new Error(`AI API request failed with status ${aiResponse.status}`);
+        }
+
+        const aiData = await aiResponse.json();
+        const aiContent = aiData.choices?.[0]?.message?.content || '';
+        
+        const matchedJobIds = aiContent.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+
+        // Update the recommendations table with the result
+        await query(
+            "UPDATE job_recommendations SET status = 'completed', job_ids = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2",
+            [matchedJobIds, userId]
+        );
+        console.log(`AI recommendation completed for user ${userId}. Found ${matchedJobIds.length} jobs.`);
+
+    } catch (error) {
+        console.error(`AI recommendation failed for user ${userId}:`, error.message);
+        await query("UPDATE job_recommendations SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE user_id = $1", [userId]);
+    }
+};
+
+// 智能推荐职位 - 优化版本
+router.get('/recommended/:userId', asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    const useAI = req.query.useAI === 'true';
+
+    // 检查缓存的AI推荐结果 (1小时内有效)
+    const cachedResult = await query(
+        "SELECT * FROM job_recommendations WHERE user_id = $1 AND status = 'completed' AND updated_at > NOW() - INTERVAL '1 hour'",
+        [userId]
+    );
+
+    if (cachedResult.rows.length > 0 && !useAI) {
+        const jobIds = cachedResult.rows[0].job_ids;
+        if (jobIds && jobIds.length > 0) {
+            const jobsResult = await query(`
+                SELECT j.*, c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar, r.position AS recruiter_position
+                FROM jobs j
+                LEFT JOIN companies c ON j.company_id = c.id
+                LEFT JOIN recruiters r ON j.recruiter_id = r.id
+                LEFT JOIN users u ON r.user_id = u.id
+                WHERE j.id = ANY($1) AND j.status = 'active'
+            `, [jobIds]);
             
-            const aiUrl = process.env.QIANWEN_API_URL || process.env.VITE_QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-            
-            // 使用AbortController实现超时
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-            
-            const aiResponse = await fetch(aiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${aiApiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'qwen-turbo',
-                    messages: [
-                        { role: 'system', content: '你是一个专业的职位匹配助手，只返回匹配的职位序号，用逗号分隔。' },
-                        { role: 'user', content: aiPrompt }
-                    ],
-                    temperature: 0.3
-                }),
-                signal: controller.signal
+            return res.json({
+                status: 'success',
+                message: '从缓存中获取推荐结果',
+                data: jobsResult.rows,
+                count: jobsResult.rows.length,
+                method: 'cache'
             });
-            
-            clearTimeout(timeoutId);
-            
-            if (aiResponse.ok) {
-                const aiData = await aiResponse.json();
-                const aiContent = aiData.choices?.[0]?.message?.content || '';
-                
-                // 解析AI返回的职位序号
-                const matchedIndices = aiContent
-                    .split(',')
-                    .map(s => parseInt(s.trim()))
-                    .filter(n => !isNaN(n) && n > 0 && n <= 50)
-                    .map(n => n - 1); // 转换为数组索引
-                
-                matchedJobs = matchedIndices.map(idx => allJobs[idx]).filter(Boolean);
-            }
-        } catch (error) {
-            console.error('AI匹配失败，使用关键词匹配:', error.message);
         }
     }
-    
-    // 如果AI匹配失败或未配置，使用关键词匹配作为降级方案
-    if (matchedJobs.length === 0) {
-        const keywords = [];
-        if (major) keywords.push(major);
-        if (desired_position) keywords.push(desired_position);
-        if (Array.isArray(skills)) keywords.push(...skills);
-        
+
+    // 1. 获取用户信息
+    const userResult = await query(`
+        SELECT u.major, u.desired_position, u.skills, u.education, u.work_experience_years, c.preferred_locations
+        FROM users u LEFT JOIN candidates c ON u.id = c.user_id WHERE u.id = $1
+    `, [userId]);
+
+    if (userResult.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: '用户不存在' });
+    }
+    const userInfo = userResult.rows[0];
+
+    // 2. 获取所有活跃职位 (限制数量提高速度)
+    const allJobsResult = await query(`
+        SELECT j.id, j.title, j.description, j.required_skills, c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar, r.position AS recruiter_position
+        FROM jobs j
+        LEFT JOIN companies c ON j.company_id = c.id
+        LEFT JOIN recruiters r ON j.recruiter_id = r.id
+        LEFT JOIN users u ON r.user_id = u.id
+        WHERE j.status = 'active' ORDER BY j.created_at DESC LIMIT 100
+    `);
+    const allJobs = allJobsResult.rows;
+
+    // 3. 如果需要，触发异步AI推荐 (不等待)
+    if (useAI) {
+        triggerAIRecommendation(userId, userInfo, allJobs).catch(err => console.error("Error in detached AI recommendation:", err));
+    }
+
+    // 4. 立即返回基于关键词的匹配结果作为基线
+    let matchedJobs;
+    const { major, desired_position, skills } = userInfo;
+    if (!major && !desired_position) {
+        matchedJobs = allJobs.slice(0, 20);
+    } else {
+        const keywords = [major, desired_position, ...(Array.isArray(skills) ? skills : [])].filter(Boolean);
         matchedJobs = allJobs.filter(job => {
             const jobText = `${job.title} ${job.description} ${Array.isArray(job.required_skills) ? job.required_skills.join(' ') : ''}`.toLowerCase();
-            return keywords.some(keyword => 
-                keyword && jobText.includes(keyword.toLowerCase())
-            );
+            return keywords.some(keyword => jobText.includes(keyword.toLowerCase()));
         });
+        if (matchedJobs.length === 0) {
+            matchedJobs = allJobs.slice(0, 20);
+        }
     }
-    
-    // 如果还是没有匹配的，返回前20个最新职位
-    if (matchedJobs.length === 0) {
-        matchedJobs = allJobs.slice(0, 20);
-    }
-    
+
     res.json({
         status: 'success',
-        data: matchedJobs,
-        count: matchedJobs.length,
-        method: aiApiKey ? 'ai' : 'keyword'
+        message: useAI ? '初步推荐结果已返回，AI正在处理更精准的匹配...' : '推荐结果已生成',
+        data: matchedJobs.slice(0, 20),
+        count: Math.min(matchedJobs.length, 20),
+        method: 'keyword'
     });
 }));
 
-// 获取所有职位 - 优化查询性能，支持按招聘者和公司过滤
+// 新增: 获取AI推荐结果的状态和数据
+router.get('/recommended/:userId/status', asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+
+    const recommendationResult = await query('SELECT * FROM job_recommendations WHERE user_id = $1', [userId]);
+
+    if (recommendationResult.rows.length === 0) {
+        return res.json({ status: 'not_started', message: 'AI推荐尚未开始' });
+    }
+
+    const recommendation = recommendationResult.rows[0];
+
+    if (recommendation.status === 'completed') {
+        const jobIds = recommendation.job_ids;
+        if (!jobIds || jobIds.length === 0) {
+            return res.json({ status: 'completed', data: [], message: 'AI推荐完成，没有找到匹配的职位。' });
+        }
+        // 根据IDs获取完整的职位信息
+        const jobsResult = await query(`
+            SELECT 
+              j.id, j.title, j.location, j.salary, j.description, j.experience, j.degree, j.type,
+              j.work_mode, j.job_level, j.department, j.status, j.publish_date, j.created_at,
+              j.updated_at, j.company_id, j.recruiter_id, j.required_skills, j.preferred_skills, j.benefits,
+              c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
+              r.position AS recruiter_position, r.id AS recruiter_table_id
+            FROM jobs j
+            LEFT JOIN companies c ON j.company_id = c.id
+            LEFT JOIN recruiters r ON j.recruiter_id = r.id
+            LEFT JOIN users u ON r.user_id = u.id
+            WHERE j.id = ANY($1::int[])
+        `, [jobIds]);
+        return res.json({ status: 'completed', data: jobsResult.rows, count: jobsResult.rows.length, message: 'AI推荐已完成' });
+    }
+
+    res.json({ status: recommendation.status, message: `AI推荐正在处理中...` });
+}));
+
+// 获取所有职位 - 支持分页和过滤
 router.get('/', asyncHandler(async (req, res) => {
-    const { recruiterId, companyId, excludeRecruiterId } = req.query;
+    const { recruiterId, companyId, excludeRecruiterId, page = 1, limit = 20 } = req.query;
 
     // 构建查询条件
-    const conditions = [];
+    const conditions = ["j.status = 'active'"];
     const values = [];
     let paramIndex = 1;
 
@@ -217,50 +239,36 @@ router.get('/', asyncHandler(async (req, res) => {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const offset = (page - 1) * limit;
 
-    // 使用统一的query函数，自动处理超时
-    // 优化查询：只选择需要的字段，减少数据传输量
-    // 增加查询超时时间到30秒，因为可能涉及多表JOIN
+    // 获取总数的查询
+    const totalResult = await query(`SELECT COUNT(*) FROM jobs j ${whereClause}`, values);
+    const totalCount = parseInt(totalResult.rows[0].count, 10);
+
+    // 获取分页数据的查询
     const result = await query(`
         SELECT 
-          j.id,
-          j.title,
-          j.location,
-          j.salary,
-          j.description,
-          j.experience,
-          j.degree,
-          j.type,
-          j.work_mode,
-          j.job_level,
-          j.department,
-          j.status,
-          j.publish_date,
-          j.created_at,
-          j.updated_at,
-          j.company_id,
-          j.recruiter_id,
-          j.required_skills,
-          j.preferred_skills,
-          j.benefits,
-          c.name AS company_name,
-          u.name AS recruiter_name,
-          u.avatar AS recruiter_avatar,
-          r.position AS recruiter_position,
-          r.id AS recruiter_table_id
+          j.id, j.title, j.location, j.salary, j.description, j.experience, j.degree, j.type,
+          j.work_mode, j.job_level, j.department, j.status, j.publish_date, j.created_at,
+          j.updated_at, j.company_id, j.recruiter_id, j.required_skills, j.preferred_skills, j.benefits,
+          c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
+          r.position AS recruiter_position, r.id AS recruiter_table_id
         FROM jobs j
         LEFT JOIN companies c ON j.company_id = c.id
         LEFT JOIN recruiters r ON j.recruiter_id = r.id
         LEFT JOIN users u ON r.user_id = u.id
         ${whereClause}
         ORDER BY j.created_at DESC
-        LIMIT 100
-    `, values, 30000);
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `, [...values, limit, offset], 30000);
 
     res.json({
       status: 'success',
       data: result.rows,
-      count: result.rows.length
+      count: result.rows.length,
+      total: totalCount,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10)
     });
 }));
 

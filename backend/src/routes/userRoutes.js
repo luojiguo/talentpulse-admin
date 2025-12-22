@@ -198,10 +198,16 @@ router.post('/register', registerValidator, asyncHandler(async (req, res) => {
         [userId, companyId, false]
       );
     } else if (userType === 'candidate') {
-      // 创建求职者记录
+      // 创建求职者记录 - candidate_user表
       await client.query(
-        'INSERT INTO candidate_user (user_id, is_verified, status, created_at, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
-        [userId, true, 'active']
+        'INSERT INTO candidate_user (user_id, is_verified, created_at, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        [userId, true]
+      );
+
+      // 关键修复：同时创建 candidates 表记录，否则消息功能无法使用
+      await client.query(
+        'INSERT INTO candidates (user_id, created_at, updated_at, availability_status) VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $2)',
+        [userId, 'available']
       );
     }
 
@@ -514,7 +520,7 @@ router.post('/switch-role', asyncHandler(async (req, res) => {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        
+
         // 创建招聘者记录
         if (companyName) {
           // 检查公司是否存在
@@ -551,7 +557,7 @@ router.post('/switch-role', asyncHandler(async (req, res) => {
              VALUES ($1, $2, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           [userId, companyId]
         );
-        
+
         await client.query('COMMIT');
         needsVerification = true;
       } catch (err) {
@@ -586,10 +592,38 @@ router.post('/switch-role', asyncHandler(async (req, res) => {
     );
 
     if (candidateUserResult.rows.length === 0) {
-      // 创建求职者记录
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // 创建求职者基础记录
+        await client.query(
+          `INSERT INTO candidate_user (user_id, is_verified, created_at, updated_at)
+             VALUES ($1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [userId]
+        );
+
+        // 关键修复：同时创建 candidates 表记录，否则消息功能无法使用
+        await client.query(
+          `INSERT INTO candidates (user_id, created_at, updated_at, availability_status)
+             VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'available')
+             ON CONFLICT (user_id) DO NOTHING`,
+          [userId]
+        );
+
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } else {
+      // 即使 candidate_user 存在，也检查 candidates 表是否存在记录
       await query(
-        `INSERT INTO candidate_user (user_id, is_verified, created_at, updated_at)
-           VALUES ($1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        `INSERT INTO candidates (user_id, created_at, updated_at, availability_status)
+             VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'available')
+             ON CONFLICT (user_id) DO NOTHING`,
         [userId]
       );
     }

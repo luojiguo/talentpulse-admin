@@ -13,7 +13,6 @@ import { userAPI, companyAPI } from './services/apiService';
 // 使用系统定义的用户类型
 interface User extends SystemUser {
   needs_verification?: boolean; // 添加需要认证的标记
-  created_at: string;
 }
 
 const AuthScreen: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthSuccess }) => {

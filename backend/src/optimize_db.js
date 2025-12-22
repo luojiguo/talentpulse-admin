@@ -1,6 +1,22 @@
 const { pool, query } = require('./config/db');
 
 async function optimizeDatabase() {
+    // 创建必要的表（如果不存在）
+    console.log('检查并创建必要的表...');
+    try {
+        await query(`
+            CREATE TABLE IF NOT EXISTS job_recommendations (
+                user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                status VARCHAR(20) DEFAULT 'pending',
+                job_ids INTEGER[],
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        console.log('✅ job_recommendations 表检查完成');
+    } catch (error) {
+        console.error('❌ 创建 job_recommendations 表失败:', error.message);
+    }
+
     console.log('开始优化数据库索引...');
     
     const indexesToAdd = [
@@ -12,31 +28,21 @@ async function optimizeDatabase() {
         { table: 'user_roles', column: 'user_id', name: 'idx_user_roles_user_id' },
         
         // 招聘者扩展表
-        { table: 'recruiter_user', column: 'user_id', name: 'idx_recruiter_user_user_id' },
-        { table: 'recruiter_user', column: 'company_id', name: 'idx_recruiter_user_company_id' },
+        { table: 'recruiters', column: 'user_id', name: 'idx_recruiters_user_id' },
+        { table: 'recruiters', column: 'company_id', name: 'idx_recruiters_company_id' },
         
-        // 简历表
-        { table: 'resumes', column: 'candidate_id', name: 'idx_resumes_candidate_id' },
-        
-        // 申请表
-        { table: 'applications', column: 'candidate_id', name: 'idx_applications_candidate_id' },
-        { table: 'applications', column: 'job_id', name: 'idx_applications_job_id' },
-        { table: 'applications', column: 'resume_id', name: 'idx_applications_resume_id' },
-        
-        // 消息表
-        { table: 'messages', column: 'sender_id', name: 'idx_messages_sender_id' },
-        { table: 'messages', column: 'receiver_id', name: 'idx_messages_receiver_id' },
-        { table: 'messages', column: 'conversation_id', name: 'idx_messages_conversation_id' },
-        
-        // 会话表
-        { table: 'conversations', column: 'job_id', name: 'idx_conversations_job_id' },
-        { table: 'conversations', column: 'candidate_id', name: 'idx_conversations_candidate_id' },
-        { table: 'conversations', column: 'recruiter_id', name: 'idx_conversations_recruiter_id' },
+        // 候选人扩展表
+        { table: 'candidates', column: 'user_id', name: 'idx_candidates_user_id' },
         
         // 职位表
         { table: 'jobs', column: 'company_id', name: 'idx_jobs_company_id' },
         { table: 'jobs', column: 'recruiter_id', name: 'idx_jobs_recruiter_id' },
         { table: 'jobs', column: 'created_at', name: 'idx_jobs_created_at' },
+        { table: 'jobs', column: 'status', name: 'idx_jobs_status' },
+
+        // 公司表
+        { table: 'companies', column: 'status', name: 'idx_companies_status' },
+        { table: 'companies', column: 'is_verified', name: 'idx_companies_is_verified' },
 
         // 时间戳索引（用于动态和统计）
         { table: 'users', column: 'created_at', name: 'idx_users_created_at' },

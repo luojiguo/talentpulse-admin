@@ -30,7 +30,11 @@ export default defineConfig(({ mode }) => {
           },
           '/api': {
             target: 'http://localhost:3001',
-            changeOrigin: true
+            changeOrigin: true,
+            rewrite: (p) => {
+              // 处理重复的/api前缀问题
+              return p.replace(/^\/api\/api/, '/api');
+            }
           }
         },
         // 禁用可能导致日志的功能
@@ -50,9 +54,13 @@ export default defineConfig(({ mode }) => {
           },
           '/api': {
             target: 'http://localhost:3001',
-            changeOrigin: true
+            changeOrigin: true,
+            rewrite: (p) => {
+              // 处理重复的/api前缀问题
+              return p.replace(/^\/api\/api/, '/api');
+            }
           }
-        }
+        },
       },
       plugins: [react()],
       define: {
@@ -83,6 +91,6 @@ export default defineConfig(({ mode }) => {
         minify: 'esbuild', // 使用 esbuild 替代 terser，无需额外安装
         sourcemap: false // 禁用sourcemap，减少日志输出
       },
-      logLevel: 'silent' // 最小化日志输出
+      logLevel: 'info' // 显示必要的日志信息，包括错误
     };
 });
