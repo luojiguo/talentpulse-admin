@@ -15,8 +15,12 @@ export const messageAPI = {
   },
 
   // 获取对话详情 (兼容旧代码命名)
-  getConversationDetail: (conversationId: string | number) => {
-    return request.get(`/messages/conversations/${conversationId}/messages`);
+  getConversationDetail: (conversationId: string | number, limit?: number, offset?: number, sort?: string) => {
+    const params: any = {};
+    if (limit) params.limit = limit;
+    if (offset) params.offset = offset;
+    if (sort) params.sort = sort;
+    return request.get(`/messages/conversations/${conversationId}/messages`, { params });
   },
 
   // 发送消息

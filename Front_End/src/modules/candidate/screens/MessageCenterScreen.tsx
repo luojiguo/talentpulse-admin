@@ -177,11 +177,17 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     // 使用 useMemo 优化合并逻辑，避免每次渲染都重新计算
     const mergedConversations = React.useMemo(() => {
         const recruiterMap = new Map<string | number, Conversation[]>();
+        const noRecruiterIdConversations: Conversation[] = [];
 
         // 按招聘者ID分组
         conversations.forEach((conv) => {
-            const recruiterId = conv.recruiterUserId;
-            if (!recruiterId) return;
+            // 支持多种招聘者ID字段名
+            const recruiterId = conv.recruiterUserId || conv.recruiter_id || conv.recruiterId || conv.RecruiterId;
+            if (!recruiterId) {
+                // 如果没有招聘者ID，单独处理
+                noRecruiterIdConversations.push(conv);
+                return;
+            }
             if (!recruiterMap.has(recruiterId)) {
                 recruiterMap.set(recruiterId, []);
             }
@@ -189,6 +195,8 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
         });
 
         const merged: MergedConversation[] = [];
+        
+        // 处理有招聘者ID的对话，进行合并
         recruiterMap.forEach((convsForRecruiter) => {
             convsForRecruiter.sort((a, b) => {
                 const aTime = new Date(a.updatedAt || a.lastTime || 0).getTime();
@@ -214,6 +222,27 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                 lastMessage: latestConv.lastMessage
             };
 
+            merged.push(mergedConv);
+        });
+        
+        // 处理没有招聘者ID的对话，直接添加到合并列表中
+        noRecruiterIdConversations.forEach((conv) => {
+            const mergedConv: MergedConversation = {
+                ...conv,
+                isMerged: false,
+                relatedConversationIds: [conv.id],
+                allJobs: [{
+                    id: conv.id,
+                    jobId: conv.jobId,
+                    jobTitle: conv.job_title || conv.jobTitle || '职位',
+                    companyName: conv.company_name || '',
+                    updatedAt: conv.updatedAt || conv.lastTime || new Date().toISOString(),
+                    lastMessage: conv.lastMessage || conv.last_message || '暂无消息'
+                }],
+                unreadCount: conv.unreadCount || 0,
+                lastTime: conv.lastTime || conv.updatedAt || new Date().toISOString(),
+                lastMessage: conv.lastMessage || conv.last_message || '暂无消息'
+            };
             merged.push(mergedConv);
         });
 

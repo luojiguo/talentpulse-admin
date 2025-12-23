@@ -126,7 +126,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 直接调用 API，API 服务层已经处理了超时（60秒）
       const response = await messageAPI.getConversations(currentUser.id);
 
-      if ((response as any).status === 'success') {
+      if ((response as any).success) {
         const newData = response.data || [];
         
         setConversations(prevConversations => {
@@ -189,8 +189,29 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
       // 获取对话的详细消息，默认获取最新的15条，减少首屏渲染压力
       const response = await (messageAPI as any).getConversationDetail(idToSet, limit, offset, 'desc');
-      if ((response as any).status === 'success') {
-        const { conversation, messages, total } = response.data;
+      if ((response as any).success) {
+        let messages: any[] = [];
+        let conversation: any = null;
+        let total: number = 0;
+
+        // 处理不同的后端响应结构
+        if (Array.isArray(response.data)) {
+          // 后端直接返回消息数组
+          messages = response.data;
+        } else if (response.data.messages) {
+          // 后端返回包含messages字段的对象
+          messages = response.data.messages;
+          conversation = response.data.conversation;
+          total = response.data.total || messages.length;
+        } else if (response.data.data && response.data.data.messages) {
+          // 后端返回包含data.messages字段的对象
+          messages = response.data.data.messages;
+          conversation = response.data.data.conversation;
+          total = response.data.data.total || messages.length;
+        } else {
+          // 其他情况，尝试将整个响应数据作为消息数组
+          messages = response.data || [];
+        }
 
         // 更新对话列表中的消息，并进行去重和排序
         setConversations(prevConversations =>
@@ -221,7 +242,10 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                 total_messages: total,
                 // 如果后端返回了最新的对话信息，也可以在这里更新
                 lastMessage: conversation?.last_message || conversation?.lastMessage || conv.lastMessage,
-                lastTime: conversation?.last_time || conversation?.lastTime || conv.lastTime
+                lastTime: conversation?.last_time || conversation?.lastTime || conv.lastTime,
+                // 标记消息为已读后，重置未读计数
+                unreadCount: 0,
+                candidateUnread: 0
               };
             }
             return conv;
@@ -241,8 +265,24 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 获取更早的消息 (offset = 当前已加载的消息数)
       const response = await (messageAPI as any).getConversationDetail(idToFetch, 20, currentMessageCount, 'desc');
       
-      if ((response as any).status === 'success') {
-        const { messages } = response.data;
+      if ((response as any).success) {
+        let messages: any[] = [];
+
+        // 处理不同的后端响应结构
+        if (Array.isArray(response.data)) {
+          // 后端直接返回消息数组
+          messages = response.data;
+        } else if (response.data.messages) {
+          // 后端返回包含messages字段的对象
+          messages = response.data.messages;
+        } else if (response.data.data && response.data.data.messages) {
+          // 后端返回包含data.messages字段的对象
+          messages = response.data.data.messages;
+        } else {
+          // 其他情况，尝试将整个响应数据作为消息数组
+          messages = response.data || [];
+        }
+
         if (!messages || messages.length === 0) return false;
 
         // 排序新获取的消息（升序，最早在上）
@@ -305,7 +345,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         type
       } as any);
 
-      if ((response as any).status === 'success') {
+      if ((response as any).success) {
         // 更新本地对话列表
         const updatedConversations = conversations.map(c => {
           if (c.id.toString() === activeConversationId.toString()) {
@@ -356,7 +396,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 调用后端API删除消息，传入deletedBy参数
       const response = await messageAPI.deleteMessage(messageId, { deletedBy: currentUser.id });
 
-      if ((response as any).status === 'success') {
+      if ((response as any).success) {
         // 更新本地对话列表，从消息列表中移除删除的消息
         setConversations(prevConversations =>
           prevConversations.map(conv => {
@@ -392,7 +432,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 调用后端API删除对话
       const response = await messageAPI.deleteConversation(conversationId);
 
-      if ((response as any).status === 'success') {
+      if ((response as any).success) {
         // 从本地状态中删除对话
         setConversations(prevConversations =>
           prevConversations.filter(conv => conv.id.toString() !== conversationId.toString())
@@ -428,7 +468,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         file
       );
 
-      if ((response as any).status === 'success') {
+      if ((response as any).success) {
         // 更新本地对话列表
         const updatedConversations = conversations.map(c => {
           if (c.id.toString() === conversationId.toString()) {
@@ -552,7 +592,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         message: defaultMessage
       });
 
-      if ((response as any).status === 'success') {
+      if ((response as any).success) {
         const { conversationId, message: sentMessage } = response.data;
 
         // 创建新的对话对象，包含完整的招聘者信息，实现双向绑定
