@@ -126,7 +126,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 直接调用 API，API 服务层已经处理了超时（60秒）
       const response = await messageAPI.getConversations(currentUser.id);
 
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         const newData = response.data || [];
         
         setConversations(prevConversations => {
@@ -189,7 +189,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
       // 获取对话的详细消息，默认获取最新的15条，减少首屏渲染压力
       const response = await (messageAPI as any).getConversationDetail(idToSet, limit, offset, 'desc');
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         let messages: any[] = [];
         let conversation: any = null;
         let total: number = 0;
@@ -265,7 +265,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 获取更早的消息 (offset = 当前已加载的消息数)
       const response = await (messageAPI as any).getConversationDetail(idToFetch, 20, currentMessageCount, 'desc');
       
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         let messages: any[] = [];
 
         // 处理不同的后端响应结构
@@ -345,7 +345,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         type
       } as any);
 
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         // 更新本地对话列表
         const updatedConversations = conversations.map(c => {
           if (c.id.toString() === activeConversationId.toString()) {
@@ -396,7 +396,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 调用后端API删除消息，传入deletedBy参数
       const response = await messageAPI.deleteMessage(messageId, { deletedBy: currentUser.id });
 
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         // 更新本地对话列表，从消息列表中移除删除的消息
         setConversations(prevConversations =>
           prevConversations.map(conv => {
@@ -432,7 +432,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 调用后端API删除对话
       const response = await messageAPI.deleteConversation(conversationId);
 
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         // 从本地状态中删除对话
         setConversations(prevConversations =>
           prevConversations.filter(conv => conv.id.toString() !== conversationId.toString())
@@ -468,7 +468,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         file
       );
 
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         // 更新本地对话列表
         const updatedConversations = conversations.map(c => {
           if (c.id.toString() === conversationId.toString()) {
@@ -592,7 +592,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         message: defaultMessage
       });
 
-      if ((response as any).success) {
+      if ((response as any).status === 'success') {
         const { conversationId, message: sentMessage } = response.data;
 
         // 创建新的对话对象，包含完整的招聘者信息，实现双向绑定

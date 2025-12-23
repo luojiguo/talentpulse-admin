@@ -20,7 +20,7 @@ export const messageAPI = {
     if (limit) params.limit = limit;
     if (offset) params.offset = offset;
     if (sort) params.sort = sort;
-    return request.get(`/messages/conversations/${conversationId}/messages`, { params });
+    return request.get(`/messages/conversation/${conversationId}`, { params });
   },
 
   // 发送消息
@@ -30,29 +30,27 @@ export const messageAPI = {
 
   // 创建对话并发送第一条消息
   createConversationAndSendMessage: (data: { jobId: string | number, candidateId: string | number, recruiterId: string | number, message: string }) => {
-    return request.post('/messages/conversations/create', data);
+    return request.post('/messages/conversations', data);
   },
 
   // 标记消息为已读
   markAsRead: (conversationId: string | number, userId: string | number) => {
-    return request.post(`/messages/conversations/${conversationId}/read`, { userId });
+    return request.put(`/messages/read/${conversationId}/${userId}`);
   },
 
   // 批量标记消息为已读 (兼容旧代码命名)
   markMessagesAsRead: (conversationId: string | number, userId: string | number) => {
-    return request.post(`/messages/conversations/${conversationId}/read`, { userId });
+    return request.put(`/messages/read/${conversationId}/${userId}`);
   },
 
   // 上传聊天图片
   uploadChatImage: (conversationId: string | number, senderId: string | number, receiverId: string | number, file: File) => {
     const formData = new FormData();
-    formData.append('file', file);
-    formData.append('conversationId', conversationId.toString());
+    formData.append('image', file);
     formData.append('senderId', senderId.toString());
     formData.append('receiverId', receiverId.toString());
-    formData.append('type', 'image');
 
-    return request.post('/messages/upload', formData, {
+    return request.post(`/messages/upload-image/${conversationId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -61,11 +59,11 @@ export const messageAPI = {
 
   // 删除/隐藏消息
   deleteMessage: (messageId: string | number, data: { deletedBy: string | number }) => {
-    return request.delete(`/messages/${messageId}`, { data });
+    return request.delete(`/messages/messages/${messageId}`, { data });
   },
   
   // 删除对话（软删除）
   deleteConversation: (conversationId: string | number) => {
-    return request.delete(`/messages/conversations/${conversationId}`);
+    return request.delete(`/messages/conversation/${conversationId}`);
   },
 };
