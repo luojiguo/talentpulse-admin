@@ -11,6 +11,9 @@ const iconv = require('iconv-lite');
 const { createValidator } = require('../middleware/validators');
 const { asyncHandler } = require('../middleware/errorHandler');
 const jwt = require('jsonwebtoken');
+const AppError = require('../utils/AppError');
+const { sendVerificationEmail, sendPasswordResetSuccessEmail } = require('../services/emailService');
+const { logAction } = require('../middleware/logger');
 
 // 修复中文文件名编码
 function fixFilenameEncoding(filename) {
@@ -44,10 +47,7 @@ router.post('/login', loginValidator, asyncHandler(async (req, res) => {
   );
 
   if (userQuery.rows.length === 0) {
-    const error = new Error('用户不存在');
-    error.statusCode = 401;
-    error.errorCode = 'USER_NOT_FOUND';
-    throw error;
+    throw new AppError('用户不存在', 401, 'USER_NOT_FOUND');
   }
 
   const user = userQuery.rows[0];
@@ -56,18 +56,12 @@ router.post('/login', loginValidator, asyncHandler(async (req, res) => {
   // 验证密码
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) {
-    const error = new Error('密码错误');
-    error.statusCode = 401;
-    error.errorCode = 'INVALID_PASSWORD';
-    throw error;
+    throw new AppError('密码错误', 401, 'INVALID_PASSWORD');
   }
 
   // 验证用户角色
   if (!userRoles.includes(userType)) {
-    const error = new Error('用户无此角色权限');
-    error.statusCode = 403;
-    error.errorCode = 'INSUFFICIENT_PERMISSIONS';
-    throw error;
+    throw new AppError('用户无此角色权限', 403, 'INSUFFICIENT_PERMISSIONS');
   }
 
   // 生成JWT token
@@ -111,6 +105,9 @@ router.post('/login', loginValidator, asyncHandler(async (req, res) => {
     }
   }
 
+  // 记录登录日志
+  await logAction(req, res, '用户登录', `${user.name} 成功登录系统`, 'login', { type: 'user', id: user.id });
+
   // 返回成功响应
   res.json({
     status: 'success',
@@ -122,7 +119,8 @@ router.post('/login', loginValidator, asyncHandler(async (req, res) => {
 
 // 注册路由验证
 const registerValidator = createValidator({
-  required: ['name', 'email', 'phone', 'password', 'userType'],
+  required: ['name', 'password', 'userType'],
+  // email和phone至少需要一个
   email: 'email',
   phone: 'phone',
   password: 'password',
@@ -135,22 +133,36 @@ const registerValidator = createValidator({
 router.post('/register', registerValidator, asyncHandler(async (req, res) => {
   const { name, email, phone, password, userType } = req.body;
 
-  // 检查邮箱是否已存在
-  const emailCheck = await query('SELECT id FROM users WHERE email = $1', [email]);
-  if (emailCheck.rows.length > 0) {
-    const error = new Error('邮箱已被注册');
-    error.statusCode = 400;
-    error.errorCode = 'EMAIL_EXISTS';
-    throw error;
+  // 检查角色是否合法，不允许注册管理员
+  if (userType === 'admin') {
+    throw new AppError('不允许直接注册管理员账号', 403, 'INVALID_ROLE');
   }
 
-  // 检查手机号是否已存在
-  const phoneCheck = await query('SELECT id FROM users WHERE phone = $1', [phone]);
-  if (phoneCheck.rows.length > 0) {
-    const error = new Error('手机号已被注册');
-    error.statusCode = 400;
-    error.errorCode = 'PHONE_EXISTS';
-    throw error;
+  // 验证邮箱和手机号至少有一个
+  if (!email && !phone) {
+    throw new AppError('邮箱和手机号至少需要提供一个', 400, 'EMAIL_OR_PHONE_REQUIRED');
+  }
+
+  // 检查邮箱是否已存在（如果提供了邮箱）
+  if (email) {
+    const emailCheck = await query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+    if (emailCheck.rows.length > 0) {
+      throw new AppError('邮箱已被注册', 400, 'EMAIL_EXISTS');
+    }
+  }
+
+  // 检查手机号是否已存在（如果提供了手机号）
+  if (phone) {
+    const phoneCheck = await query(
+      'SELECT id FROM users WHERE phone = $1',
+      [phone]
+    );
+    if (phoneCheck.rows.length > 0) {
+      throw new AppError('手机号已被注册', 400, 'PHONE_EXISTS');
+    }
   }
 
   // 密码加密
@@ -213,19 +225,22 @@ router.post('/register', registerValidator, asyncHandler(async (req, res) => {
 
     await client.query('COMMIT');
 
-    // 返回成功响应
-    res.status(201).json({
-      status: 'success',
-      message: '注册成功',
-      data: {
-        id: userId,
-        name,
-        email,
-        phone,
-        roles: [userType],
-        role: userType
-      }
-    });
+    // 记录注册日志
+  await logAction(req, res, '用户注册', `新用户 ${name} 成功注册为 ${userType}`, 'create', { type: 'user', id: userId });
+
+  // 返回成功响应
+  res.status(201).json({
+    status: 'success',
+    message: '注册成功',
+    data: {
+      id: userId,
+      name,
+      email,
+      phone,
+      roles: [userType],
+      role: userType
+    }
+  });
 
   } catch (error) {
     await client.query('ROLLBACK');
@@ -251,6 +266,61 @@ const chineseToPinyin = (text) => {
     return text;
   }
 };
+
+// 用于存储验证码的内存存储（生产环境建议使用Redis）
+const verificationCodes = new Map();
+
+// 生成6位数字验证码
+const generateVerificationCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// 发送验证码路由验证
+const sendCodeValidator = createValidator({
+  required: ['identifier']
+});
+
+// 发送验证码路由
+router.post('/send-verification-code', sendCodeValidator, asyncHandler(async (req, res) => {
+  const { identifier } = req.body;
+
+  // 查找用户
+  const userQuery = await query(
+    'SELECT id, email, phone FROM users WHERE email = $1 OR phone = $1',
+    [identifier]
+  );
+
+  // 无论用户是否存在，都生成并发送验证码（防止攻击者通过验证码判断邮箱是否已注册）
+  // 但只有存在的用户才能通过后续验证
+  const user = userQuery.rows[0];
+  const code = generateVerificationCode();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10分钟后过期
+
+  // 存储验证码
+  verificationCodes.set(identifier, {
+    code,
+    expiresAt,
+    userId: user ? user.id : null
+  });
+
+  // 检查是否是邮箱地址
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (emailRegex.test(identifier)) {
+    // 发送邮件验证码
+    await sendVerificationEmail(identifier, code);
+  } else {
+    // 这里可以添加短信验证码发送逻辑
+    console.log(`向用户 ${identifier} 发送验证码: ${code}`);
+  }
+
+  res.json({
+    status: 'success',
+    message: '验证码发送成功，请注意查收',
+    data: {
+      expiresIn: 600 // 验证码有效期（秒）
+    }
+  });
+}));
 
 // 确保前端public/avatars目录存在
 // backend/src/routes/userRoutes.js -> backend/src -> backend -> root -> Front_End
@@ -303,10 +373,7 @@ router.post('/:id/avatar', asyncHandler(async (req, res) => {
   // 检查用户是否存在
   const userCheck = await query('SELECT id, avatar FROM users WHERE id = $1', [id]);
   if (userCheck.rows.length === 0) {
-    const error = new Error('用户不存在');
-    error.statusCode = 404;
-    error.errorCode = 'USER_NOT_FOUND';
-    throw error;
+    throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
   }
 
   // 使用multer处理上传
@@ -404,10 +471,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // 检查用户是否存在
   const userResult = await query('SELECT * FROM users WHERE id = $1', [id]);
   if (userResult.rows.length === 0) {
-    const error = new Error('User not found');
-    error.statusCode = 404;
-    error.errorCode = 'USER_NOT_FOUND';
-    throw error;
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
   }
 
   // 更新用户信息
@@ -465,6 +529,9 @@ router.put('/:id', asyncHandler(async (req, res) => {
     }
   }
 
+  // 记录更新用户信息日志
+  await logAction(req, res, '更新用户信息', `用户 ${updateResult.rows[0].name} 更新了个人信息`, 'update', { type: 'user', id: id });
+
   res.json({
     status: 'success',
     message: 'User information updated successfully',
@@ -479,10 +546,7 @@ router.post('/switch-role', asyncHandler(async (req, res) => {
   // 验证用户是否存在
   const userResult = await query('SELECT * FROM users WHERE id = $1', [userId]);
   if (userResult.rows.length === 0) {
-    const error = new Error('用户不存在');
-    error.statusCode = 404;
-    error.errorCode = 'USER_NOT_FOUND';
-    throw error;
+    throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
   }
 
   const user = userResult.rows[0];
@@ -497,10 +561,7 @@ router.post('/switch-role', asyncHandler(async (req, res) => {
 
   // 验证用户是否有该角色
   if (!roles.includes(newRole)) {
-    const error = new Error('您没有该角色权限');
-    error.statusCode = 403;
-    error.errorCode = 'INSUFFICIENT_PERMISSIONS';
-    throw error;
+    throw new AppError('您没有该角色权限', 403, 'INSUFFICIENT_PERMISSIONS');
   }
 
   // 角色切换逻辑
@@ -700,10 +761,319 @@ router.get('/config/genders', asyncHandler(async (req, res) => {
   });
 }));
 
+// 验证验证码路由验证
+const verifyCodeValidator = createValidator({
+  required: ['identifier', 'code']
+});
+
+// 验证验证码路由
+router.post('/verify-code', verifyCodeValidator, asyncHandler(async (req, res) => {
+  const { identifier, code } = req.body;
+
+  // 查找验证码
+  const storedCode = verificationCodes.get(identifier);
+
+  if (!storedCode) {
+    throw new AppError('验证码不存在或已过期', 400, 'INVALID_CODE');
+  }
+
+  // 检查验证码是否过期
+  if (Date.now() > storedCode.expiresAt) {
+    verificationCodes.delete(identifier);
+    throw new AppError('验证码已过期', 400, 'CODE_EXPIRED');
+  }
+
+  // 检查验证码是否正确
+  if (code !== storedCode.code) {
+    throw new AppError('验证码错误', 400, 'INVALID_CODE');
+  }
+
+  // 验证成功，生成一个临时token用于重置密码
+  const resetToken = jwt.sign(
+    { userId: storedCode.userId, identifier },
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '10m' } // 10分钟有效期
+  );
+
+  res.json({
+    status: 'success',
+    message: '验证码验证成功',
+    data: {
+      resetToken
+    }
+  });
+}));
+
+// 注销账号路由
+router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  // 验证用户是否存在
+  const userCheck = await query('SELECT id, email, phone FROM users WHERE id = $1', [id]);
+  if (userCheck.rows.length === 0) {
+    throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
+  }
+
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    // 1. 删除用户相关的所有关联数据
+    // 删除用户角色关联
+    await client.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
+    
+    // 删除用户头像文件（如果存在）
+    const user = userCheck.rows[0];
+    if (user.avatar && user.avatar.startsWith('/avatars/')) {
+      const avatarPath = path.join(frontendAvatarsDir, path.basename(user.avatar));
+      if (fs.existsSync(avatarPath)) {
+        try {
+          fs.unlinkSync(avatarPath);
+        } catch (e) {
+          console.error('删除用户头像失败:', e);
+        }
+      }
+    }
+    
+    // 2. 删除求职者相关数据
+    // 先获取求职者ID
+    const candidateCheck = await client.query('SELECT id FROM candidates WHERE user_id = $1', [id]);
+    if (candidateCheck.rows.length > 0) {
+      const candidateId = candidateCheck.rows[0].id;
+      // 删除求职者简历
+      await client.query('DELETE FROM resumes WHERE candidate_id = $1', [candidateId]);
+    }
+    
+    // 删除求职者记录
+    await client.query('DELETE FROM candidate_user WHERE user_id = $1', [id]);
+    await client.query('DELETE FROM candidates WHERE user_id = $1', [id]);
+    
+    // 3. 删除招聘者相关数据
+    // 获取招聘者关联的公司ID
+    const recruiterCheck = await client.query('SELECT company_id FROM recruiter_user WHERE user_id = $1', [id]);
+    if (recruiterCheck.rows.length > 0) {
+      const companyId = recruiterCheck.rows[0].company_id;
+      
+      // 删除招聘者记录
+      await client.query('DELETE FROM recruiter_user WHERE user_id = $1', [id]);
+      await client.query('DELETE FROM recruiters WHERE user_id = $1', [id]);
+      
+      // 检查是否还有其他招聘者关联该公司
+      const otherRecruiters = await client.query('SELECT id FROM recruiter_user WHERE company_id = $1', [companyId]);
+      if (otherRecruiters.rows.length === 0) {
+        // 如果没有其他招聘者，删除公司及其相关数据
+        // 删除公司Logo文件
+        const companyLogoCheck = await client.query('SELECT logo FROM companies WHERE id = $1', [companyId]);
+        if (companyLogoCheck.rows[0]?.logo) {
+          const logoPath = path.join(__dirname, '../../../Front_End/public', companyLogoCheck.rows[0].logo);
+          if (fs.existsSync(logoPath)) {
+            try {
+              fs.unlinkSync(logoPath);
+            } catch (e) {
+              console.error('删除公司Logo失败:', e);
+            }
+          }
+        }
+        
+        // 删除公司营业执照文件
+        const companyLicenseCheck = await client.query('SELECT business_license FROM companies WHERE id = $1', [companyId]);
+        if (companyLicenseCheck.rows[0]?.business_license) {
+          const licensePath = path.join(__dirname, '../../../Front_End/public', companyLicenseCheck.rows[0].business_license);
+          if (fs.existsSync(licensePath)) {
+            try {
+              fs.unlinkSync(licensePath);
+            } catch (e) {
+              console.error('删除公司营业执照失败:', e);
+            }
+          }
+        }
+        
+        // 删除公司职位
+        await client.query('DELETE FROM job_postings WHERE company_id = $1', [companyId]);
+        
+        // 删除公司
+        await client.query('DELETE FROM companies WHERE id = $1', [companyId]);
+      }
+    }
+    
+    // 4. 最后删除用户本身
+    await client.query('DELETE FROM users WHERE id = $1', [id]);
+    
+    await client.query('COMMIT');
+    
+    // 记录账号注销日志
+    await logAction(req, res, '账号注销', `用户 ${userCheck.rows[0].email || userCheck.rows[0].phone} 成功注销账号`, 'delete', { type: 'user', id: id });
+
+    res.json({
+      status: 'success',
+      message: '账号注销成功，所有相关数据已清除'
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('账号注销失败:', error);
+    throw new AppError('账号注销失败，请稍后重试', 500, 'ACCOUNT_DELETION_FAILED');
+  } finally {
+    client.release();
+  }
+}));
+
+// 重置密码路由验证
+const resetPasswordValidator = createValidator({
+  required: ['resetToken', 'newPassword']
+});
+
+// 重置密码路由
+router.post('/reset-password', resetPasswordValidator, asyncHandler(async (req, res) => {
+  const { resetToken, newPassword } = req.body;
+
+  try {
+    // 验证重置token
+    const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'your-secret-key');
+    const { userId } = decoded;
+
+    // 检查用户是否存在
+    const userQuery = await query(
+      'SELECT id, email FROM users WHERE id = $1',
+      [userId]
+    );
+
+    if (userQuery.rows.length === 0) {
+      throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
+    }
+
+    const user = userQuery.rows[0];
+
+    // 加密新密码
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // 更新密码
+    await query(
+      'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashedPassword, userId]
+    );
+
+    // 发送密码重置成功邮件
+    if (user.email) {
+      await sendPasswordResetSuccessEmail(user.email);
+    }
+
+    res.json({
+      status: 'success',
+      message: '密码重置成功'
+    });
+  } catch (err) {
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      throw new AppError('重置链接无效或已过期', 400, 'INVALID_RESET_TOKEN');
+    }
+    throw err;
+  }
+}));
+
+// 发送邮箱绑定验证码路由验证
+const sendEmailBindCodeValidator = createValidator({
+  required: ['email']
+});
+
+// 发送邮箱绑定验证码路由
+router.post('/send-email-bind-code', sendEmailBindCodeValidator, asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const userId = req.user?.id; // 从认证中间件获取
+
+  if (!userId) {
+    throw new AppError('用户未登录', 401, 'UNAUTHORIZED');
+  }
+
+  // 检查邮箱是否已被其他用户使用
+  const emailCheck = await query(
+    'SELECT id FROM users WHERE email = $1 AND id != $2',
+    [email, userId]
+  );
+
+  if (emailCheck.rows.length > 0) {
+    throw new AppError('邮箱已被其他用户使用', 400, 'EMAIL_EXISTS');
+  }
+
+  // 生成验证码
+  const code = generateVerificationCode();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10分钟后过期
+
+  // 存储验证码，使用userId_email作为键
+  verificationCodes.set(`${userId}_email`, {
+    code,
+    expiresAt,
+    userId,
+    email
+  });
+
+  // 发送邮件验证码
+  await sendVerificationEmail(email, code);
+
+  res.json({
+    status: 'success',
+    message: '验证码发送成功，请注意查收',
+    data: {
+      expiresIn: 600 // 验证码有效期（秒）
+    }
+  });
+}));
+
+// 绑定邮箱路由验证
+const bindEmailValidator = createValidator({
+  required: ['email', 'code']
+});
+
+// 绑定邮箱路由
+router.post('/bind-email', bindEmailValidator, asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+  const userId = req.user?.id; // 从认证中间件获取
+
+  if (!userId) {
+    throw new AppError('用户未登录', 401, 'UNAUTHORIZED');
+  }
+
+  // 查找验证码
+  const storedCode = verificationCodes.get(`${userId}_email`);
+
+  if (!storedCode) {
+    throw new AppError('验证码不存在或已过期', 400, 'INVALID_CODE');
+  }
+
+  // 检查验证码是否过期
+  if (Date.now() > storedCode.expiresAt) {
+    verificationCodes.delete(`${userId}_email`);
+    throw new AppError('验证码已过期', 400, 'CODE_EXPIRED');
+  }
+
+  // 检查验证码是否正确
+  if (code !== storedCode.code) {
+    throw new AppError('验证码错误', 400, 'INVALID_CODE');
+  }
+
+  // 检查验证码对应的邮箱是否匹配
+  if (email !== storedCode.email) {
+    throw new AppError('验证码与邮箱不匹配', 400, 'EMAIL_MISMATCH');
+  }
+
+  // 更新用户邮箱
+  await query(
+    'UPDATE users SET email = $1, email_verified = true, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+    [email, userId]
+  );
+
+  // 删除使用过的验证码
+  verificationCodes.delete(`${userId}_email`);
+
+  res.json({
+    status: 'success',
+    message: '邮箱绑定成功'
+  });
+}));
+
 // 获取所有用户
 router.get('/', asyncHandler(async (req, res) => {
   const result = await query(
-    `SELECT u.id, u.name, u.email, u.phone, u.avatar, u.created_at, u.updated_at,
+    `SELECT u.id, u.name, u.email, u.phone, u.password, u.avatar, u.created_at, u.updated_at,
               json_agg(ur.role) as roles
        FROM users u
        JOIN user_roles ur ON u.id = ur.user_id

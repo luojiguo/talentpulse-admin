@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Calendar, AlertCircle, CheckCircle, XCircle, Info, Filter } from 'lucide-react';
+import { Search, Calendar, AlertCircle, CheckCircle, XCircle, Info, Filter, Download } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
 import { Language } from '@/types/types';
 import { activityAPI } from '@/services/activityService';
+import Pagination from '@/components/Pagination';
+import { exportToCSV } from '../helpers';
 
 interface SystemLog {
   id: number;
@@ -37,18 +39,38 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [logTypeFilter, setLogTypeFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
+  
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         setLoading(true);
         setError(null);
+        
+        // 根据dateFilter计算startDate和endDate
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+        
+        if (dateFilter !== 'all') {
+          const now = new Date();
+          const daysAgo = parseInt(dateFilter);
+          const filterDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+          startDate = filterDate.toISOString();
+          endDate = now.toISOString();
+        }
+        
         // 从后端获取系统日志
         const response = await activityAPI.getSystemLogs({
           limit: 100, // 获取更多日志以便筛选
-          logType: logTypeFilter === 'all' ? undefined : logTypeFilter
+          logType: logTypeFilter === 'all' ? undefined : logTypeFilter,
+          startDate,
+          endDate
         });
-        if (response.success) {
+        if (response.status === 'success') {
           // 将后端数据映射到前端SystemLog类型
           const mappedLogs = response.data.map((log: any) => ({
             id: log.id,
@@ -85,7 +107,7 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
     };
 
     fetchLogs();
-  }, [logTypeFilter]);
+  }, [logTypeFilter, dateFilter]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
@@ -109,6 +131,13 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
       return matchesSearch && matchesType && matchesDate;
     });
   }, [logs, searchTerm, logTypeFilter, dateFilter]);
+  
+  // 计算分页数据
+  const paginatedLogs = useMemo(() => {
+    setTotalItems(filteredLogs.length);
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredLogs.slice(startIndex, startIndex + pageSize);
+  }, [filteredLogs, currentPage, pageSize]);
 
   const getLogTypeColor = (logType?: string) => {
     switch(logType) {
@@ -150,9 +179,6 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">系统日志</h1>
-      </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex gap-4 justify-between items-center flex-wrap">
@@ -193,6 +219,13 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
               <option value="30">最近30天</option>
               <option value="90">最近90天</option>
             </select>
+            <button 
+              onClick={() => exportToCSV(filteredLogs, 'system_logs')}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all"
+              disabled={loading}
+            >
+              <Download size={16}/> 导出
+            </button>
           </div>
         </div>
 
@@ -229,11 +262,26 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
                           const fetchLogs = async () => {
                             try {
                               setError(null);
+                              
+                              // 根据dateFilter计算startDate和endDate
+                              let startDate: string | undefined;
+                              let endDate: string | undefined;
+                              
+                              if (dateFilter !== 'all') {
+                                const now = new Date();
+                                const daysAgo = parseInt(dateFilter);
+                                const filterDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+                                startDate = filterDate.toISOString();
+                                endDate = now.toISOString();
+                              }
+                              
                               const response = await activityAPI.getSystemLogs({
                                 limit: 100,
-                                logType: logTypeFilter === 'all' ? undefined : logTypeFilter
+                                logType: logTypeFilter === 'all' ? undefined : logTypeFilter,
+                                startDate,
+                                endDate
                               });
-                              if (response.success) {
+                              if (response.status === 'success') {
                                 const mappedLogs = response.data.map((log: any) => ({
                                   id: log.id,
                                   userId: log.user_id,
@@ -283,7 +331,7 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map(log => (
+                paginatedLogs.map(log => (
                   <tr key={log.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
@@ -326,6 +374,20 @@ const SystemLogsView: React.FC<{ lang: Language }> = ({ lang }) => {
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* 分页组件 */}
+        <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+          <Pagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            onPageChange={(page) => setCurrentPage(page)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1); // 重置到第一页
+            }}
+          />
         </div>
       </div>
     </div>

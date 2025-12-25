@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Calendar, Clock, MapPin, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Search, Calendar, Clock, MapPin, FileText, CheckCircle, XCircle, AlertCircle, Download } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
 import { Language } from '@/types/types';
+import Pagination from '@/components/Pagination';
+import { exportToCSV } from '../helpers';
 
 interface Onboarding {
   id: number;
@@ -27,6 +29,11 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     const fetchOnboardings = async () => {
@@ -61,6 +68,13 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
       return matchesSearch && matchesStatus;
     });
   }, [onboardings, searchTerm, statusFilter]);
+  
+  // 计算分页数据
+  const paginatedOnboardings = useMemo(() => {
+    setTotalItems(filteredOnboardings.length);
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredOnboardings.slice(startIndex, startIndex + pageSize);
+  }, [filteredOnboardings, currentPage, pageSize]);
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -109,6 +123,13 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
               <option value="Completed">已完成</option>
               <option value="Pending">待安排</option>
             </select>
+            <button 
+              onClick={() => exportToCSV(filteredOnboardings, 'onboardings')}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all"
+              disabled={loading}
+            >
+              <Download size={16}/> 导出
+            </button>
           </div>
         </div>
 
@@ -141,7 +162,7 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
                   </td>
                 </tr>
               ) : (
-                filteredOnboardings.map(onboarding => (
+                paginatedOnboardings.map(onboarding => (
                   <tr key={onboarding.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
                     <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
                       {onboarding.candidateName || '未知'}
@@ -201,6 +222,20 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
               )}
             </tbody>
           </table>
+        </div>
+        
+        {/* 分页组件 */}
+        <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+          <Pagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalItems={totalItems}
+            onPageChange={(page) => setCurrentPage(page)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1); // 重置到第一页
+            }}
+          />
         </div>
       </div>
     </div>

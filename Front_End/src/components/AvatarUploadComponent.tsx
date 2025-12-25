@@ -10,13 +10,15 @@ interface AvatarUploadComponentProps {
   onAvatarUpdate?: (newAvatarPath: string) => void; // 头像更新回调
   size?: number; // 头像大小
   defaultAvatar?: string; // 默认头像
+  userId?: string | number; // 用户ID，用于API请求
 }
 
 const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
   avatarPath,
   onAvatarUpdate,
   size = 120,
-  defaultAvatar = ''
+  defaultAvatar = '',
+  userId
 }) => {
   // 状态管理
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -54,43 +56,67 @@ const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
         return Upload.LIST_IGNORE;
       }
 
+      // 检查userId是否存在
+      if (!userId) {
+        message.error('用户ID缺失，无法上传头像');
+        return Upload.LIST_IGNORE;
+      }
+
       // 创建FormData进行文件上传
       const formData: FormData = new FormData();
       formData.append('avatar', file);
 
+      // 获取认证token
+      const token = localStorage.getItem('token');
+
       // 发送文件到服务器
-      const response = await fetch('/api/users/avatar', {
+      const response = await fetch(`/api/users/${userId}/avatar`, {
         method: 'POST',
         headers: {
-          // 实际项目中应该从认证状态获取token
-          // 'Authorization': `Bearer ${localStorage.getItem('token')}`
+          // 添加认证token
+          ...(token && { Authorization: `Bearer ${token}` })
         },
         body: formData
       });
 
       if (!response.ok) {
-        throw new Error('上传失败');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || '上传失败');
       }
 
       const data = await response.json();
       
-      // 更新头像路径
-      if (data.avatarPath) {
+      // 更新头像路径，安全访问data.avatar
+      if (data && data.data && data.data.avatar) {
+        const newAvatarPath = data.data.avatar;
         // 更新本地状态
-        setLocalAvatarPath(data.avatarPath);
+        setLocalAvatarPath(newAvatarPath);
+        
+        // 更新 localStorage 中的 currentUser 头像
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          const currentUser = JSON.parse(storedUser);
+          currentUser.avatar = newAvatarPath;
+          localStorage.setItem('currentUser', JSON.stringify(currentUser));
+          // 触发自定义事件，通知其他组件更新头像
+          window.dispatchEvent(new CustomEvent('userAvatarUpdated', { detail: { avatar: newAvatarPath } }));
+        }
         
         // 调用外部回调
         if (onAvatarUpdate) {
-          onAvatarUpdate(data.avatarPath);
+          onAvatarUpdate(newAvatarPath);
         }
         
         message.success('头像上传成功');
+      } else {
+        throw new Error('无效的响应数据');
       }
 
       return Upload.LIST_IGNORE; // 阻止自动上传列表更新
     } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : '头像上传失败，请重试';
       console.error('头像上传失败:', error);
-      message.error('头像上传失败，请重试');
+      message.error(errorMessage);
       return Upload.LIST_IGNORE;
     } finally {
       setAvatarUploading(false);
@@ -174,12 +200,32 @@ const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
 export default AvatarUploadComponent;
 
 // 头像路径处理工具函数 - 可单独使用
-export const processAvatarUrl = (avatarPath: string): string => {
-  if (!avatarPath) return '';
-  let url = avatarPath;
+export const processAvatarUrl = (avatarPath: string, defaultAvatar?: string): string => {
+  if (!avatarPath) return defaultAvatar || '';
+  let url = avatarPath.trim();
+  
+  // 如果是完整的HTTP/HTTPS URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // 确保路径以斜杠开头
   if (!url.startsWith('/')) {
     url = '/' + url;
   }
-  const timestamp = new Date().getTime();
-  return `${url}?t=${timestamp}`;
+  
+  // 如果路径包含 /avatars/，添加时间戳以强制刷新缓存
+  // 这样在上传新头像后，浏览器会立即显示新头像
+  if (url.includes('/avatars/')) {
+    const timestamp = new Date().getTime();
+    return `${url}?t=${timestamp}`;
+  }
+  
+  return url;
+};
+
+// 生成默认头像URL的工具函数
+export const generateDefaultAvatar = (seed: string): string => {
+  // 使用DiceBear API生成随机头像
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed || 'default'}`;
 };

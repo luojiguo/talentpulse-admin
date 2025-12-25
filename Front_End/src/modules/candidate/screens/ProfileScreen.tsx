@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Modal } from 'antd';
 import { userAPI, candidateAPI, resumeAPI } from '../../../services/apiService';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 
 // 修复文件名编码问题的函数
 const fixFilenameEncoding = (filename: string): string => {
@@ -44,9 +46,10 @@ interface CandidateData {
 
 interface ProfileScreenProps {
     currentUser?: { id: number | string };
+    onUpdateUser?: (user: any) => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
+const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser }) => {
     const [user, setUser] = useState<UserData | null>(null);
     const [candidateProfile, setCandidateProfile] = useState<CandidateData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -250,7 +253,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
 
             const res = await userAPI.uploadAvatar(String(userId), file);
 
-            setUser(prev => prev ? ({ ...prev, avatar: res.data.avatar }) : null);
+            setUser(prev => prev ? ({ ...prev, avatar: processAvatarUrl(res.data.avatar) }) : null);
+            // 更新全局用户状态，确保导航栏头像同步更新
+            onUpdateUser?.({ ...currentUser, avatar: processAvatarUrl(res.data.avatar) });
             setMessage({ type: 'success', text: '头像更新成功' });
         } catch (error: any) {
             setMessage({ type: 'error', text: error.message || '头像上传失败' });
@@ -331,8 +336,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
                 <div className="p-8 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-6">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
                         <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md bg-gray-200">
-                            {user?.avatar && (user.avatar.startsWith('http') || user.avatar.startsWith('/avatars/')) ? (
-                                <img src={user.avatar} alt="头像" className="w-full h-full object-cover" />
+                            {user?.avatar && user.avatar.trim() !== '' ? (
+                                <img src={processAvatarUrl(user.avatar)} alt="头像" className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl font-bold">
                                     {user?.name?.charAt(0).toUpperCase() || 'U'}
@@ -676,6 +681,77 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser }) => {
                         </button>
                     </div>
                 </form>
+                
+                {/* 注销账号功能 */}
+                <div className="p-8 border-t border-gray-100 bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">账号管理</h3>
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <button
+                            onClick={() => {
+                                Modal.confirm({
+                                    title: '确认注销账号',
+                                    content: (
+                                        <div>
+                                            <p className="mb-4">确定要注销账号吗？</p>
+                                            <p className="text-red-500 font-medium">
+                                                此操作不可恢复，所有数据将被永久删除，包括：
+                                            </p>
+                                            <ul className="list-disc list-inside text-sm text-gray-600 mt-2">
+                                                <li>个人信息和联系方式</li>
+                                                <li>简历和投递记录</li>
+                                                <li>收藏和浏览历史</li>
+                                                <li>所有相关的职位和公司信息</li>
+                                            </ul>
+                                        </div>
+                                    ),
+                                    okText: '确定注销',
+                                    okType: 'danger',
+                                    cancelText: '取消',
+                                    onOk: async () => {
+                                        try {
+                                            setLoading(true);
+                                            const userId = user?.id;
+                                            if (!userId) return;
+                                            
+                                            const response = await userAPI.deleteAccount(String(userId));
+                                            // 无论响应状态如何，都清除本地存储并跳转到登录页
+                                            // 因为数据库已经删除了用户，本地状态必须同步
+                                            localStorage.removeItem('currentUser');
+                                            localStorage.removeItem('token');
+                                            localStorage.removeItem('userId');
+                                            
+                                            if (response.status === 'success') {
+                                                // 显示成功消息
+                                                message.success('账号注销成功，所有数据已清除');
+                                            } else {
+                                                // 显示错误消息
+                                                message.error('账号注销失败，请稍后重试');
+                                            }
+                                            
+                                            // 立即跳转到登录页面
+                                            window.location.href = '/';
+                                            
+                                            // 确保跳转执行
+                                            setTimeout(() => {
+                                                window.location.href = '/';
+                                            }, 500);
+                                        } catch (error: any) {
+                                            message.error(error.response?.data?.message || '账号注销失败，请稍后重试');
+                                            setLoading(false);
+                                        }
+                                    },
+                                });
+                            }}
+                            disabled={loading}
+                            className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium shadow-md hover:bg-red-700 focus:ring-4 focus:ring-red-200 transition-all"
+                        >
+                            {loading ? '处理中...' : '注销账号'}
+                        </button>
+                        <p className="text-sm text-gray-500 flex-1">
+                            注意：注销账号将永久删除您的所有数据，包括个人信息、简历、投递记录等，此操作不可恢复。
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );

@@ -35,6 +35,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
   const [lang, setLang] = useState<Language>('zh');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const t = TRANSLATIONS[lang];
 
   // AI Insight State
@@ -93,9 +94,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
       ]);
       
       // Set other data from API response
-      setTrends(data.trends || []);
-      setCategories(data.categories || []);
-      setActivity(data.activity || []);
+                    setTrends(data.trends || []);
+                    // 将roles数据映射为categories数据，用于职位分类分布图表
+                    setCategories(data.roles || []);
+                    setActivity(data.activity || []);
       setLoading(false);
     } else if (dashboardData === null && !dashboardLoading) {
       // 初始化默认数据，避免页面空白
@@ -131,26 +133,32 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
   };
 
   return (
-    <div className={`flex min-h-screen ${theme === 'dark' ? 'dark' : ''}`}>
-      {/* 移动端菜单按钮 */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+    <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} overflow-hidden`}>
+      {/* 左侧固定侧边栏 */}
+      <Sidebar 
+        currentView={currentView} 
+        onViewChange={() => {}} 
+        lang={lang} 
+        onLogout={onLogout}
+        isMobileOpen={sidebarOpen}
+        onMobileToggle={() => setSidebarOpen(!sidebarOpen)}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
 
-      <div className="flex-1 lg:ml-64 bg-slate-100 dark:bg-slate-900">
-        <Sidebar 
-          currentView={currentView} 
-          onViewChange={() => {}} 
-          lang={lang} 
-          onLogout={onLogout}
-          isMobileOpen={sidebarOpen}
-          onMobileToggle={() => setSidebarOpen(!sidebarOpen)}
-        />
+      {/* 右侧主内容区 - 包含导航栏和内容 */}
+      <div className="flex-1 flex flex-col h-full">
+        {/* 移动端菜单按钮 */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg hover:bg-slate-800 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        {/* 导航栏 */}
         <Header 
           onGenerateInsight={handleGenerateInsight}
           insightStatus={insightStatus}
@@ -159,12 +167,14 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
           userRole={userRole}
           onLogout={onLogout}
         />
-        <main className="p-4 md:p-6 lg:p-8">
+
+        {/* 内容区 - 自适应高度，不超出侧边栏 */}
+        <main className="flex-1 bg-slate-100 dark:bg-slate-900 p-2 md:p-4 lg:p-6 overflow-auto">
           <InsightPanel status={insightStatus} text={insightText} onClose={() => setInsightStatus(InsightStatus.IDLE)} t={t} />
           <Routes>
             <Route 
               path="/dashboard" 
-              element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} categories={categories} activity={activity} loading={loading} />} 
+              element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} featureUsage={dashboardData?.data?.featureUsage || []} userGrowth={dashboardData?.data?.userGrowth || []} categories={categories} activity={activity} loading={loading} />} 
             />
             <Route path="/users" element={<SystemUsersView lang={lang} />} />
             <Route path="/companies" element={<CompaniesView lang={lang} />} />

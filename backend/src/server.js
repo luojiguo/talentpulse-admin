@@ -12,6 +12,9 @@ const { pool, testConnection } = require('./config/db');
 // 导入错误处理中间件
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 
+// 导入日志中间件
+const { logMiddleware } = require('./middleware/logger');
+
 // 创建Express应用
 const app = express();
 
@@ -80,10 +83,13 @@ app.use('/business_license', express.static(path.join(__dirname, '../../Front_En
 app.use('/companies_logo', express.static(path.join(__dirname, '../../Front_End/public/companies_logo')));
 
 // 配置请求速率限制 - 根据环境设置不同的限制
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
+console.log(`当前环境: ${process.env.NODE_ENV}, 开发环境: ${isDevelopment}`);
+
+// 优化速率限制配置
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15分钟
-    max: isDevelopment ? 10000 : 1000, // 开发环境10000次，生产环境1000次
+    max: isDevelopment ? 50000 : 5000, // 开发环境50000次，生产环境5000次，大幅增加阈值
     standardHeaders: true,
     legacyHeaders: false,
     // 返回JSON格式的错误响应
@@ -92,13 +98,18 @@ const limiter = rateLimit({
             status: 'error',
             errorCode: 'RATE_LIMIT_EXCEEDED',
             message: '请求过于频繁，请稍后再试',
-            retryAfter: options.retryAfter
+            retryAfter: options.retryAfter,
+            currentWindow: options.windowMs,
+            limit: options.max
         });
     }
 });
 
 // 仅对API路由应用速率限制，排除健康检查和根路径
 app.use(['/api'], limiter);
+
+// 应用日志记录中间件
+app.use(['/api'], logMiddleware('info'));
 
 // 测试路由
 app.get('/', (req, res) => {
@@ -155,6 +166,7 @@ app.use((err, req, res, next) => {
         err.statusCode = 400;
         err.errorCode = 'INVALID_JSON';
         err.message = '请求格式错误，请检查请求体是否为有效的JSON格式';
+        err.isOperational = true; // 标记为操作错误，返回400而不是500
         return next(err);
     }
     next(err);

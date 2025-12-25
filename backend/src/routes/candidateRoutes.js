@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../config/db');
-const { asyncHandler } = require('../middleware/errorHandler');
+const { asyncHandler, sendSuccessResponse } = require('../middleware/errorHandler');
 
 // ==========================================
 // Candidate Routes
@@ -23,13 +23,20 @@ router.get('/', asyncHandler(async (req, res) => {
         LEFT JOIN users u ON c.user_id = u.id
         ORDER BY c.created_at DESC
         LIMIT $1 OFFSET $2
-    `, [parseInt(limit), parseInt(offset)], 10000);
+    `, [parseInt(limit), parseInt(offset)], 15000);
 
-    res.json({
-        status: 'success',
-        data: result.rows,
-        count: result.rows.length
-    });
+    // 获取总记录数
+    const countResult = await query(`
+        SELECT COUNT(*) as total
+        FROM candidates
+    `, [], 15000);
+
+    sendSuccessResponse(res, {
+        rows: result.rows,
+        count: parseInt(countResult.rows[0].total),
+        page: Math.floor(offset / limit) + 1,
+        limit: parseInt(limit)
+    }, 200, '获取求职者列表成功');
 }));
 
 // ==========================================
@@ -39,6 +46,7 @@ router.get('/', asyncHandler(async (req, res) => {
 // 获取求职者收藏的职位
 router.get('/:userId/saved-jobs', asyncHandler(async (req, res) => {
     const { userId } = req.params;
+    const userIdNum = parseInt(userId);
 
     const result = await query(`
         SELECT 
@@ -51,17 +59,15 @@ router.get('/:userId/saved-jobs', asyncHandler(async (req, res) => {
         LEFT JOIN companies c ON j.company_id = c.id
         WHERE sj.user_id = $1
         ORDER BY sj.created_at DESC
-    `, [userId]);
+    `, [userIdNum], 15000);
 
-    res.json({
-        status: 'success',
-        data: result.rows
-    });
+    sendSuccessResponse(res, result.rows, 200, '获取收藏职位成功');
 }));
 
 // 收藏职位
 router.post('/:userId/saved-jobs', asyncHandler(async (req, res) => {
     const { userId } = req.params;
+    const userIdNum = parseInt(userId);
     const { jobId } = req.body;
 
     if (!jobId) {
@@ -72,7 +78,7 @@ router.post('/:userId/saved-jobs', asyncHandler(async (req, res) => {
     }
 
     // 检查职位是否存在
-    const jobCheck = await query('SELECT id FROM jobs WHERE id = $1', [jobId]);
+    const jobCheck = await query('SELECT id FROM jobs WHERE id = $1', [jobId], 15000);
     if (jobCheck.rows.length === 0) {
         const error = new Error('职位不存在');
         error.statusCode = 404;
@@ -86,38 +92,33 @@ router.post('/:userId/saved-jobs', asyncHandler(async (req, res) => {
          VALUES ($1, $2, CURRENT_TIMESTAMP)
          ON CONFLICT (user_id, job_id) DO NOTHING
          RETURNING *`,
-        [userId, jobId]
+        [userIdNum, jobId],
+        15000
     );
 
     if (result.rows.length === 0) {
-        return res.json({
-            status: 'success',
-            message: '您已经收藏了该职位',
-            data: null
-        });
+        return sendSuccessResponse(res, null, 200, '您已经收藏了该职位');
     }
 
-    res.json({
-        status: 'success',
-        message: '收藏成功',
-        data: result.rows[0]
-    });
+    sendSuccessResponse(res, result.rows[0], 201, '收藏成功');
 }));
 
 // 取消收藏职位
 router.delete('/:userId/saved-jobs/:jobId', asyncHandler(async (req, res) => {
     const { userId, jobId } = req.params;
+    const userIdNum = parseInt(userId);
 
     const result = await query(
         'DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2 RETURNING *',
-        [userId, jobId]
+        [userIdNum, jobId],
+        15000
     );
 
-    res.json({
-        status: 'success',
-        message: result.rows.length > 0 ? '取消收藏成功' : '您还没有收藏该职位',
-        data: result.rows.length > 0 ? result.rows[0] : null
-    });
+    sendSuccessResponse(res, 
+        result.rows.length > 0 ? result.rows[0] : null, 
+        200, 
+        result.rows.length > 0 ? '取消收藏成功' : '您还没有收藏该职位'
+    );
 }));
 
 // ==========================================
@@ -127,6 +128,7 @@ router.delete('/:userId/saved-jobs/:jobId', asyncHandler(async (req, res) => {
 // 获取求职者收藏的公司
 router.get('/:userId/saved-companies', asyncHandler(async (req, res) => {
     const { userId } = req.params;
+    const userIdNum = parseInt(userId);
 
     const result = await query(`
         SELECT 
@@ -136,17 +138,15 @@ router.get('/:userId/saved-companies', asyncHandler(async (req, res) => {
         JOIN companies c ON sc.company_id = c.id
         WHERE sc.user_id = $1
         ORDER BY sc.created_at DESC
-    `, [userId]);
+    `, [userIdNum], 15000);
 
-    res.json({
-        status: 'success',
-        data: result.rows
-    });
+    sendSuccessResponse(res, result.rows, 200, '获取收藏公司成功');
 }));
 
 // 收藏公司
 router.post('/:userId/saved-companies', asyncHandler(async (req, res) => {
     const { userId } = req.params;
+    const userIdNum = parseInt(userId);
     const { companyId } = req.body;
 
     if (!companyId) {
@@ -157,7 +157,7 @@ router.post('/:userId/saved-companies', asyncHandler(async (req, res) => {
     }
 
     // 检查公司是否存在
-    const companyCheck = await query('SELECT id FROM companies WHERE id = $1', [companyId]);
+    const companyCheck = await query('SELECT id FROM companies WHERE id = $1', [companyId], 15000);
     if (companyCheck.rows.length === 0) {
         const error = new Error('公司不存在');
         error.statusCode = 404;
@@ -171,38 +171,33 @@ router.post('/:userId/saved-companies', asyncHandler(async (req, res) => {
          VALUES ($1, $2, CURRENT_TIMESTAMP)
          ON CONFLICT (user_id, company_id) DO NOTHING
          RETURNING *`,
-        [userId, companyId]
+        [userIdNum, companyId],
+        15000
     );
 
     if (result.rows.length === 0) {
-        return res.json({
-            status: 'success',
-            message: '您已经收藏了该公司',
-            data: null
-        });
+        return sendSuccessResponse(res, null, 200, '您已经收藏了该公司');
     }
 
-    res.json({
-        status: 'success',
-        message: '收藏成功',
-        data: result.rows[0]
-    });
+    sendSuccessResponse(res, result.rows[0], 201, '收藏成功');
 }));
 
 // 取消收藏公司
 router.delete('/:userId/saved-companies/:companyId', asyncHandler(async (req, res) => {
     const { userId, companyId } = req.params;
+    const userIdNum = parseInt(userId);
 
     const result = await query(
         'DELETE FROM saved_companies WHERE user_id = $1 AND company_id = $2 RETURNING *',
-        [userId, companyId]
+        [userIdNum, companyId],
+        15000
     );
 
-    res.json({
-        status: 'success',
-        message: result.rows.length > 0 ? '取消收藏成功' : '您还没有收藏该公司',
-        data: result.rows.length > 0 ? result.rows[0] : null
-    });
+    sendSuccessResponse(res, 
+        result.rows.length > 0 ? result.rows[0] : null, 
+        200, 
+        result.rows.length > 0 ? '取消收藏成功' : '您还没有收藏该公司'
+    );
 }));
 
 // ==========================================
@@ -215,21 +210,16 @@ router.get('/:userId', asyncHandler(async (req, res) => {
 
         const result = await query(
             'SELECT * FROM candidates WHERE user_id = $1',
-            [userId]
+            [userId],
+            15000
         );
 
         if (result.rows.length === 0) {
             // 如果没有找到记录，返回空对象而不是404，方便前端处理
-            return res.json({
-                status: 'success',
-                data: null
-            });
+            return sendSuccessResponse(res, null, 200, '未找到求职者信息');
         }
 
-        res.json({
-            status: 'success',
-            data: result.rows[0]
-        });
+        sendSuccessResponse(res, result.rows[0], 200, '获取求职者信息成功');
 }));
 
 // 更新或创建求职者详情 (Upsert)
@@ -250,10 +240,12 @@ router.post('/:userId', asyncHandler(async (req, res) => {
         // 检查是否存在
         const checkResult = await query(
             'SELECT id FROM candidates WHERE user_id = $1',
-            [userId]
+            [userId],
+            15000
         );
 
         let result;
+        let message;
 
         if (checkResult.rows.length === 0) {
             // Insert
@@ -263,8 +255,10 @@ router.post('/:userId', asyncHandler(async (req, res) => {
           availability_status, preferred_locations, created_at, updated_at
         ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING *`,
-                [userId, summary, expected_salary_min, expected_salary_max, availability_status, preferred_locations]
+                [userId, summary, expected_salary_min, expected_salary_max, availability_status, preferred_locations],
+                15000
             );
+            message = '创建求职者信息成功';
         } else {
             // Update
             result = await query(
@@ -277,15 +271,13 @@ router.post('/:userId', asyncHandler(async (req, res) => {
           updated_at = CURRENT_TIMESTAMP
         WHERE user_id = $1
         RETURNING *`,
-                [userId, summary, expected_salary_min, expected_salary_max, availability_status, preferred_locations]
+                [userId, summary, expected_salary_min, expected_salary_max, availability_status, preferred_locations],
+                15000
             );
+            message = '更新求职者信息成功';
         }
 
-        res.json({
-            status: 'success',
-            message: 'Candidate profile saved successfully',
-            data: result.rows[0]
-        });
+        sendSuccessResponse(res, result.rows[0], 200, message);
 }));
 
 module.exports = router;

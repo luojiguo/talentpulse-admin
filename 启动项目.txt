@@ -3,4 +3,8 @@ cd c:\Users\28349\Desktop\temp\talentpulse-admin\backend
 npm run dev
 
 cd c:\Users\28349\Desktop\temp\talentpulse-admin\Front_End
-npm run dev
+npm run dev:both
+
+µº≥ˆSQL
+"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -d Talent -h localhost -f "C:\Users\28349\Desktop\±œ…Ë\Talent.sql"
+

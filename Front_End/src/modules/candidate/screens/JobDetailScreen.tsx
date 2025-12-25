@@ -4,6 +4,7 @@ import { ChevronLeft, MessageSquare, Bookmark, ChevronUp, ChevronDown, MapPin, B
 import { JobPosting } from '@/types/types';
 import { jobAPI, companyAPI, recruiterAPI, candidateAPI } from '@/services/apiService';
 import { message } from 'antd';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 
 interface JobDetailScreenProps {
     jobs: JobPosting[];
@@ -402,9 +403,9 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">招聘负责人</h4>
                                         <div className="flex items-center">
                                             <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-xl mr-3 border-2 border-white shadow-sm overflow-hidden">
-                                                {recruiter?.avatar ? (
+                                                {recruiter?.avatar && recruiter.avatar.trim() !== '' ? (
                                                     <img
-                                                        src={recruiter.avatar}
+                                                        src={processAvatarUrl(recruiter.avatar)}
                                                         alt={recruiter.name}
                                                         className="w-full h-full object-cover"
                                                     />

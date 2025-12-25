@@ -5,7 +5,7 @@
  * @param dateString ISO格式的日期时间字符串，如：2025-12-18T09:30:00.000Z
  * @returns 格式化后的日期时间字符串，如：今天 17:30、昨天 17:30 或 2025-12-18 17:30
  */
-export const formatDateTime = (dateString: string): string => {
+export const formatDateTime = (dateString: string, format?: string): string => {
   const date = new Date(dateString);
   const now = new Date();
   
@@ -33,6 +33,17 @@ export const formatDateTime = (dateString: string): string => {
   const yesterdayYear = yesterday.getFullYear();
   const yesterdayMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
   const yesterdayDay = String(yesterday.getDate()).padStart(2, '0');
+  
+  // 如果格式为 'date'，只返回日期部分
+  if (format === 'date') {
+    if (year === todayYear && month === todayMonth && day === todayDay) {
+      return '今天';
+    } else if (year === yesterdayYear && month === yesterdayMonth && day === yesterdayDay) {
+      return '昨天';
+    } else {
+      return `${year}-${month}-${day}`;
+    }
+  }
   
   // 格式化日期时间
   if (year === todayYear && month === todayMonth && day === todayDay) {

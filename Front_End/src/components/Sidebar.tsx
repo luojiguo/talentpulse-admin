@@ -27,9 +27,11 @@ interface SidebarProps {
   onLogout?: () => void;
   isMobileOpen?: boolean;
   onMobileToggle?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lang, onLogout, isMobileOpen, onMobileToggle }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lang, onLogout, isMobileOpen, onMobileToggle, isCollapsed = false, onToggleCollapse }) => {
   const t = TRANSLATIONS[lang].nav;
   const navigate = useNavigate();
 
@@ -53,25 +55,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
       
       {/* 侧边栏 */}
       <aside className={`
-        flex flex-col w-64 h-screen bg-slate-900 text-white fixed left-0 top-0 overflow-y-auto z-50
-        transform transition-transform duration-300 ease-in-out
+        flex flex-col h-screen bg-slate-900 text-white fixed left-0 top-0 overflow-y-auto z-50
+        transform transition-all duration-300 ease-in-out
         ${isMobileOpen !== false ? 'translate-x-0' : '-translate-x-full'}
+        ${isCollapsed ? 'w-16' : 'w-64'}
         lg:translate-x-0 lg:static
       `}>
-      <div className="p-6 flex items-center justify-between gap-3 border-b border-slate-800">
+      <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} gap-3 border-b border-slate-800`}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
             <Briefcase className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-bold tracking-tight">TalentPulse</span>
+          {!isCollapsed && <span className="text-xl font-bold tracking-tight">TalentPulse</span>}
         </div>
-        {/* 移动端关闭按钮 */}
-        <button
-          onClick={onMobileToggle}
-          className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
-        >
-          <X size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 桌面端收缩/扩展按钮 */}
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors lg:flex hidden"
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {isCollapsed ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                )}
+              </svg>
+            </button>
+          )}
+          {/* 移动端关闭按钮 */}
+          <button
+            onClick={onMobileToggle}
+            className="lg:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       <nav className="flex-1 py-6 px-3 space-y-1">
@@ -80,76 +101,88 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
           label={t.dashboard} 
           active={currentView === 'dashboard'} 
           onClick={() => handleNavigate('dashboard')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
             icon={<ShieldCheck size={20} />} 
             label={t.users} 
             active={currentView === 'users'} 
             onClick={() => handleNavigate('users')}
+            isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<Building2 size={20} />} 
           label={t.companies} 
           active={currentView === 'companies'} 
           onClick={() => handleNavigate('companies')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<Users size={20} />} 
           label={t.candidates} 
           active={currentView === 'candidates'} 
           onClick={() => handleNavigate('candidates')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<Briefcase size={20} />} 
           label={t.jobs} 
           active={currentView === 'jobs'} 
           onClick={() => handleNavigate('jobs')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<MessageSquare size={20} />} 
           label={t.applications} 
           active={currentView === 'applications'} 
           onClick={() => handleNavigate('applications')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<Calendar size={20} />} 
           label="面试管理" 
           active={currentView === 'interviews'} 
           onClick={() => handleNavigate('interviews')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<UserCheck size={20} />} 
           label="入职管理" 
           active={currentView === 'onboardings'} 
           onClick={() => handleNavigate('onboardings')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<FileText size={20} />} 
           label="系统日志" 
           active={currentView === 'logs'} 
           onClick={() => handleNavigate('logs')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<PieChart size={20} />} 
           label={t.analytics} 
           active={currentView === 'analytics'} 
           onClick={() => handleNavigate('analytics')}
+          isCollapsed={isCollapsed}
         />
         <NavItem 
           icon={<Settings size={20} />} 
           label={t.settings} 
           active={currentView === 'settings'} 
           onClick={() => handleNavigate('settings')}
+          isCollapsed={isCollapsed}
         />
       </nav>
 
       <div className="p-4 border-t border-slate-800">
         <button 
           onClick={onLogout}
-          className="flex items-center gap-3 w-full px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 w-full px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors`}
+          aria-label={t.signout}
         >
           <LogOut size={20} />
-          <span>{t.signout}</span>
+          {!isCollapsed && <span>{t.signout}</span>}
         </button>
       </div>
     </aside>
@@ -162,17 +195,20 @@ interface NavItemProps {
   label: string;
   active?: boolean;
   onClick: () => void;
+  isCollapsed?: boolean;
 }
 
-const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick }) => (
+const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick, isCollapsed = false }) => (
   <button 
     onClick={onClick}
-    className={`flex items-center gap-3 w-full px-4 py-3 rounded-md transition-all duration-200 ${
+    className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 w-full px-4 py-3 rounded-md transition-all duration-200 ${
     active 
       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' 
       : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-  }`}>
+  }`}
+    aria-label={label}
+  >
     {icon}
-    <span className="font-medium text-sm">{label}</span>
+    {!isCollapsed && <span className="font-medium text-sm">{label}</span>}
   </button>
 );

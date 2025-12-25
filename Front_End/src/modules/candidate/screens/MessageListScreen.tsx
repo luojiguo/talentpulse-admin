@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, MessageSquare, Trash2 } from 'lucide-react';
+import { Modal } from 'antd';
 import { Conversation } from '@/types/types';
 import { formatDateTime } from '@/utils/dateUtils';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 
 interface MessageListScreenProps {
     conversations: Conversation[];
@@ -66,10 +68,29 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                             // 处理删除对话
                             const handleDelete = (e: React.MouseEvent) => {
                                 e.stopPropagation(); // 阻止事件冒泡，避免触发选择对话
-                                // 优化删除提示，明确是软删除
-                                if (window.confirm(`确定要删除与${recruiterName}的聊天记录吗？\n\n此操作是软删除，数据会保留在数据库中，但您将无法在消息列表中看到此对话。`)) {
-                                    onDeleteConversation(conv.id);
-                                }
+                                
+                                // 使用Ant Design的Modal组件替代window.confirm
+                                Modal.confirm({
+                                    title: '确认删除聊天记录',
+                                    content: (
+                                        <div>
+                                            <p>确定要删除与{recruiterName}的聊天记录吗？</p>
+                                            <p className="text-sm text-gray-500 mt-2">
+                                                此操作是软删除，数据会保留在数据库中，但您将无法在消息列表中看到此对话。
+                                            </p>
+                                        </div>
+                                    ),
+                                    okText: '是',
+                                    okType: 'danger',
+                                    cancelText: '取消',
+                                    centered: true,
+                                    onOk() {
+                                        onDeleteConversation(conv.id);
+                                    },
+                                    onCancel() {
+                                        // 用户取消删除，无需操作
+                                    }
+                                });
                             };
                             
                             return (
@@ -83,8 +104,12 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                                         <div className="flex-1 flex items-start gap-3">
                                             {/* Avatar */}
                                             <div className="w-12 h-12 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center flex-shrink-0">
-                                                {recruiterAvatar && (recruiterAvatar.startsWith('http') || recruiterAvatar.startsWith('/avatars/')) ? (
-                                                    <img src={recruiterAvatar} alt={recruiterName} className="w-full h-full object-cover" />
+                                                {recruiterAvatar && recruiterAvatar !== '' ? (
+                                                    <img 
+                                                        src={processAvatarUrl(recruiterAvatar)} 
+                                                        alt={recruiterName} 
+                                                        className="w-full h-full object-cover" 
+                                                    />
                                                 ) : (
                                                     <span className="text-base font-bold text-indigo-600">{recruiterName.charAt(0) || '招'}</span>
                                                 )}

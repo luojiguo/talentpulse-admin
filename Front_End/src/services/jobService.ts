@@ -6,7 +6,7 @@ import { JobPosting } from '@/types/types';
  */
 export const jobAPI = {
   // 获取所有职位
-  getAllJobs: () => request.get('/api/jobs', { timeout: 60000 }),
+  getAllJobs: (params?: { page?: number; limit?: number; recruiterId?: string | number, companyId?: string | number }) => request.get('/api/jobs', { params: { ...params, limit: params?.limit || 1000 }, timeout: 60000 }),
 
   // 获取智能推荐的职位（基于用户信息）
   getRecommendedJobs: (userId: string | number, triggerAI: boolean = false) => {

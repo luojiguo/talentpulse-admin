@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:admin": "vite --port 3002",
+    "dev:admin": "vite --port 3100",
     "dev:user": "vite --port 3000",
+    "dev:recruiter": "vite --port 3500",
+    "dev:both": "concurrently \"npm run dev:admin\" \"npm run dev:user\" \"npm run dev:recruiter\"",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:admin\" \"npm run dev:user\" \"npm run dev:recruiter\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

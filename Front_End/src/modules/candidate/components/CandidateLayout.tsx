@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import UserAvatar from '@/components/UserAvatar';
 
 interface CandidateLayoutProps {
   children: React.ReactNode;
@@ -34,6 +35,24 @@ const CandidateLayout: React.FC<CandidateLayoutProps> = ({ children, currentUser
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isDropdownOpen]);
+
+  // 监听头像更新事件
+  useEffect(() => {
+    const handleAvatarUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ avatar: string }>;
+      if (customEvent.detail && customEvent.detail.avatar) {
+        // 更新 currentUser 的头像
+        if (currentUser && typeof currentUser === 'object') {
+          (currentUser as any).avatar = customEvent.detail.avatar;
+        }
+      }
+    };
+
+    window.addEventListener('userAvatarUpdated', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
+    };
+  }, [currentUser]);
 
   // 判断导航项是否激活
   const isActive = (path: string) => {
@@ -81,6 +100,16 @@ const CandidateLayout: React.FC<CandidateLayoutProps> = ({ children, currentUser
               }`}
             >
               首页
+            </button>
+            <button 
+              onClick={() => navigate('/job')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive('/job') 
+                  ? 'bg-white/10 text-white shadow-inner' 
+                  : 'text-indigo-100 hover:bg-white/5'
+              }`}
+            >
+              岗位列表
             </button>
             <button 
               onClick={() => navigate('/saved')}
@@ -144,13 +173,13 @@ const CandidateLayout: React.FC<CandidateLayoutProps> = ({ children, currentUser
                 <p className="text-sm font-bold leading-tight">{currentUser.name}</p>
                 <p className="text-xs text-indigo-300">求职者</p>
               </div>
-              <div className="w-9 h-9 bg-indigo-200 rounded-full text-indigo-800 flex items-center justify-center font-bold border-2 border-indigo-400 overflow-hidden">
-                {currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/avatars/')) ? (
-                  <img src={currentUser.avatar} alt="头像" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{currentUser.name && currentUser.name.length > 0 ? currentUser.name.charAt(0) : 'U'}</span>
-                )}
-              </div>
+              <UserAvatar 
+                src={currentUser.avatar} 
+                name={currentUser.name} 
+                size={36} 
+                className="bg-indigo-200 text-indigo-800 border-2 border-indigo-400" 
+                alt="头像"
+              />
               <svg 
                 xmlns="http://www.w3.org/2000/svg" 
                 width="16" 
@@ -226,6 +255,16 @@ const CandidateLayout: React.FC<CandidateLayoutProps> = ({ children, currentUser
                 }`}
               >
                 首页
+              </button>
+              <button 
+                onClick={() => { navigate('/job'); setMobileMenuOpen(false); }}
+                className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                  isActive('/job') 
+                    ? 'text-white bg-indigo-700' 
+                    : 'text-indigo-100 hover:bg-indigo-700 hover:text-white'
+                }`}
+              >
+                岗位列表
               </button>
               <button 
                 onClick={() => { navigate('/saved'); setMobileMenuOpen(false); }}

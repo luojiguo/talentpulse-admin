@@ -5,6 +5,8 @@ import { userAPI } from '@/services/apiService';
 import { MessageAlert } from './CommonComponents';
 import { InputField } from './CommonComponents';
 import { generateCompanyDescription } from '@/services/aiService';
+import { Modal, message } from 'antd';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 
 interface RecruiterProfileScreenProps {
     onSwitchRole: (role: UserRole) => void;
@@ -318,8 +320,8 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 <div className="p-8 flex flex-col md:flex-row items-start gap-8">
                     <div className="relative mb-4">
                         <div className="w-24 h-24 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-4xl font-bold border-4 border-white shadow-sm overflow-hidden">
-                            {typeof profile.avatar === 'string' && (profile.avatar.startsWith('data:image/') || profile.avatar.startsWith('http://') || profile.avatar.startsWith('https://') || profile.avatar.startsWith('/')) ? (
-                                <img src={profile.avatar} alt="头像" className="w-full h-full object-cover" />
+                            {typeof profile.avatar === 'string' && profile.avatar.trim() !== '' ? (
+                                <img src={processAvatarUrl(profile.avatar)} alt="头像" className="w-full h-full object-cover" />
                             ) : (
                                 <span className="text-emerald-700">{profile.name && profile.name.length > 0 ? profile.name.charAt(0) : 'U'}</span>
                             )}
@@ -763,27 +765,112 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         <Settings className="w-5 h-5 mr-2 text-emerald-600" /> 账号操作
                     </h3>
                 </div>
-                <div className="p-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                    <button
-                        onClick={handleSave}
-                        className="flex items-center justify-center w-full md:w-auto px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <div className="animate-spin mr-2 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                        ) : (
-                            <Save className="w-5 h-5 mr-2" />
-                        )}
-                        {loading ? '保存中...' : '保存更新'}
-                    </button>
+                <div className="p-8 flex flex-col md:flex-col gap-4">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <button
+                            onClick={handleSave}
+                            className="flex items-center justify-center w-full md:w-auto px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <div className="animate-spin mr-2 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                            ) : (
+                                <Save className="w-5 h-5 mr-2" />
+                            )}
+                            {loading ? '保存中...' : '保存更新'}
+                        </button>
 
-                    <button
-                        onClick={() => onSwitchRole('candidate')}
-                        className="flex items-center justify-center w-full md:w-auto px-6 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-200"
-                        disabled={loading}
-                    >
-                        <User className="w-5 h-5 mr-2" /> 切换为求职者 (Candidate) 身份
-                    </button>
+                        <button
+                            onClick={() => onSwitchRole('candidate')}
+                            className="flex items-center justify-center w-full md:w-auto px-6 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-200"
+                            disabled={loading}
+                        >
+                            <User className="w-5 h-5 mr-2" /> 切换为求职者 (Candidate) 身份
+                        </button>
+                    </div>
+                    
+                    {/* 注销账号功能 */}
+                    <div className="pt-6 border-t border-gray-200">
+                        <h4 className="text-md font-semibold text-red-700 flex items-center mb-4">
+                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            账号注销
+                        </h4>
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <button
+                                onClick={() => {
+                                    Modal.confirm({
+                                        title: '确认注销账号',
+                                        content: (
+                                            <div>
+                                                <p className="mb-4">确定要注销账号吗？</p>
+                                                <p className="text-red-500 font-medium">
+                                                    此操作不可恢复，所有数据将被永久删除，包括：
+                                                </p>
+                                                <ul className="list-disc list-inside text-sm text-gray-600 mt-2">
+                                                    <li>个人信息和联系方式</li>
+                                                    <li>公司信息和职位发布</li>
+                                                    <li>候选人数据和沟通记录</li>
+                                                    <li>所有相关的简历和投递记录</li>
+                                                </ul>
+                                            </div>
+                                        ),
+                                        okText: '确定注销',
+                                        okType: 'danger',
+                                        cancelText: '取消',
+                                        onOk: async () => {
+                                            try {
+                                                setLoading(true);
+                                                const userId = profile.id;
+                                                if (!userId) return;
+                                                
+                                                const response = await userAPI.deleteAccount(String(userId));
+                                                // 无论响应状态如何，都清除本地存储并跳转到登录页
+                                                // 因为数据库已经删除了用户，本地状态必须同步
+                                                localStorage.removeItem('currentUser');
+                                                localStorage.removeItem('token');
+                                                localStorage.removeItem('userId');
+                                                
+                                                if (response.status === 'success') {
+                                                    // 显示成功消息
+                                                    message.success('账号注销成功，所有数据已清除');
+                                                } else {
+                                                    // 显示错误消息
+                                                    message.error('账号注销失败，请稍后重试');
+                                                }
+                                                
+                                                // 立即跳转到登录页面
+                                                window.location.href = '/';
+                                                
+                                                // 确保跳转执行
+                                                setTimeout(() => {
+                                                    window.location.href = '/';
+                                                }, 500);
+                                            } catch (error: any) {
+                                                message.error(error.response?.data?.message || '账号注销失败，请稍后重试');
+                                                setLoading(false);
+                                            }
+                                        },
+                                    });
+                                }}
+                                disabled={loading}
+                                className="flex items-center justify-center w-full md:w-auto px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-200"
+                            >
+                                {loading ? (
+                                    <div className="animate-spin mr-2 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                ) : (
+                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                )}
+                                {loading ? '处理中...' : '注销账号'}
+                            </button>
+                            <p className="text-sm text-gray-500 flex-1">
+                                注意：注销账号将永久删除您的所有数据，包括个人信息、公司信息、职位发布记录等，此操作不可恢复。
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

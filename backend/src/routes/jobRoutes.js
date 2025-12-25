@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { logAction } = require('../middleware/logger');
 
 // --- Helper function for non-blocking AI recommendation ---
 const triggerAIRecommendation = async (userId, userInfo, allJobs) => {
@@ -297,6 +298,9 @@ router.get('/:id', asyncHandler(async (req, res) => {
       throw error;
     }
 
+    // 记录更新职位日志
+    await logAction(req, res, '更新职位', `招聘者更新了职位：${result.rows[0].title}`, 'update', { type: 'job', id: result.rows[0].id });
+
     res.json({
       status: 'success',
       data: result.rows[0]
@@ -420,6 +424,9 @@ router.put('/:id', asyncHandler(async (req, res) => {
       throw error;
     }
 
+    // 记录更新职位日志
+    await logAction(req, res, '更新职位', `招聘者更新了职位：${result.rows[0].title}`, 'update', { type: 'job', id: result.rows[0].id });
+
     res.json({
       status: 'success',
       data: result.rows[0]
@@ -438,6 +445,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
       error.errorCode = 'JOB_NOT_FOUND';
       throw error;
     }
+
+    // 记录删除职位日志
+    await logAction(req, res, '删除职位', `招聘者删除了职位：${result.rows[0].title}`, 'delete', { type: 'job', id: result.rows[0].id });
 
     res.json({
       status: 'success',
@@ -588,7 +598,10 @@ router.post('/', asyncHandler(async (req, res) => {
         expire_date ? new Date(expire_date) : null
     ]);
 
-    res.json({
+    // 记录创建职位日志
+  await logAction(req, res, '创建职位', `招聘者创建了职位：${result.rows[0].title}`, 'create', { type: 'job', id: result.rows[0].id });
+
+  res.json({
       status: 'success',
       data: result.rows[0],
       message: '职位创建成功'

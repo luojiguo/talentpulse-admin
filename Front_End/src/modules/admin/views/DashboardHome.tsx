@@ -6,7 +6,7 @@ import {
 import { StatMetric, Language, ApplicationTrendData } from '@/types/types';
 import StatCard from '../components/StatCard';
 
-const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], trends: ApplicationTrendData[], categories: any[], activity: any[], loading: boolean}> = ({ lang, t, stats, trends, categories, activity, loading }) => {
+const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], trends: any[], featureUsage: any[], userGrowth: any[], categories: any[], activity: any[], loading: boolean}> = ({ lang, t, stats, trends, featureUsage, userGrowth, categories, activity, loading }) => {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -28,6 +28,48 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
         'bg-gradient-to-br from-cyan-500 to-cyan-600',
         'bg-gradient-to-br from-indigo-500 to-indigo-600',
         'bg-gradient-to-br from-rose-500 to-rose-600'
+    ];
+
+    // 替换为其他数据
+    // 使用从API获取的真实数据
+    // 1. 访问量与注册量趋势数据
+    const visitorTrends = trends.length > 0 ? trends : [
+        { name: '1月', visitors: 0, registrations: 0 },
+        { name: '2月', visitors: 0, registrations: 0 },
+        { name: '3月', visitors: 0, registrations: 0 },
+        { name: '4月', visitors: 0, registrations: 0 },
+        { name: '5月', visitors: 0, registrations: 0 },
+        { name: '6月', visitors: 0, registrations: 0 },
+    ];
+
+    // 2. 职位分类分布数据
+    const jobCategories = categories.length > 0 ? categories : [
+        { name: '技术开发', value: 120, color: '#3b82f6' },
+        { name: '市场营销', value: 90, color: '#10b981' },
+        { name: '产品管理', value: 75, color: '#f59e0b' },
+        { name: '设计创意', value: 60, color: '#8b5cf6' },
+        { name: '人力资源', value: 50, color: '#ef4444' },
+        { name: '财务金融', value: 45, color: '#ec4899' },
+    ];
+
+    // 3. 系统功能使用频率数据（直接使用props中的数据）
+    const usageData = featureUsage && featureUsage.length > 0 ? featureUsage : [
+        { name: '职位发布', views: 0, clicks: 0 },
+        { name: '简历筛选', views: 0, clicks: 0 },
+        { name: '面试安排', views: 0, clicks: 0 },
+        { name: '数据分析', views: 0, clicks: 0 },
+        { name: '系统设置', views: 0, clicks: 0 },
+        { name: '消息通知', views: 0, clicks: 0 },
+    ];
+
+    // 4. 用户活跃度增长率数据（直接使用props中的数据）
+    const growthData = userGrowth && userGrowth.length > 0 ? userGrowth : [
+        { name: '1月', dailyActive: 0, weeklyActive: 0, monthlyActive: 0 },
+        { name: '2月', dailyActive: 0, weeklyActive: 0, monthlyActive: 0 },
+        { name: '3月', dailyActive: 0, weeklyActive: 0, monthlyActive: 0 },
+        { name: '4月', dailyActive: 0, weeklyActive: 0, monthlyActive: 0 },
+        { name: '5月', dailyActive: 0, weeklyActive: 0, monthlyActive: 0 },
+        { name: '6月', dailyActive: 0, weeklyActive: 0, monthlyActive: 0 },
     ];
     
     return (
@@ -59,22 +101,22 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
 
             {/* 图表区域 - 第一行 */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* 趋势图 */}
+              {/* 趋势图 - 访问量与注册量 */}
               <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">{t.dashboard.trends}</h3>
+                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">访问量与注册量</h3>
                   <div className="text-sm text-slate-500 dark:text-slate-400">最近6个月</div>
                 </div>
                 <ResponsiveContainer width="100%" height={350}>
-                  <AreaChart data={trends}>
+                  <AreaChart data={visitorTrends}>
                     <defs>
-                      <linearGradient id="colorApplications" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="colorVisitors" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
                       </linearGradient>
-                      <linearGradient id="colorInterviews" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                      <linearGradient id="colorRegistrations" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(203, 213, 225, 0.2)" vertical={false} />
@@ -102,19 +144,19 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
                     />
                     <Area 
                       type="monotone" 
-                      dataKey="applications" 
+                      dataKey="visitors" 
                       stroke="#3b82f6" 
                       fillOpacity={1} 
-                      fill="url(#colorApplications)" 
+                      fill="url(#colorVisitors)" 
                       strokeWidth={3}
                       activeDot={{ r: 8, strokeWidth: 2 }}
                     />
                     <Area 
                       type="monotone" 
-                      dataKey="interviews" 
-                      stroke="#8b5cf6" 
+                      dataKey="registrations" 
+                      stroke="#10b981" 
                       fillOpacity={1} 
-                      fill="url(#colorInterviews)" 
+                      fill="url(#colorRegistrations)" 
                       strokeWidth={3}
                       activeDot={{ r: 8, strokeWidth: 2 }}
                     />
@@ -130,16 +172,16 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
                 </ResponsiveContainer>
               </div>
 
-              {/* 分类分布 */}
+              {/* 分类分布 - 职位分类分布 */}
               <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">{t.dashboard.category}</h3>
-                  <div className="text-sm text-slate-500 dark:text-slate-400">职位分类占比</div>
+                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">职位分类分布</h3>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">职位数量占比</div>
                 </div>
                 <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie 
-                      data={categories} 
+                      data={jobCategories} 
                       dataKey="value" 
                       nameKey="name" 
                       cx="50%" 
@@ -150,7 +192,7 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
                       labelLine={false}
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      {categories.map((entry, index) => (
+                      {jobCategories.map((entry, index) => (
                         <Cell 
                           key={`cell-${index}`} 
                           fill={entry.color} 
@@ -184,14 +226,14 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
 
             {/* 图表区域 - 第二行 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 柱状图 - 申请与面试对比 */}
+              {/* 柱状图 - 系统功能使用频率 */}
               <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">{t.dashboard.application_vs_interview}</h3>
-                  <div className="text-sm text-slate-500 dark:text-slate-400">月度对比</div>
+                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">系统功能使用频率</h3>
+                  <div className="text-sm text-slate-500 dark:text-slate-400">功能使用对比</div>
                 </div>
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={trends}>
+                  <BarChart data={usageData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(203, 213, 225, 0.2)" vertical={false} />
                     <XAxis 
                       dataKey="name" 
@@ -218,20 +260,20 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
                       wrapperStyle={{ paddingBottom: 10 }}
                       formatter={(value) => <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{value}</span>}
                     />
-                    <Bar dataKey="applications" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="interviews" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="views" fill="#3b82f6" radius={[4, 4, 0, 0]} name="浏览量" />
+                    <Bar dataKey="clicks" fill="#f59e0b" radius={[4, 4, 0, 0]} name="点击量" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               
-              {/* 折线图 - 增长率 */}
+              {/* 折线图 - 用户活跃度增长率 */}
               <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">{t.dashboard.growth_rate}</h3>
+                  <h3 className="font-bold text-slate-800 dark:text-white text-lg">用户活跃度增长率</h3>
                   <div className="text-sm text-slate-500 dark:text-slate-400">月度增长率</div>
                 </div>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={trends}>
+                  <LineChart data={growthData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(203, 213, 225, 0.2)" vertical={false} />
                     <XAxis 
                       dataKey="name" 
@@ -262,11 +304,30 @@ const DashboardHome: React.FC<{lang: Language, t: any, stats: StatMetric[], tren
                     />
                     <Line 
                       type="monotone" 
-                      dataKey="applications" 
+                      dataKey="dailyActive" 
                       stroke="#3b82f6" 
                       strokeWidth={3} 
                       activeDot={{ r: 8 }}
                       dot={{ r: 6, strokeWidth: 2 }}
+                      name="日活跃用户" 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="weeklyActive" 
+                      stroke="#10b981" 
+                      strokeWidth={3} 
+                      activeDot={{ r: 8 }}
+                      dot={{ r: 6, strokeWidth: 2 }}
+                      name="周活跃用户" 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="monthlyActive" 
+                      stroke="#f59e0b" 
+                      strokeWidth={3} 
+                      activeDot={{ r: 8 }}
+                      dot={{ r: 6, strokeWidth: 2 }}
+                      name="月活跃用户" 
                     />
                   </LineChart>
                 </ResponsiveContainer>

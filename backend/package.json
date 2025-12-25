@@ -32,7 +32,9 @@
     "node-fetch": "^3.3.2",
     "pdf-parse": "^2.4.5",
     "pg": "^8.13.0",
-    "pinyin": "^4.0.0"
+    "pinyin": "^4.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.7",

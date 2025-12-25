@@ -8,7 +8,7 @@ import { message } from 'antd';
 // 创建 axios 实例
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  timeout: 10000,
+  timeout: 15000, // 延长超时时间到15秒
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,13 +28,54 @@ api.interceptors.request.use(
   }
 );
 
+// 添加重试机制的响应拦截器
+const maxRetries = 2; // 最大重试次数
+const retryDelay = 1000; // 初始重试延迟时间（毫秒）
+
 // 响应拦截器
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
-    const { response } = error;
+  async (error) => {
+    const { config, response } = error;
+
+    // 如果配置不存在或没有重试次数，则直接返回错误
+    if (!config || typeof config.retry === 'undefined') {
+      config.retry = 0;
+    }
+
+    // 检查是否需要重试
+    const shouldRetry = (
+      config.retry < maxRetries &&
+      (
+        // 网络错误
+        !response ||
+        // 服务器错误
+        response.status >= 500 ||
+        // 请求超时
+        error.code === 'ECONNABORTED' ||
+        // 网络连接错误
+        error.code === 'ERR_NETWORK'
+      )
+    );
+
+    if (shouldRetry) {
+      // 增加重试次数
+      config.retry += 1;
+      
+      // 计算重试延迟（指数退避）
+      const delay = Math.pow(2, config.retry) * retryDelay + Math.random() * 500;
+      
+      console.log(`请求失败，${delay}ms后重试 (${config.retry}/${maxRetries})`, error.message);
+      
+      // 延迟后重试请求
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(api(config));
+        }, delay);
+      });
+    }
 
     // 网络错误或无响应
     if (!response) {
@@ -48,9 +89,10 @@ api.interceptors.response.use(
     switch (response.status) {
       case 401:
         // 未授权，清除 token 并跳转登录 (如果不在登录页)
-        message.error('登录失效，请重新登录');
-        localStorage.removeItem('token');
+        // 登录页的401错误由登录组件自己处理，不显示通用提示
         if (!window.location.pathname.includes('/login')) {
+          message.error('登录失效，请重新登录');
+          localStorage.removeItem('token');
           window.location.href = '/login';
         }
         break;
@@ -64,9 +106,16 @@ api.interceptors.response.use(
       case 500:
         message.error('服务器内部错误，请稍后重试');
         break;
+      case 503:
+        message.error('服务器暂时不可用，请稍后重试');
+        break;
+      case 504:
+        message.error('请求超时，请稍后重试');
+        break;
       default:
         // 只有当有明确的错误信息时才提示，避免干扰
-        if (errorMessage) {
+        // 登录页的错误由登录组件自己处理
+        if (errorMessage && !window.location.pathname.includes('/login')) {
           message.error(errorMessage);
         }
     }

@@ -45,4 +45,34 @@ export const userAPI = {
 
   // 获取性别选项配置
   getGenderOptions: () => request.get('/api/users/config/genders') as Promise<any>,
+  
+  // 发送验证码
+  sendVerificationCode: (identifier: string) => {
+    return request.post('/api/users/send-verification-code', { identifier }) as Promise<any>;
+  },
+  
+  // 验证验证码
+  verifyCode: (identifier: string, code: string) => {
+    return request.post('/api/users/verify-code', { identifier, code }) as Promise<any>;
+  },
+  
+  // 重置密码
+  resetPassword: (resetToken: string, newPassword: string) => {
+    return request.post('/api/users/reset-password', { resetToken, newPassword }) as Promise<any>;
+  },
+  
+  // 发送邮箱绑定验证码
+  sendEmailBindCode: (email: string) => {
+    return request.post('/api/users/send-email-bind-code', { email }) as Promise<any>;
+  },
+  
+  // 绑定邮箱
+  bindEmail: (email: string, code: string) => {
+    return request.post('/api/users/bind-email', { email, code }) as Promise<any>;
+  },
+
+  // 注销账号
+  deleteAccount: (id: string | number) => {
+    return request.delete(`/api/users/${id}/delete-account`) as Promise<any>;
+  },
 };

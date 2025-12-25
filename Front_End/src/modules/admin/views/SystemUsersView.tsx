@@ -4,6 +4,13 @@ import { TRANSLATIONS } from '@/constants/constants';
 import { userAPI } from '@/services/apiService';
 import { SystemUser, Language, UserRole } from '@/types/types';
 import { exportToCSV } from '../helpers';
+import Pagination from '@/components/Pagination';
+
+// 测试环境中密码哈希值到明文密码的映射
+const passwordMap: Record<string, string> = {
+  '$2b$10$TfgQY0rgp0WPJt.7ZiEFDuBuM7geFIJwybRTcxI.RTxs81j7iO1Iy': '123456',
+  // 可以根据需要添加更多映射
+};
 
 const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
     const t = TRANSLATIONS[lang].users;
@@ -17,15 +24,27 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
     const [visibleColumns, setVisibleColumns] = useState({
         name: true,
         email: true,
-        role: true,
-        status: true,
+        phone: false, // 手机号
+        gender: false, // 性别
+        password: false, // 默认隐藏密码列
+        userType: true, // 用户类型列（替换状态列）
+        education: false, // 学历
+        workExperience: false, // 工作经验
+        desiredPosition: false, // 期望职位
         createdAt: true,
         lastLogin: true,
+        emailVerified: false, // 邮箱验证状态
+        phoneVerified: false, // 手机验证状态
         action: true
     });
     
     // 列显示/隐藏弹窗状态
     const [showColumnModal, setShowColumnModal] = useState(false);
+
+    // 分页状态
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10); // 每页显示10条数据
+    const [totalItems, setTotalItems] = useState(0);
 
     // 从API获取用户数据
     React.useEffect(() => {
@@ -38,7 +57,9 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                     id: user.id.toString(),
                     name: user.name,
                     email: user.email,
-                    role: user.role as UserRole,
+                    password: user.password, // 提取密码字段（仅测试环境使用）
+                    role: user.roles && user.roles.length > 0 ? user.roles[0] as UserRole : 'candidate',
+                    roles: user.roles || [user.role as UserRole], // 确保roles数组存在
                     status: user.status === 'active' ? 'Active' : user.status === 'inactive' ? 'Inactive' : 'Suspended',
                     lastLogin: user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Never',
                     createdAt: new Date(user.created_at).toLocaleDateString(),
@@ -77,12 +98,28 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
         fetchUsers();
     }, []);
 
-    const filteredUsers = useMemo(() => {
+    // 筛选用户数据
+    const filteredUsersList = useMemo(() => {
         return users.filter(user => 
             (filterRole === 'all' || user.role === filterRole) &&
             (user.name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }, [users, filterRole, searchTerm]);
+
+    // 分页处理
+    const filteredUsers = useMemo(() => {
+        // 更新总数据量
+        setTotalItems(filteredUsersList.length);
+        // 计算当前页显示的数据
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        return filteredUsersList.slice(startIndex, endIndex);
+    }, [filteredUsersList, currentPage, pageSize]);
+
+    // 重置当前页当筛选条件变化时
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterRole, searchTerm]);
 
     const RoleBadge = ({ role }: { role: UserRole }) => {
         const colors = {
@@ -105,22 +142,21 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
     
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{t.title}</h1>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="flex gap-2 items-center w-full md:w-auto">
                         <Search className="text-slate-400 w-5 h-5"/>
-                        <input type="text" placeholder="Search by name or email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm w-full md:w-64"/>
+                        <input type="text" placeholder="按姓名或邮箱搜索..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm w-full md:w-64"/>
                     </div>
                     <div className="flex gap-4 w-full md:w-auto">
                         <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm px-4 py-2 w-full md:w-auto focus:ring-2 focus:ring-blue-500">
-                            <option value="all">All Roles</option>
-                            <option value="admin">Admin</option>
-                            <option value="recruiter">Recruiter</option>
-                            <option value="candidate">Candidate</option>
+                            <option value="all">所有角色</option>
+                            <option value="admin">管理员</option>
+                            <option value="recruiter">招聘者</option>
+                            <option value="candidate">求职者</option>
                         </select>
                         <button onClick={() => exportToCSV(filteredUsers, 'system_users')} className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all">
-                            <Download size={16}/> Export
+                            <Download size={16}/> 导出
                         </button>
                         {/* 列显示/隐藏控制按钮 */}
                         <button 
@@ -133,19 +169,26 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                     </div>
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
-                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
+                    <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400 min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300 sticky top-0 z-10">
                             <tr>
-                                {visibleColumns.name && <th scope="col" className="px-6 py-3 text-left">{t.name}</th>}
-                                {visibleColumns.email && <th scope="col" className="px-6 py-3 text-left">Email</th>}
-                                {visibleColumns.role && <th scope="col" className="px-6 py-3 text-left">{t.role}</th>}
-                                {visibleColumns.status && <th scope="col" className="px-6 py-3 text-left">{t.status}</th>}
-                                {visibleColumns.createdAt && <th scope="col" className="px-6 py-3 text-left">{t.createdAt}</th>}
-                                {visibleColumns.lastLogin && <th scope="col" className="px-6 py-3 text-left">{t.lastLogin}</th>}
-                                {visibleColumns.action && <th scope="col" className="px-6 py-3 text-left">{t.action}</th>}
+                                {visibleColumns.name && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">{t.name}</th>}
+                                {visibleColumns.email && <th scope="col" className="px-6 py-3 text-left min-w-[200px]">邮箱</th>}
+                                {visibleColumns.phone && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">手机号</th>}
+                                {visibleColumns.gender && <th scope="col" className="px-6 py-3 text-left min-w-[80px]">性别</th>}
+                                {visibleColumns.password && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">密码</th>}
+                                {visibleColumns.userType && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">用户类型</th>}
+                                {visibleColumns.education && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">学历</th>}
+                                {visibleColumns.workExperience && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">工作经验</th>}
+                                {visibleColumns.desiredPosition && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">期望职位</th>}
+                                {visibleColumns.emailVerified && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">邮箱验证</th>}
+                                {visibleColumns.phoneVerified && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">手机验证</th>}
+                                {visibleColumns.createdAt && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">{t.createdAt}</th>}
+                                {visibleColumns.lastLogin && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">{t.lastLogin}</th>}
+                                {visibleColumns.action && <th scope="col" className="px-6 py-3 text-left min-w-[80px]">{t.action}</th>}
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                             {loading ? (
                                 <tr>
                                     <td colSpan={Object.keys(visibleColumns).length} className="px-6 py-8 text-center text-slate-500">
@@ -161,20 +204,62 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                             ) : (
                                 filteredUsers.map(user => (
                                     <tr key={user.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
-                                        {visibleColumns.name && <td className="px-6 py-4 font-medium text-slate-900 dark:text-white whitespace-nowrap">{user.name}</td>}
-                                        {visibleColumns.email && <td className="px-6 py-4 text-slate-900 dark:text-white whitespace-nowrap">{user.email}</td>}
-                                        {visibleColumns.role && <td className="px-6 py-4"><RoleBadge role={user.role}/></td>}
-                                        {visibleColumns.status && <td className="px-6 py-4"><StatusBadge status={user.status}/></td>}
-                                        {visibleColumns.createdAt && <td className="px-6 py-4">{user.createdAt}</td>}
-                                        {visibleColumns.lastLogin && <td className="px-6 py-4">{user.lastLogin}</td>}
-                                        {visibleColumns.action && <td className="px-6 py-4">
-                                            <button onClick={() => setSelectedUser(user)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">View</button>
+                                        {visibleColumns.name && <td className="px-6 py-4 font-medium text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.name}</td>}
+                                        {visibleColumns.email && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</td>}
+                                        {visibleColumns.phone && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.phone || '未设置'}</td>}
+                                        {visibleColumns.gender && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.gender || '未设置'}</td>}
+                                        {visibleColumns.password && <td className="px-6 py-4 font-mono text-sm text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">
+                                          {user.password ? user.password : '未设置'}
+                                        </td>}
+                                        {visibleColumns.userType && <td className="px-6 py-4">
+                                          {user.roles?.includes('candidate') && user.roles?.includes('recruiter') ? (
+                                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">求职者和招聘者</span>
+                                          ) : user.roles?.includes('candidate') ? (
+                                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">求职者</span>
+                                          ) : user.roles?.includes('recruiter') ? (
+                                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">招聘者</span>
+                                          ) : (
+                                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">管理员</span>
+                                          )}
+                                        </td>}
+                                        {visibleColumns.education && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.education || '未设置'}</td>}
+                                        {visibleColumns.workExperience && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.workExperienceYears || 0} 年</td>}
+                                        {visibleColumns.desiredPosition && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.desiredPosition || '未设置'}</td>}
+                                        {visibleColumns.emailVerified && <td className="px-6 py-4">
+                                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.emailVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {user.emailVerified ? '已验证' : '未验证'}
+                                          </span>
+                                        </td>}
+                                        {visibleColumns.phoneVerified && <td className="px-6 py-4">
+                                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {user.phoneVerified ? '已验证' : '未验证'}
+                                          </span>
+                                        </td>}
+                                        {visibleColumns.createdAt && <td className="px-6 py-4 whitespace-nowrap">{user.createdAt}</td>}
+                                        {visibleColumns.lastLogin && <td className="px-6 py-4 whitespace-nowrap">{user.lastLogin}</td>}
+                                        {visibleColumns.action && <td className="px-6 py-4 whitespace-nowrap">
+                                            <button onClick={() => setSelectedUser(user)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">查看</button>
                                         </td>}
                                     </tr>
                                 ))
                             )}
                         </tbody>
                     </table>
+                </div>
+                
+                {/* 分页组件 */}
+                <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                    <Pagination
+                        currentPage={currentPage}
+                        pageSize={pageSize}
+                        totalItems={totalItems}
+                        onPageChange={(page) => setCurrentPage(page)}
+                        onPageSizeChange={(size) => {
+                            setPageSize(size);
+                            setCurrentPage(1); // 重置到第一页
+                        }}
+                        pageSizeOptions={[10, 20, 50, 100]}
+                    />
                 </div>
             </div>
             {/* 列显示/隐藏配置弹窗 */}
@@ -205,20 +290,83 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">角色</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手机号</label>
                                 <input 
                                     type="checkbox" 
-                                    checked={visibleColumns.role} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, role: e.target.checked}))}
+                                    checked={visibleColumns.phone} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, phone: e.target.checked}))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">状态</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">性别</label>
                                 <input 
                                     type="checkbox" 
-                                    checked={visibleColumns.status} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, status: e.target.checked}))}
+                                    checked={visibleColumns.gender} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, gender: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">密码</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.password} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, password: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">用户类型</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.userType} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, userType: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">学历</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.education} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, education: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">工作经验</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.workExperience} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, workExperience: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">期望职位</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.desiredPosition} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, desiredPosition: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">邮箱验证</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.emailVerified} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, emailVerified: e.target.checked}))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手机验证</label>
+                                <input 
+                                    type="checkbox" 
+                                    checked={visibleColumns.phoneVerified} 
+                                    onChange={(e) => setVisibleColumns(prev => ({...prev, phoneVerified: e.target.checked}))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
@@ -286,9 +434,18 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                    <p><strong className="dark:text-white">ID:</strong> {selectedUser.id}</p>
                                    <p><strong className="dark:text-white">姓名:</strong> {selectedUser.name}</p>
                                    <p><strong className="dark:text-white">邮箱:</strong> {selectedUser.email}</p>
+                                   <p><strong className="dark:text-white">密码:</strong> 
+                                     <span className="font-mono text-sm">
+                                       {selectedUser.password ? selectedUser.password : '未设置'}
+                                     </span>
+                                   </p>
                                    <p><strong className="dark:text-white">手机号:</strong> {selectedUser.phone || '未设置'}</p>
-                                   <p><strong className="dark:text-white">角色:</strong> {selectedUser.role}</p>
-                                   <p><strong className="dark:text-white">状态:</strong> {selectedUser.status}</p>
+                                   <p><strong className="dark:text-white">用户类型:</strong> 
+                                     {selectedUser.roles?.includes('candidate') && selectedUser.roles?.includes('recruiter') ? '求职者和招聘者' : 
+                                      selectedUser.roles?.includes('candidate') ? '求职者' : 
+                                      selectedUser.roles?.includes('recruiter') ? '招聘者' : 
+                                      '管理员'}
+                                   </p>
                                    <p><strong className="dark:text-white">加入时间:</strong> {selectedUser.createdAt}</p>
                                    <p><strong className="dark:text-white">最后登录:</strong> {selectedUser.lastLogin}</p>
                                </div>

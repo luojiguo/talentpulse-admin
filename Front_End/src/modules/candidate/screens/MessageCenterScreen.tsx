@@ -4,6 +4,7 @@ import { Search, MessageSquare, Phone, MoreVertical, Send as SendIcon, Plus, Ima
 import { Conversation, JobPosting, Message, MergedConversation } from '@/types/types';
 import { formatDateTime } from '@/utils/dateUtils';
 import { useDeviceType } from '@/hooks/useMediaQuery';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 import {
     getMessageContainerHeight,
     getMessageContainerPadding,
@@ -195,7 +196,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
         });
 
         const merged: MergedConversation[] = [];
-        
+
         // 处理有招聘者ID的对话，进行合并
         recruiterMap.forEach((convsForRecruiter) => {
             convsForRecruiter.sort((a, b) => {
@@ -224,7 +225,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
 
             merged.push(mergedConv);
         });
-        
+
         // 处理没有招聘者ID的对话，直接添加到合并列表中
         noRecruiterIdConversations.forEach((conv) => {
             const mergedConv: MergedConversation = {
@@ -445,7 +446,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             <div className="flex items-center gap-2">
                                                 <div className="w-10 h-10 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center shrink-0">
                                                     {recruiterAvatar && (recruiterAvatar.startsWith('http') || recruiterAvatar.startsWith('/')) ? (
-                                                        <img src={recruiterAvatar} alt={recruiterName} className="w-full h-full object-cover" />
+                                                        <img src={processAvatarUrl(recruiterAvatar)} alt={recruiterName} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <span className="font-bold text-indigo-600">{recruiterName.charAt(0)}</span>
                                                     )}
@@ -601,7 +602,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         </div>
                                     )}
                                     {activeConv.messages?.map((msg: Message, i: number) => {
-                                        const isMe = msg.sender_id === currentUser?.id;
+                                        const isMe = Number(msg.sender_id) === Number(currentUser?.id);
                                         const isSystem = msg.type === 'system';
 
                                         if (isSystem) return (
@@ -614,12 +615,12 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             <div key={i} className={`flex gap-2 items-end ${isMe ? 'justify-end' : 'justify-start'} group`}>
                                                 {!isMe && (
                                                     <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
-                                                        {msg.sender_avatar ? <img src={msg.sender_avatar} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs">{msg.sender_name?.[0]}</span>}
+                                                        {msg.sender_avatar && msg.sender_avatar !== '' ? <img src={processAvatarUrl(msg.sender_avatar)} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs">{msg.sender_name?.[0]}</span>}
                                                     </div>
                                                 )}
                                                 <div
                                                     className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
-                                                    ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'}
+                                                    ${isMe ? 'bg-indigo-600 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}
                                                     hover:shadow-md transition-shadow
                                                 `}
                                                     onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
@@ -665,7 +666,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 </div>
                                                 {isMe && (
                                                     <div className="w-8 h-8 rounded-full bg-indigo-100 overflow-hidden">
-                                                        {currentUser?.avatar ? <img src={currentUser.avatar} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs font-bold text-indigo-600">{currentUser?.name?.[0]}</span>}
+                                                        {currentUser?.avatar && currentUser.avatar.trim() !== '' ? <img src={processAvatarUrl(currentUser.avatar)} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs font-bold text-indigo-600">{currentUser?.name?.[0]}</span>}
                                                     </div>
                                                 )}
                                             </div>

@@ -8,6 +8,8 @@ import CandidateApp from './modules/candidate/CandidateApp';
 import { UserRole, SystemUser } from './types/types';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
+import ForgotPasswordForm from './components/auth/ForgotPasswordForm';
+import EmailBindForm from './components/auth/EmailBindForm';
 import { userAPI, companyAPI } from './services/apiService';
 
 // 使用系统定义的用户类型
@@ -17,9 +19,28 @@ interface User extends SystemUser {
 
 const AuthScreen: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [initialIdentifier, setInitialIdentifier] = useState('');
 
-  const handleAuthSuccess = (user: any) => {
+  const handleLoginSuccess = (user: any) => {
     onAuthSuccess(user as User);
+  };
+
+  const handleRegisterSuccess = () => {
+    // 注册成功后，显示成功消息并切换到登录表单
+    message.success('注册成功，请使用新账号登录');
+    setIsLogin(true);
+  };
+
+  const handleBackToLogin = () => {
+    setIsForgotPassword(false);
+    setIsLogin(true);
+  };
+
+  const handleResetSuccess = () => {
+    message.success('密码重置成功，请使用新密码登录');
+    setIsForgotPassword(false);
+    setIsLogin(true);
   };
 
   return (
@@ -31,15 +52,15 @@ const AuthScreen: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthS
           <p className="text-indigo-200 text-lg mb-8">下一代智能招聘与求职管理平台。</p>
           <ul className="space-y-4 text-sm text-indigo-100">
             <li className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full" />
+              <div className="w-2 h-2 bg-indigo-400 rounded-full" /> 
               AI 驱动的简历匹配
             </li>
             <li className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full" />
+              <div className="w-2 h-2 bg-indigo-400 rounded-full" /> 
               实时数据分析看板
             </li>
             <li className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full" />
+              <div className="w-2 h-2 bg-indigo-400 rounded-full" /> 
               全流程在线沟通
             </li>
           </ul>
@@ -47,14 +68,24 @@ const AuthScreen: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthS
 
         {/* Right Side: Auth Forms */}
         <div className="md:w-1/2 flex items-center justify-center p-6">
-          {isLogin ? (
+          {isForgotPassword ? (
+            <ForgotPasswordForm
+              onBackToLogin={handleBackToLogin}
+              onResetSuccess={handleResetSuccess}
+              initialIdentifier={initialIdentifier}
+            />
+          ) : isLogin ? (
             <LoginForm
-              onLoginSuccess={handleAuthSuccess}
+              onLoginSuccess={handleLoginSuccess}
               onSwitchToRegister={() => setIsLogin(false)}
+              onForgotPassword={(identifier) => {
+                setInitialIdentifier(identifier || '');
+                setIsForgotPassword(true);
+              }}
             />
           ) : (
             <RegisterForm
-              onRegisterSuccess={handleAuthSuccess}
+              onRegisterSuccess={handleRegisterSuccess}
               onSwitchToLogin={() => setIsLogin(true)}
             />
           )}
@@ -83,6 +114,50 @@ const App: React.FC = () => {
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<UserRole | null>(null);
   const [companyNameInput, setCompanyNameInput] = useState('');
+  
+  // 邮箱绑定状态
+  const [needsEmailBind, setNeedsEmailBind] = useState(false);
+  
+  // 检查用户是否需要绑定邮箱
+  useEffect(() => {
+    if (currentUser && !currentUser.email) {
+      setNeedsEmailBind(true);
+    } else {
+      setNeedsEmailBind(false);
+    }
+  }, [currentUser]);
+
+  // 监听头像更新事件
+  useEffect(() => {
+    const handleAvatarUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ avatar: string }>;
+      if (customEvent.detail && customEvent.detail.avatar && currentUser) {
+        setCurrentUser(prev => ({
+          ...prev!,
+          avatar: customEvent.detail.avatar
+        }));
+      }
+    };
+
+    window.addEventListener('userAvatarUpdated', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
+    };
+  }, [currentUser]);
+  
+  // 邮箱绑定成功处理
+  const handleEmailBindSuccess = () => {
+    // 更新用户信息，添加邮箱已绑定标记
+    if (currentUser) {
+      const updatedUser = {
+        ...currentUser,
+        email_verified: true
+      };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    }
+    setNeedsEmailBind(false);
+  };
 
 
 
@@ -117,7 +192,7 @@ const App: React.FC = () => {
         companyName: companyNameInput.trim()
       });
 
-      if (data.status === 'success') {
+      if (data.success) {
         // 切换成功，更新用户信息
         const updatedUser = {
           ...currentUser,
@@ -154,7 +229,7 @@ const App: React.FC = () => {
         const checkData = await companyAPI.getCompanyByUserId(currentUser.id);
 
         // 如果用户已关联企业且企业已认证，直接切换角色
-        if (checkData.status === 'success' && checkData.data.length > 0) {
+        if (checkData.success && checkData.data.length > 0) {
           const company = checkData.data[0];
           if (company.is_verified) {
             // 已认证，直接调用后端切换角色，不使用模态框
@@ -166,7 +241,7 @@ const App: React.FC = () => {
                 companyName: '' // 已认证企业，无需企业名称
               });
 
-              if (data.status === 'success') {
+              if (data.success) {
                 // 切换成功，更新用户信息
                 const updatedUser = {
                   ...currentUser,
@@ -261,7 +336,7 @@ const App: React.FC = () => {
           <>
             {/* 求职者路由 */}
             {currentUser.role === 'candidate' && (
-              <Route path="/*" element={<CandidateApp currentUser={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />} />
+              <Route path="/*" element={<CandidateApp currentUser={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} onUpdateUser={setCurrentUser} />} />
             )}
 
             {/* 招聘者路由 */}
@@ -337,6 +412,11 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* 邮箱绑定模态框 */}
+      {needsEmailBind && (
+        <EmailBindForm onBindSuccess={handleEmailBindSuccess} />
       )}
     </BrowserRouter>
   );

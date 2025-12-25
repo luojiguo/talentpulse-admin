@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
     
     return {
       server: {
-        port: 3000,
+        port: 3500,
         host: 'localhost',
         proxy: {
           '/qianwen': {
@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => {
         debug: false // 禁用调试日志
       },
       preview: {
-        port: 4173,
+        port: 3500,
         host: 'localhost',
         proxy: {
           '/qianwen': {

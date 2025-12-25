@@ -9,7 +9,7 @@ interface Interview {
   interviewDate: string;
   interviewTime: string;
   location: string;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'completed' | 'cancelled' | 'accepted' | 'rejected';
   interviewRound: number;
   interviewType: '电话' | '视频' | '现场';
   interviewTopic?: string;
@@ -74,6 +74,8 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
       case 'scheduled': return 'bg-blue-100 text-blue-700';
       case 'completed': return 'bg-green-100 text-green-700';
       case 'cancelled': return 'bg-red-100 text-red-700';
+      case 'accepted': return 'bg-green-100 text-green-700';
+      case 'rejected': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -83,7 +85,25 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
       case 'scheduled': return '已安排';
       case 'completed': return '已完成';
       case 'cancelled': return '已取消';
+      case 'accepted': return '已接受';
+      case 'rejected': return '已拒绝';
       default: return status;
+    }
+  };
+
+  const handleInterviewStatusChange = async (interviewId: number, newStatus: 'accepted' | 'rejected') => {
+    try {
+      const response = await interviewAPI.updateInterviewStatus(interviewId, newStatus);
+      if ((response as any).status === 'success') {
+        setInterviews(prev => 
+          prev.map(interview => 
+            interview.id === interviewId ? { ...interview, status: newStatus } : interview
+          )
+        );
+      }
+    } catch (error) {
+      console.error('更新面试状态失败:', error);
+      // 可以添加错误提示
     }
   };
 
@@ -201,6 +221,24 @@ const InterviewsScreen: React.FC<InterviewsScreenProps> = ({ currentUser }) => {
                         </div>
                       )}
                     </div>
+                    {interview.status === 'scheduled' && (
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          onClick={() => handleInterviewStatusChange(interview.id, 'accepted')}
+                          className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          接受面试
+                        </button>
+                        <button
+                          onClick={() => handleInterviewStatusChange(interview.id, 'rejected')}
+                          className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          拒绝面试
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

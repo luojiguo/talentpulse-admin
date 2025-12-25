@@ -1,14 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Download, Filter } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
 import { jobAPI } from '@/services/apiService';
 import { JobPosting, Language } from '@/types/types';
+import Pagination from '@/components/Pagination';
+import { exportToCSV } from '../helpers';
 
 const JobsView: React.FC<{ lang: Language }> = ({ lang }) => {
     const t = TRANSLATIONS[lang].jobs;
     const [jobs, setJobs] = useState<JobPosting[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+    
+    // 分页状态
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalItems, setTotalItems] = useState(0);
 
     // 从API获取职位数据
     const [error, setError] = useState<Error | null>(null);
@@ -19,22 +27,22 @@ const JobsView: React.FC<{ lang: Language }> = ({ lang }) => {
             setError(null);
             const response = await jobAPI.getAllJobs();
             // 将数据库返回的职位数据转换为前端所需的格式
-            const formattedJobs: JobPosting[] = response.data.map((job: any) => ({
-                id: job.id,
-                title: job.title,
-                company: job.company_name || job.company_id, // 使用公司名称，如果没有则使用公司ID
-                department: job.department || '',
-                location: job.location,
-                salary: job.salary || '',
-                description: job.description || '',
-                type: job.type,
-                experience: job.experience || '',
-                degree: job.degree || '',
-                posterId: job.recruiter_id || 0,
-                applicants: job.applications_count || 0,
-                status: job.status === 'active' ? 'Active' : 'Closed',
-                postedDate: new Date(job.publish_date).toLocaleDateString()
-            }));
+                const formattedJobs: JobPosting[] = response.data.map((job: any) => ({
+                    id: job.id,
+                    title: job.title,
+                    company: job.company_name || job.company_id, // 使用公司名称，如果没有则使用公司ID
+                    department: job.department || '',
+                    location: job.location,
+                    salary: job.salary || '',
+                    description: job.description || '',
+                    type: job.type,
+                    experience: job.experience || '',
+                    degree: job.degree || '',
+                    posterId: job.recruiter_id || 0,
+                    applicants: job.applications_count || 0,
+                    status: job.status === 'active' ? '活跃' : '已关闭',
+                    postedDate: new Date(job.publish_date).toLocaleDateString()
+                }));
             setJobs(formattedJobs);
         } catch (error) {
             console.error('获取职位数据失败:', error);
@@ -63,10 +71,16 @@ const JobsView: React.FC<{ lang: Language }> = ({ lang }) => {
              (job.type && job.type.toLowerCase().includes(searchTerm.toLowerCase())))
         );
     }, [jobs, searchTerm]);
+    
+    // 计算分页数据
+    const paginatedJobs = useMemo(() => {
+        setTotalItems(filteredJobs.length);
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredJobs.slice(startIndex, startIndex + pageSize);
+    }, [filteredJobs, currentPage, pageSize]);
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{t.title}</h1>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex gap-4 justify-between items-center">
                     <div className="flex gap-2 items-center w-full md:w-auto">
@@ -112,36 +126,52 @@ const JobsView: React.FC<{ lang: Language }> = ({ lang }) => {
                 )}
                 
                 {!loading && !error && (
-                    <table className="w-full text-sm">
-                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
-                            <tr>
-                                <th className="px-6 py-3 text-left">{t.position}</th>
-                                <th className="px-6 py-3 text-left">{t.company}</th>
-                                <th className="px-6 py-3 text-left">{t.applicants}</th>
-                                <th className="px-6 py-3 text-left">{t.status}</th>
-                                <th className="px-6 py-3 text-left">{t.date}</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredJobs.length === 0 ? (
+                    <>
+                        <table className="w-full text-sm">
+                            <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                                        没有找到匹配的职位
-                                    </td>
+                                    <th className="px-6 py-3 text-left">{t.position}</th>
+                                    <th className="px-6 py-3 text-left">{t.company}</th>
+                                    <th className="px-6 py-3 text-left">{t.applicants}</th>
+                                    <th className="px-6 py-3 text-left">{t.status}</th>
+                                    <th className="px-6 py-3 text-left">{t.date}</th>
                                 </tr>
-                            ) : (
-                                filteredJobs.map(job => (
-                                    <tr key={job.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
-                                        <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{job.title}</td>
-                                        <td className="px-6 py-4">{job.company}</td>
-                                        <td className="px-6 py-4">{job.applicants}</td>
-                                        <td className="px-6 py-4">{job.status}</td>
-                                        <td className="px-6 py-4">{job.postedDate}</td>
+                            </thead>
+                            <tbody>
+                                {filteredJobs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                                            没有找到匹配的职位
+                                        </td>
                                     </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                ) : (
+                                    paginatedJobs.map(job => (
+                                        <tr key={job.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
+                                            <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{job.title}</td>
+                                            <td className="px-6 py-4">{job.company}</td>
+                                            <td className="px-6 py-4">{job.applicants}</td>
+                                            <td className="px-6 py-4">{job.status}</td>
+                                            <td className="px-6 py-4">{job.postedDate}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                        
+                        {/* 分页组件 */}
+                        <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                            <Pagination
+                                currentPage={currentPage}
+                                pageSize={pageSize}
+                                totalItems={totalItems}
+                                onPageChange={(page) => setCurrentPage(page)}
+                                onPageSizeChange={(size) => {
+                                    setPageSize(size);
+                                    setCurrentPage(1); // 重置到第一页
+                                }}
+                            />
+                        </div>
+                    </>
                 )}
             </div>
         </div>

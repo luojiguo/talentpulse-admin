@@ -61,9 +61,9 @@ export const messageAPI = {
   deleteMessage: (messageId: string | number, data: { deletedBy: string | number }) => {
     return request.delete(`/messages/messages/${messageId}`, { data });
   },
-  
+
   // 删除对话（软删除）
-  deleteConversation: (conversationId: string | number) => {
-    return request.delete(`/messages/conversation/${conversationId}`);
+  deleteConversation: (conversationId: string | number, data?: { deletedBy: string | number }) => {
+    return request.delete(`/messages/conversation/${conversationId}`, { data });
   },
 };

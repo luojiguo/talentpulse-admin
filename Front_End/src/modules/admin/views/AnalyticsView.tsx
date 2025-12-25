@@ -131,8 +131,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
 
     return (
         <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{t.title}</h1>
+            <div className="flex items-center justify-end">
               <button 
                 onClick={handleAnalyze}
                 disabled={aiStatus === InsightStatus.LOADING}

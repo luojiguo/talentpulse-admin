@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, X } from 'lucide-react';
+import { Search, Filter, X, Download } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
 import { companyAPI } from '@/services/apiService';
 import { Company, Language } from '@/types/types';
+import Pagination from '@/components/Pagination';
+import { exportToCSV } from '../helpers';
 
 const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
     const t = TRANSLATIONS[lang].companies;
@@ -30,6 +32,11 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
     
     // 列显示/隐藏弹窗状态
     const [showColumnModal, setShowColumnModal] = useState(false);
+    
+    // 分页状态
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalItems, setTotalItems] = useState(0);
 
     // 从API获取公司数据
     React.useEffect(() => {
@@ -49,7 +56,7 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
                     industry: company.industry || '',
                     size: company.size || '',
                     logo: company.logo || '🏢',
-                    status: company.is_verified ? 'Verified' : company.status === 'active' ? 'Pending' : 'Rejected',
+                    status: company.is_verified ? '已验证' : company.status === 'active' ? '待审核' : '已拒绝',
                     location: company.address || '',
                     hrCount: 0, // 数据库中没有这个字段，暂时设为0
                     jobCount: company.job_count || 0,
@@ -100,6 +107,13 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
             (filterSize === 'all' || company.size === filterSize)
         );
     }, [companies, searchTerm, filterIndustry, filterStatus, filterSize]);
+    
+    // 计算分页数据
+    const paginatedCompanies = useMemo(() => {
+        setTotalItems(filteredCompanies.length);
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredCompanies.slice(startIndex, startIndex + pageSize);
+    }, [filteredCompanies, currentPage, pageSize]);
 
     // 监听选中企业变化
     React.useEffect(() => {
@@ -110,7 +124,6 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{t.title}</h1>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 {/* 筛选栏 */}
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 justify-between items-center">
@@ -155,6 +168,14 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 <option key={size} value={size}>{size}</option>
                             ))}
                         </select>
+                        {/* 导出按钮 */}
+                        <button 
+                            onClick={() => exportToCSV(filteredCompanies, 'companies')}
+                            className="bg-slate-700 text-white border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-blue-500 flex items-center gap-2 hover:bg-slate-900 transition-all"
+                        >
+                            <Download size={16} />
+                            <span>导出</span>
+                        </button>
                         {/* 列显示/隐藏控制按钮 */}
                         <button 
                             onClick={() => setShowColumnModal(true)}
@@ -194,7 +215,7 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredCompanies.map(company => (
+                                paginatedCompanies.map(company => (
                                      <tr key={company.id} className="border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
                                         {visibleColumns.name && <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{company.name}</td>}
                                         {visibleColumns.industry && <td className="px-6 py-4">{company.industry}</td>}
@@ -204,13 +225,27 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
                                         {visibleColumns.status && <td className="px-6 py-4">{company.status}</td>}
                                         {visibleColumns.createdAt && <td className="px-6 py-4">{company.createdAt}</td>}
                                         {visibleColumns.action && <td className="px-6 py-4">
-                                            <button className="font-medium text-blue-600 dark:text-blue-500 hover:underline" onClick={() => setSelectedCompany(company)}>{t.action === '管理' ? '查看' : 'Details'}</button>
+                                            <button className="font-medium text-blue-600 dark:text-blue-500 hover:underline" onClick={() => setSelectedCompany(company)}>查看</button>
                                         </td>}
                                      </tr>
                                 ))
                             )}
                         </tbody>
                     </table>
+                </div>
+                
+                {/* 分页组件 */}
+                <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                    <Pagination
+                        currentPage={currentPage}
+                        pageSize={pageSize}
+                        totalItems={totalItems}
+                        onPageChange={(page) => setCurrentPage(page)}
+                        onPageSizeChange={(size) => {
+                            setPageSize(size);
+                            setCurrentPage(1); // 重置到第一页
+                        }}
+                    />
                 </div>
             </div>
             {/* 列显示/隐藏配置弹窗 */}

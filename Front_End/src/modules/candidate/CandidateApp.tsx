@@ -8,6 +8,7 @@ import { useApi } from '@/hooks/useApi';
 // Import Candidate screens
 import HomeScreen from './screens/HomeScreen';
 import JobDetailScreen from './screens/JobDetailScreen';
+import JobListScreen from './screens/JobListScreen';
 import MessageCenterScreen from './screens/MessageCenterScreen';
 import MockInterviewScreen from './screens/MockInterviewScreen';
 import AIChatScreen from './screens/AIChatScreen';
@@ -26,9 +27,10 @@ interface CandidateAppProps {
   currentUser: User;
   onLogout: () => void;
   onSwitchRole: (newRole: string) => void;
+  onUpdateUser: (user: User) => void;
 }
 
-const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSwitchRole }) => {
+const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSwitchRole, onUpdateUser }) => {
   // Add setCurrentUser functionality by keeping local state that syncs with props
   const [localCurrentUser, setLocalCurrentUser] = useState<User>(currentUser);
   const navigate = useNavigate();
@@ -38,6 +40,24 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     setLocalCurrentUser(currentUser);
   }, [currentUser]);
 
+  // 监听头像更新事件
+  useEffect(() => {
+    const handleAvatarUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ avatar: string }>;
+      if (customEvent.detail && customEvent.detail.avatar) {
+        setLocalCurrentUser(prev => ({
+          ...prev,
+          avatar: customEvent.detail.avatar
+        }));
+      }
+    };
+
+    window.addEventListener('userAvatarUpdated', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
+    };
+  }, []);
+
   // Local setCurrentUser function that updates local state and ensures id is always a number
   const handleSetCurrentUser = (userOrUpdater: User | ((prevUser: User) => User)) => {
     setLocalCurrentUser((prevUser) => {
@@ -45,13 +65,19 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         ? userOrUpdater(prevUser)
         : userOrUpdater;
 
-      return {
+      const updatedUser = {
         ...newUser,
         id: typeof newUser.id === 'string' ? parseInt(newUser.id, 10) : newUser.id
       };
+
+      // Update global state
+      onUpdateUser(updatedUser);
+
+      // Trigger profile refetch to ensure data consistency
+      setTimeout(() => refetchProfile(), 100);
+
+      return updatedUser;
     });
-    // Trigger profile refetch to ensure data consistency
-    setTimeout(() => refetchProfile(), 100);
   };
   // Dropdown menu state
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -77,8 +103,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     loading: loadingJobs,
     error: jobsError
   } = useApi<{ status: string; data: JobPosting[] }>(
-    () => jobAPI.getRecommendedJobs(currentUser.id) as any,
-    [currentUser.id],
+    () => jobAPI.getRecommendedJobs(localCurrentUser.id) as any,
+    [localCurrentUser.id],
     { autoFetch: true, cache: true } // 启用缓存
   );
   const jobs = jobsData?.data || [];
@@ -90,8 +116,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     error: profileError,
     refetch: refetchProfile
   } = useApi<{ status: string; data: Profile }>(
-    () => userAPI.getUserById(currentUser.id) as any,
-    [currentUser.id],
+    () => userAPI.getUserById(localCurrentUser.id) as any,
+    [localCurrentUser.id],
     { autoFetch: true, cache: true } // 启用缓存
   );
 
@@ -101,8 +127,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     loading: loadingFollowedCompanies,
     error: followedCompaniesError
   } = useApi<{ status: string; data: Company[] }>(
-    () => companyAPI.getFollowedCompanies(currentUser.id) as any,
-    [currentUser.id],
+    () => companyAPI.getFollowedCompanies(localCurrentUser.id) as any,
+    [localCurrentUser.id],
     { autoFetch: true, cache: true } // 启用缓存
   );
 
@@ -117,18 +143,18 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
   // 获取用户对话列表
   const fetchConversations = useCallback(async () => {
-    if (!currentUser.id) return;
+    if (!localCurrentUser.id) return;
 
     setLoadingConversations(true);
     setConversationError(null);
 
     try {
       // 直接调用 API，API 服务层已经处理了超时（60秒）
-      const response = await messageAPI.getConversations(currentUser.id);
+      const response = await messageAPI.getConversations(localCurrentUser.id);
 
       if ((response as any).status === 'success') {
         const newData = response.data || [];
-        
+
         setConversations(prevConversations => {
           // 创建一个 Map 方便查找现有消息
           const existingMessagesMap = new Map();
@@ -139,7 +165,16 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           });
 
           // 处理新数据，合并现有消息
-          const mergedConversations = newData.map((conv: any) => {
+          // 过滤掉当前用户是招聘者的对话（只显示作为候选人的对话）
+          const candidateConversations = newData.filter((c: any) => {
+            const rId = c.recruiterUserId || c.recruiter_user_id;
+            return Number(rId) !== Number(localCurrentUser.id);
+          });
+
+          // 如果没有新对话，直接返回旧的
+          if (candidateConversations.length === 0 && prevConversations.length === 0) return [];
+
+          const mergedConversations = candidateConversations.map((conv: any) => {
             const convIdStr = conv.id.toString();
             return {
               ...conv,
@@ -173,7 +208,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     } finally {
       setLoadingConversations(false);
     }
-  }, [currentUser.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
+  }, [localCurrentUser.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
 
   // 修改setActiveConversationId的调用方式，添加获取详细消息的逻辑
   const handleSelectConversation = useCallback(async (conversationId: string | number, limit = 15, offset = 0) => {
@@ -184,7 +219,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 标记消息为已读 - 先调用，减少等待时间
       const markFunc = (messageAPI as any).markMessagesAsRead || messageAPI.markAsRead;
       if (markFunc) {
-        await markFunc(idToSet, currentUser.id);
+        await markFunc(idToSet, localCurrentUser.id);
       }
 
       // 获取对话的详细消息，默认获取最新的15条，减少首屏渲染压力
@@ -220,7 +255,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               // 合并新旧消息并去重
               const existingMessages = conv.messages || [];
               const newMessages = messages || [];
-              
+
               // 使用 Map 进行去重，以 ID 为键
               const messageMap = new Map();
               [...existingMessages, ...newMessages].forEach(msg => {
@@ -228,7 +263,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                   messageMap.set(msg.id.toString(), msg);
                 }
               });
-              
+
               const mergedMessages = Array.from(messageMap.values());
 
               // 将消息按时间升序排序（最早在上，最新在下）
@@ -236,8 +271,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                 new Date(a.time).getTime() - new Date(b.time).getTime()
               );
 
-              return { 
-                ...conv, 
+              return {
+                ...conv,
                 messages: sortedMessages,
                 total_messages: total,
                 // 如果后端返回了最新的对话信息，也可以在这里更新
@@ -264,7 +299,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       const idToFetch = conversationId.toString();
       // 获取更早的消息 (offset = 当前已加载的消息数)
       const response = await (messageAPI as any).getConversationDetail(idToFetch, 20, currentMessageCount, 'desc');
-      
+
       if ((response as any).status === 'success') {
         let messages: any[] = [];
 
@@ -296,22 +331,22 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
             if (conv.id.toString() === idToFetch) {
               const existingMessages = conv.messages || [];
               const newMessages = messages || [];
-              
+
               const messageMap = new Map();
               [...existingMessages, ...newMessages].forEach(msg => {
                 if (msg && msg.id) {
                   messageMap.set(msg.id.toString(), msg);
                 }
               });
-              
+
               const mergedMessages = Array.from(messageMap.values());
               // 升序排序（最早在上）
               const sortedMessages = mergedMessages.sort((a, b) =>
                 new Date(a.time).getTime() - new Date(b.time).getTime()
               );
 
-              return { 
-                ...conv, 
+              return {
+                ...conv,
                 messages: sortedMessages
               };
             }
@@ -334,34 +369,53 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     try {
       // 找到当前对话
       const conversation = conversations.find(c => c.id.toString() === activeConversationId.toString());
-      if (!conversation) return;
+      if (!conversation) {
+        console.error('发送消息失败: 找不到当前对话');
+        return;
+      }
+
+      console.log('准备发送消息:', {
+        conversationId: activeConversationId,
+        senderId: localCurrentUser.id,
+        receiverId: undefined,
+        text,
+        type
+      });
 
       // 优化：发送消息的同时本地更新，提升响应速度
       const response = await messageAPI.sendMessage({
         conversationId: activeConversationId,
-        senderId: currentUser.id,
+        senderId: localCurrentUser.id,
         receiverId: undefined, // 后端会自动根据conversationId查找接收者
         text,
         type
       } as any);
 
-      if ((response as any).status === 'success') {
+      console.log('发送消息响应:', response);
+
+      // 检查响应是否成功（支持多种响应格式）
+      // 用户日志显示的响应格式: {code: 200, message: '消息发送成功', data: {…}, success: true, status: 'success'}
+      // 注意：axios响应可能被拦截器处理过，直接返回了data部分
+      const responseData = response as any;
+      const isSuccess = responseData.status === 'success' || responseData.success === true || responseData.code === 200;
+
+      if (isSuccess) {
         // 更新本地对话列表
         const updatedConversations = conversations.map(c => {
           if (c.id.toString() === activeConversationId.toString()) {
             // 创建新消息对象
             const newMessage = {
-              id: response.data.id || Date.now(),
+              id: responseData.data?.id || Date.now(),
               conversation_id: activeConversationId,
-              sender_id: currentUser.id,
+              sender_id: localCurrentUser.id,
               receiver_id: conversation.recruiterUserId || conversation.recruiter_user_id || conversation.recruiterId || conversation.recruiter_id || conversation.RecruiterId,
               text,
               type,
               status: 'sent',
               time: new Date().toISOString(),
               created_at: new Date().toISOString(),
-              sender_name: currentUser.name || '我',
-              sender_avatar: currentUser.avatar
+              sender_name: localCurrentUser.name || '我',
+              sender_avatar: localCurrentUser.avatar
             };
 
             return {
@@ -383,12 +437,21 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         setTimeout(() => {
           fetchConversations();
         }, 1000); // 延迟1秒，确保后端数据已更新
+      } else {
+        console.error('发送消息失败: 响应状态错误', response);
+        message.error('发送消息失败: ' + (responseData.message || '未知错误'));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('发送消息失败:', error);
-      alert('发送消息失败，请稍后重试');
+      console.error('错误详情:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+      message.error('发送消息失败: ' + (error.response?.data?.message || error.message || '网络错误'));
     }
-  }, [activeConversationId, conversations, currentUser, fetchConversations]);
+  }, [activeConversationId, conversations, localCurrentUser, fetchConversations]);
 
   // Handle Delete Message
   const handleDeleteMessage = useCallback(async (conversationId: string | number, messageId: number | string) => {
@@ -404,7 +467,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               const newMessages = (conv.messages || []).filter(m => m.id.toString() !== messageId.toString());
               // 如果删除了最后一条消息，更新lastMessage
               const lastMsg = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
-              
+
               return {
                 ...conv,
                 messages: newMessages,
@@ -414,7 +477,10 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
             return conv;
           })
         );
-        
+
+        // 显示删除成功提示
+        message.success('消息已删除');
+
         // 关键修复：删除消息后重新获取对话列表，确保“最后一条消息”同步更新
         setTimeout(() => {
           fetchConversations();
@@ -444,11 +510,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         }
 
         // 显示删除成功提示
-        alert('与该招聘者的聊天记录已成功删除，数据已软删除并保留在数据库中');
+        message.success('聊天记录已删除');
       }
     } catch (error) {
       console.error('删除对话失败:', error);
-      alert('删除对话失败，请稍后重试');
+      message.error('删除聊天记录失败，请稍后重试');
     }
   }, [activeConversationId]);
 
@@ -460,10 +526,10 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       if (!conversation) return;
 
       const receiverId = conversation.recruiterUserId || conversation.recruiter_user_id || conversation.recruiterId || conversation.recruiter_id || conversation.RecruiterId;
-      
+
       const response = await messageAPI.uploadChatImage(
         conversationId,
-        currentUser.id,
+        localCurrentUser.id,
         receiverId,
         file
       );
@@ -474,8 +540,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           if (c.id.toString() === conversationId.toString()) {
             const newMessage = {
               ...response.data,
-              sender_name: currentUser.name || '我',
-              sender_avatar: currentUser.avatar
+              sender_name: localCurrentUser.name || '我',
+              sender_avatar: localCurrentUser.avatar
             };
 
             return {
@@ -492,7 +558,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         });
 
         setConversations(updatedConversations);
-        
+
         // 刷新列表
         setTimeout(() => {
           fetchConversations();
@@ -502,7 +568,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       console.error('上传图片失败:', error);
       message.error(error.message || '上传图片失败，请稍后重试');
     }
-  }, [conversations, currentUser, fetchConversations]);
+  }, [conversations, localCurrentUser, fetchConversations]);
 
   // 优化：延迟获取对话列表，避免阻塞初始渲染
   useEffect(() => {
@@ -568,13 +634,13 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     const recruiterPosition = job?.recruiter_position || 'HR';
 
     // Create default message with format: 打招呼+介绍自己+应聘的岗位
-    const defaultMessage = `您好！我是${userProfile.name || currentUser.name}，我想应聘${jobTitle}职位，想了解更多相关信息。`;
+    const defaultMessage = `您好！我是${userProfile.name || localCurrentUser.name}，我想应聘${jobTitle}职位，想了解更多相关信息。`;
 
     try {
       // 1. 创建申请记录（立即沟通也是一种申请方式）
       // 后端会自动处理user_id到candidate_id的转换
       try {
-        await candidateAPI.applyForJob(currentUser.id, jobId, {
+        await candidateAPI.applyForJob(localCurrentUser.id, jobId, {
           coverLetter: `通过"立即沟通"功能申请该职位`,
           applicationMethod: 'chat' // 标记申请方式为"立即沟通"
         });
@@ -587,7 +653,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       // 3. 调用后端API创建对话并发送消息
       const response = await messageAPI.createConversationAndSendMessage({
         jobId,
-        candidateId: currentUser.id,
+        candidateId: localCurrentUser.id,
         recruiterId,
         message: defaultMessage
       });
@@ -703,65 +769,66 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         <LoadingSpinner fullScreen text="加载中..." />
       )}
       <Routes>
-      <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
-      <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} /></CandidateLayout>} />
+        <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
+        <Route path="/job" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobListScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
+        <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} /></CandidateLayout>} />
 
-      {/* Message Center Routes */}
-      {/* Message Center Routes - Unified Responsive Route */}
-      <Route path="/messages" element={
-        <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
-          <MessageCenterScreen
-            conversations={conversations}
-            jobs={jobs}
-            activeConversationId={activeConversationId}
-            onSelectConversation={handleSelectConversation}
-            onSendMessage={handleSendMessage}
-            onUploadImage={handleUploadImage}
-            onDeleteMessage={handleDeleteMessage}
-            onDeleteConversation={handleDeleteConversation}
-            onLoadMoreMessages={handleLoadMoreMessages}
-            searchText={searchText}
-            setSearchText={setSearchText}
-            filterUnread={filterUnread}
-            setFilterUnread={setFilterUnread}
-            currentUser={localCurrentUser}
-            conversationError={conversationError}
-          />
-        </CandidateLayout>
-      }
-      />
-      <Route path="/messages/:conversationId" element={
-        <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
-          <MessageCenterScreen
-            conversations={conversations}
-            jobs={jobs}
-            activeConversationId={activeConversationId}
-            onSelectConversation={handleSelectConversation}
-            onSendMessage={handleSendMessage}
-            onUploadImage={handleUploadImage}
-            onDeleteMessage={handleDeleteMessage}
-            onDeleteConversation={handleDeleteConversation}
-            onLoadMoreMessages={handleLoadMoreMessages}
-            searchText={searchText}
-            setSearchText={setSearchText}
-            filterUnread={filterUnread}
-            setFilterUnread={setFilterUnread}
-            currentUser={localCurrentUser}
-            conversationError={conversationError}
-          />
-        </CandidateLayout>
-      }
-      />
+        {/* Message Center Routes */}
+        {/* Message Center Routes - Unified Responsive Route */}
+        <Route path="/messages" element={
+          <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+            <MessageCenterScreen
+              conversations={conversations}
+              jobs={jobs}
+              activeConversationId={activeConversationId}
+              onSelectConversation={handleSelectConversation}
+              onSendMessage={handleSendMessage}
+              onUploadImage={handleUploadImage}
+              onDeleteMessage={handleDeleteMessage}
+              onDeleteConversation={handleDeleteConversation}
+              onLoadMoreMessages={handleLoadMoreMessages}
+              searchText={searchText}
+              setSearchText={setSearchText}
+              filterUnread={filterUnread}
+              setFilterUnread={setFilterUnread}
+              currentUser={localCurrentUser}
+              conversationError={conversationError}
+            />
+          </CandidateLayout>
+        }
+        />
+        <Route path="/messages/:conversationId" element={
+          <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+            <MessageCenterScreen
+              conversations={conversations}
+              jobs={jobs}
+              activeConversationId={activeConversationId}
+              onSelectConversation={handleSelectConversation}
+              onSendMessage={handleSendMessage}
+              onUploadImage={handleUploadImage}
+              onDeleteMessage={handleDeleteMessage}
+              onDeleteConversation={handleDeleteConversation}
+              onLoadMoreMessages={handleLoadMoreMessages}
+              searchText={searchText}
+              setSearchText={setSearchText}
+              filterUnread={filterUnread}
+              setFilterUnread={setFilterUnread}
+              currentUser={localCurrentUser}
+              conversationError={conversationError}
+            />
+          </CandidateLayout>
+        }
+        />
 
-      <Route path="/mock-interview" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><MockInterviewScreen /></CandidateLayout>} />
-      <Route path="/ai-chat" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><AIChatScreen userProfile={userProfile} userResume={userResume} currentUser={localCurrentUser} /></CandidateLayout>} />
-      <Route path="/applications" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ApplicationsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-      <Route path="/saved" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><SavedItemsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-      <Route path="/interviews" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><InterviewsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-      <Route path="/enterprise-verification" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><EnterpriseVerificationScreen currentUser={localCurrentUser} profile={userProfile} onSwitchRole={onSwitchRole} /></CandidateLayout>} />
-      <Route path="/profile" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ProfileScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-      <Route path="/resume-editor" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ResumeEditorScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-    </Routes>
+        <Route path="/mock-interview" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><MockInterviewScreen /></CandidateLayout>} />
+        <Route path="/ai-chat" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><AIChatScreen userProfile={userProfile} userResume={userResume} currentUser={localCurrentUser} /></CandidateLayout>} />
+        <Route path="/applications" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ApplicationsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
+        <Route path="/saved" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><SavedItemsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
+        <Route path="/interviews" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><InterviewsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
+        <Route path="/enterprise-verification" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><EnterpriseVerificationScreen currentUser={localCurrentUser} profile={userProfile} onSwitchRole={onSwitchRole} /></CandidateLayout>} />
+        <Route path="/profile" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ProfileScreen currentUser={localCurrentUser} onUpdateUser={handleSetCurrentUser} /></CandidateLayout>} />
+        <Route path="/resume-editor" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ResumeEditorScreen currentUser={localCurrentUser} /></CandidateLayout>} />
+      </Routes>
     </>
   );
 };

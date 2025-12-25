@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { MessageSquare, Phone, MoreVertical, Send as SendIcon, Plus, Image as ImageIcon, Camera, MapPin, Trash2, ArrowLeft } from 'lucide-react';
 import { Conversation, JobPosting, Message } from '@/types/types';
 import { formatDateTime, formatTime } from '@/utils/dateUtils';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 
 interface ChatRoomScreenProps {
     conversations: Conversation[];
@@ -33,8 +34,18 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     
     // Context Menu State
-    const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, msgId: number | string | null }>({
-        visible: false, x: 0, y: 0, msgId: null
+    const [contextMenu, setContextMenu] = useState<{ 
+        visible: boolean, 
+        x: number, 
+        y: number, 
+        msgId: number | string | null,
+        isCurrentUser: boolean
+    }>({
+        visible: false, 
+        x: 0, 
+        y: 0, 
+        msgId: null,
+        isCurrentUser: false
     });
 
     // 获取当前对话
@@ -136,13 +147,14 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
         setShowExtrasMenu(false);
     };
 
-    const handleContextMenu = (e: React.MouseEvent, msgId: number | string) => {
+    const handleContextMenu = (e: React.MouseEvent, msgId: number | string, isCurrentUser: boolean) => {
         e.preventDefault(); // Prevent default browser context menu
         setContextMenu({
             visible: true,
             x: e.pageX,
             y: e.pageY,
-            msgId: msgId
+            msgId: msgId,
+            isCurrentUser: isCurrentUser
         });
     };
 
@@ -213,57 +225,88 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                 <div 
                     ref={chatContainerRef}
                     onScroll={handleScroll}
-                    className="flex-1 bg-slate-50 p-4 overflow-y-auto custom-scrollbar relative"
+                    className="flex-1 bg-slate-100 p-4 overflow-y-auto custom-scrollbar relative"
                 >
                     {isLoadingMore && (
                         <div className="text-center py-3 text-gray-500 text-xs">
                             加载更多消息...
                         </div>
                     )}
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                         {activeConv.messages?.map((msg: Message, index: number) => {
                             // 获取消息发送者的头像
                             const senderAvatar = msg.sender_avatar || '';
                             const isCurrentUser = msg.sender_id === currentUser?.id;
+                            
+                            // 检查是否需要显示日期分隔线
+                            const prevMsg = activeConv.messages[index - 1];
+                            const showDateDivider = index === 0 || 
+                                (prevMsg && 
+                                 new Date(msg.time).toDateString() !== new Date(prevMsg.time).toDateString());
+                            
                             return (
-                            <div key={msg.id || index} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} ${msg.type === 'system' ? 'justify-center !my-4' : ''} items-end gap-2`}>
-                                {msg.type === 'system' ? (
-                                    <span className="text-xs text-gray-500 bg-gray-200/80 px-3 py-1 rounded-full">{msg.text}</span>
-                                ) : (
-                                    <> {/* 非当前用户消息显示头像 */}
-                                    {!isCurrentUser && (
-                                        <div className="w-7 h-7 rounded-full bg-gray-100 overflow-hidden">
-                                            {senderAvatar && (senderAvatar.startsWith('http') || senderAvatar.startsWith('/avatars/')) ? (
-                                                <img src={senderAvatar} alt="头像" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <span className="w-full h-full flex items-center justify-center text-xs font-bold">
-                                                    {msg.sender_name?.charAt(0) || '用'}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                    <div 
-                                        onContextMenu={(e) => handleContextMenu(e, msg.id)}
-                                        className={`max-w-[75%] p-3.5 rounded-2xl shadow-sm text-sm leading-relaxed cursor-pointer transition-transform hover:scale-[1.01] ${isCurrentUser ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'}`}
-                                    >
-                                        <p>{msg.text}</p>
-                                        <span className={`text-[10px] block text-right mt-1.5 ${isCurrentUser ? 'text-indigo-200' : 'text-gray-400'}`}>{formatDateTime(msg.time)}</span>
+                            <>
+                                {/* Date Divider */}
+                                {showDateDivider && (
+                                    <div className="flex justify-center my-4">
+                                        <span className="px-3 py-1 bg-gray-200/80 text-xs text-gray-500 rounded-full">
+                                            {formatDateTime(msg.time, 'date')}
+                                        </span>
                                     </div>
-                                    {/* 当前用户消息显示头像 */}
-                                    {isCurrentUser && (
-                                        <div className="w-7 h-7 rounded-full bg-indigo-100 overflow-hidden">
-                                            {currentUser?.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/avatars/')) ? (
-                                                <img src={currentUser.avatar} alt="头像" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <span className="w-full h-full flex items-center justify-center text-xs font-bold">
-                                                    {currentUser?.name?.charAt(0) || '我'}
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                    </>
                                 )}
-                            </div>
+                                
+                                <div key={msg.id || index} className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} ${msg.type === 'system' ? 'justify-center !my-4' : ''} items-end gap-2`}>
+                                    {msg.type === 'system' ? (
+                                        <span className="text-xs text-gray-500 bg-gray-200/80 px-3 py-1 rounded-full">{msg.text}</span>
+                                    ) : (
+                                        <> {/* 非当前用户消息显示头像 */}
+                                        {!isCurrentUser && (
+                                            <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
+                                                {senderAvatar && senderAvatar !== '' ? (
+                                                    <img 
+                                                        src={processAvatarUrl(senderAvatar)} 
+                                                        alt="头像" 
+                                                        className="w-full h-full object-cover" 
+                                                    />
+                                                ) : (
+                                                    <span className="w-full h-full flex items-center justify-center text-sm font-bold">
+                                                        {msg.sender_name?.charAt(0) || '招'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div 
+                                            onContextMenu={(e) => handleContextMenu(e, msg.id, isCurrentUser)}
+                                            className={`max-w-[75%] p-3.5 rounded-lg text-sm leading-relaxed cursor-pointer transition-all hover:opacity-95 ${isCurrentUser ? 'bg-green-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}`}
+                                        >
+                                            <p className="whitespace-pre-wrap mb-1">{msg.text}</p>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <span className={`text-[10px] ${isCurrentUser ? 'text-green-200' : 'text-gray-400'}`}>
+                                                    {formatTime(msg.time)}
+                                                </span>
+                                                {isCurrentUser && (
+                                                    <span className="text-[10px] text-green-200">
+                                                        ✓✓
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {/* 当前用户消息显示头像 */}
+                                        {isCurrentUser && (
+                                            <div className="w-10 h-10 rounded-full bg-gray-100 overflow-hidden flex-shrink-0">
+                                                {currentUser?.avatar && currentUser.avatar.trim() !== '' ? (
+                                                    <img src={processAvatarUrl(currentUser.avatar)} alt="头像" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="w-full h-full flex items-center justify-center text-sm font-bold">
+                                                        {currentUser?.name?.charAt(0) || '我'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        </>
+                                    )}
+                                </div>
+                            </>
                             );
                         })}
                         <div ref={chatEndRef} />
@@ -277,52 +320,69 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                         style={{ top: contextMenu.y, left: contextMenu.x }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <button 
-                            onClick={() => { onDeleteMessage(convId, contextMenu.msgId); setContextMenu({...contextMenu, visible: false}); }}
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        >
-                            <Trash2 className="w-4 h-4" /> 删除消息
-                        </button>
+                        {contextMenu.isCurrentUser && (
+                            <button 
+                                onClick={() => { 
+                                    onDeleteMessage(convId, contextMenu.msgId); 
+                                    setContextMenu({...contextMenu, visible: false}); 
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                                <Trash2 className="w-4 h-4" /> 删除消息
+                            </button>
+                        )}
+                        {!contextMenu.isCurrentUser && (
+                            <button 
+                                onClick={() => { setContextMenu({...contextMenu, visible: false}); }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2"
+                            >
+                                无法删除他人消息
+                            </button>
+                        )}
                     </div>
                 )}
 
                 {/* Input Area */}
                 <div className="shrink-0 bg-white border-t border-gray-100 z-20">
-                     {/* Quick Actions */}
-                     <div className="px-4 py-2 bg-gray-50/50 flex space-x-2 overflow-x-auto border-b border-gray-100">
-                         <button onClick={() => handleSend("已向您发送了我的在线简历附件。", 'system')} className="px-3 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-full hover:bg-indigo-100 transition whitespace-nowrap">发送简历</button>
-                         <button onClick={() => {
-                            if (currentUser?.wechat) {
-                                handleSend(`我的微信号是: ${currentUser.wechat}，期待进一步沟通。`, 'text');
-                            } else {
-                                if (window.confirm('您尚未添加微信号，请先到个人中心添加微信')) {
-                                    navigate('/profile');
-                                }
-                            }
-                         }} className="px-3 py-1 bg-emerald-50 text-emerald-600 text-xs rounded-full hover:bg-emerald-100 transition whitespace-nowrap">交换微信</button>
-                         <button onClick={() => handleSend("方便电话沟通吗？", 'text')} className="px-3 py-1 bg-blue-50 text-blue-600 text-xs rounded-full hover:bg-blue-100 transition whitespace-nowrap">约电话</button>
-                    </div>
-                    
                     {/* Text Input */}
-                    <div className="p-4 flex items-end gap-2">
-                         <button 
+                    <div className="p-3 flex items-center gap-2">
+                        <button 
                             onClick={() => setShowExtrasMenu(!showExtrasMenu)} 
-                            className={`p-2.5 rounded-full transition-colors ${showExtrasMenu ? 'bg-gray-200 text-gray-800' : 'text-gray-400 hover:bg-gray-100'}`}
+                            className={`p-2.5 rounded-full transition-colors ${showExtrasMenu ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
                         >
-                            <Plus className={`w-6 h-6 transition-transform duration-200 ${showExtrasMenu ? 'rotate-45' : ''}`} />
+                            <Plus className={`w-5 h-5 transition-transform duration-200 ${showExtrasMenu ? 'rotate-45' : ''}`} />
                         </button>
-                         <textarea 
-                            className="flex-grow p-3 border border-gray-200 bg-gray-50 rounded-xl resize-none text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all max-h-32" 
-                            rows={1} 
-                            value={input} 
-                            onChange={(e) => setInput(e.target.value)} 
-                            onKeyDown={(e) => {if(e.key === 'Enter' && !e.shiftKey) {e.preventDefault(); handleSend();}}} 
-                            placeholder="输入消息..." 
-                        />
-                         <button 
+                        
+                        {/* Quick Actions */}
+                        <div className="hidden md:flex space-x-2">
+                            <button onClick={() => handleSend("已向您发送了我的在线简历附件。", 'system')} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs rounded-full hover:bg-indigo-100 transition whitespace-nowrap">发送简历</button>
+                            <button onClick={() => {
+                                if (currentUser?.wechat) {
+                                    handleSend(`我的微信号是: ${currentUser.wechat}，期待进一步沟通。`, 'text');
+                                } else {
+                                    if (window.confirm('您尚未添加微信号，请先到个人中心添加微信')) {
+                                        navigate('/profile');
+                                    }
+                                }
+                            }} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full hover:bg-emerald-100 transition whitespace-nowrap">交换微信</button>
+                            <button onClick={() => handleSend("方便电话沟通吗？", 'text')} className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs rounded-full hover:bg-blue-100 transition whitespace-nowrap">约电话</button>
+                        </div>
+                        
+                        <div className="flex-grow relative">
+                            <textarea 
+                                className="w-full p-3 bg-gray-100 border-0 rounded-full resize-none text-sm focus:ring-2 focus:ring-green-500 focus:bg-white transition-all max-h-32" 
+                                rows={1} 
+                                value={input} 
+                                onChange={(e) => setInput(e.target.value)} 
+                                onKeyDown={(e) => {if(e.key === 'Enter' && !e.shiftKey) {e.preventDefault(); handleSend();}}} 
+                                placeholder="输入消息..." 
+                            />
+                        </div>
+                        
+                        <button 
                             onClick={() => handleSend()} 
                             disabled={!input.trim()}
-                            className={`p-3 rounded-xl transition shadow-sm ${input.trim() ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                            className={`p-2.5 rounded-full transition ${input.trim() ? 'bg-green-500 text-white hover:bg-green-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                         >
                             <SendIcon className="w-5 h-5"/>
                         </button>
@@ -330,7 +390,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
 
                     {/* Extras Menu */}
                     {showExtrasMenu && (
-                         <div className="p-4 border-t border-gray-100 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-4 duration-200">
+                        <div className="p-4 border-t border-gray-100 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-4 duration-200 bg-white">
                             {
                                 [
                                     {icon: ImageIcon, label: '图片', action: () => handleSend('[图片]', 'image')},
@@ -338,14 +398,14 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                     {icon: MapPin, label: '位置', action: () => handleSend('广东省深圳市...', 'location')},
                                 ].map((item, i) => (
                                     <button key={i} onClick={item.action} className="flex flex-col items-center gap-2 p-2 hover:bg-gray-50 rounded-xl transition">
-                                        <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-600">
+                                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
                                             <item.icon className="w-6 h-6"/>
                                         </div>
                                         <span className="text-xs text-gray-500">{item.label}</span>
                                     </button>
                                 ))
                             }
-                         </div>
+                        </div>
                     )}
                 </div>
             </div>

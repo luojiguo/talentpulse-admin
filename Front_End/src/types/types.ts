@@ -48,6 +48,7 @@ export interface SystemUser {
   id: string | number;
   name: string;
   email: string;
+  password?: string; // 仅用于测试环境显示明文密码
   role: UserRole;
   roles?: UserRole[]; // Support for multiple roles
   status: 'Active' | 'Inactive' | 'Suspended';

@@ -51,65 +51,89 @@ const upload = multer({
 
 // 获取对话列表 - 优化：只返回对话元数据，不包含详细消息，实现真正的按需加载
 router.get('/conversations/:userId', asyncHandler(async (req, res) => {
-    const { userId } = req.params;
-    
-    // 查询用户参与的所有未被软删除的对话，使用LEFT JOIN确保即使关联记录缺失，对话也能显示
-    const result = await query(`
+  const { userId } = req.params;
+  // 将userId转换为数字类型，避免PostgreSQL无法确定参数数据类型
+  const userIdNum = parseInt(userId);
+
+  // 查询用户参与的所有未被软删除的对话，使用LEFT JOIN确保即使关联记录缺失，对话也能显示
+  // 优化：添加了15秒超时设置，确保查询不会无限期等待
+  // 优化：同一招聘者和候选人只返回一个对话，按更新时间降序
+  // 优化：改进JOIN顺序，先JOIN较小的表
+  // 优化：使用子查询优化OR条件，提高索引使用率
+  const result = await query(`
       SELECT 
         c.id,
         c.job_id AS "jobId",
         c.candidate_id AS "candidateId",
         c.recruiter_id AS "recruiterId",
-        c.last_message AS "lastMessage",
+        COALESCE(c.last_message, '暂无消息') AS "lastMessage",
         c.last_time AS "lastTime",
-        c.unread_count AS "unreadCount",
-        c.is_active AS "isActive",
-        c.total_messages AS "totalMessages",
-        c.candidate_unread AS "candidateUnread",
-        c.recruiter_unread AS "recruiterUnread",
-        c.status,
+        COALESCE(c.unread_count, 0) AS "unreadCount",
+        COALESCE(c.is_active, true) AS "isActive",
+        COALESCE(c.total_messages, 0) AS "totalMessages",
+        COALESCE(c.candidate_unread, 0) AS "candidateUnread",
+        COALESCE(c.recruiter_unread, 0) AS "recruiterUnread",
+        COALESCE(c.status, 'active') AS status,
         c.created_at AS "createdAt",
         c.updated_at AS "updatedAt",
-        j.title AS job_title,
-        co.name AS company_name,
-        u1.name AS candidate_name,
-        u1.avatar AS candidate_avatar,
-        COALESCE(u2.name, '招聘者') AS recruiter_name,
+        COALESCE(j.title, '未知职位') AS job_title,
+        COALESCE(co.name, '未知公司') AS company_name,
+        COALESCE(u1.name, '未知候选人') AS candidate_name,
+        COALESCE(u1.avatar, '') AS candidate_avatar,
+        COALESCE(cd.experience, '经验未知') AS candidate_experience,
+        COALESCE(cd.city, '地点未知') AS candidate_location,
+        COALESCE(u2.name, '未知招聘者') AS recruiter_name,
         COALESCE(u2.avatar, '') AS recruiter_avatar,
-        COALESCE(u2.id, r.user_id) AS recruiterUserId
-      FROM conversations c
-      LEFT JOIN jobs j ON c.job_id = j.id
-      LEFT JOIN companies co ON j.company_id = co.id
+        COALESCE(u2.id, r.user_id) AS "recruiterUserId"
+      FROM (
+        -- 先获取候选对话ID，使用UNION ALL优化OR条件，提高索引使用率
+        SELECT c.id
+        FROM conversations c
+        JOIN candidates cd ON c.candidate_id = cd.id
+        WHERE cd.user_id = $1 AND c.candidate_deleted_at IS NULL AND c.deleted_at IS NULL
+        UNION ALL
+        SELECT c.id
+        FROM conversations c
+        JOIN recruiters r ON c.recruiter_id = r.id
+        WHERE r.user_id = $1 AND c.recruiter_deleted_at IS NULL AND c.deleted_at IS NULL
+      ) AS sub
+      JOIN conversations c ON sub.id = c.id
+      -- 改进JOIN顺序，先JOIN较小的表
+      LEFT JOIN recruiters r ON c.recruiter_id = r.id
       LEFT JOIN candidates cd ON c.candidate_id = cd.id
       LEFT JOIN users u1 ON cd.user_id = u1.id
-      LEFT JOIN recruiters r ON c.recruiter_id = r.id
       LEFT JOIN users u2 ON r.user_id = u2.id
-      WHERE (cd.user_id = $1 OR r.user_id = $1) AND c.deleted_at IS NULL
+      LEFT JOIN jobs j ON c.job_id = j.id
+      LEFT JOIN companies co ON j.company_id = co.id
       ORDER BY c.updated_at DESC
       LIMIT 100
-    `, [userId]);
-    
-    const conversations = result.rows;
-    
-    // 直接返回对话列表，不包含详细消息，实现真正的按需加载
-    // 详细消息通过单独的API请求获取
-    res.json({
-      status: 'success',
-      data: conversations,
-      count: conversations.length
-    });
+    `, [userIdNum], 15000);
+
+  const conversations = result.rows;
+
+  // 直接返回对话列表，不包含详细消息，实现真正的按需加载
+  // 详细消息通过单独的API请求获取
+  res.json({
+    status: 'success',
+    data: conversations,
+    count: conversations.length
+  });
 }));
 
 // 获取单个对话的消息
-router.get('/conversations/:conversationId/messages', async (req, res) => {
-  try {
-    const { conversationId } = req.params;
-    const { limit = 20, offset = 0, sort = 'desc' } = req.query; // 默认改为 desc，获取最新消息
-    
-    // 查询对话的所有未删除消息，支持分页和排序
-    // 默认按时间降序，配合 limit/offset 获取最新消息
-    const orderBy = sort === 'asc' ? 'ASC' : 'DESC';
-    const result = await pool.query(`
+router.get('/conversations/:conversationId/messages', asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const { limit = 20, offset = 0, sort = 'desc' } = req.query; // 默认改为 desc，获取最新消息
+
+  // 转换参数类型，确保与数据库字段类型匹配
+  const conversationIdNum = parseInt(conversationId);
+  const limitNum = parseInt(limit);
+  const offsetNum = parseInt(offset);
+
+  // 查询对话的所有未删除消息，支持分页和排序
+  // 默认按时间降序，配合 limit/offset 获取最新消息
+  const orderBy = sort === 'asc' ? 'ASC' : 'DESC';
+  const result = await query(`
       SELECT 
         m.*,
         u.name AS sender_name,
@@ -119,37 +143,31 @@ router.get('/conversations/:conversationId/messages', async (req, res) => {
       WHERE m.conversation_id = $1 AND m.is_deleted = false
       ORDER BY m.time ${orderBy}, m.id ${orderBy}
       LIMIT $2 OFFSET $3
-    `, [conversationId, parseInt(limit), parseInt(offset)]);
-    
-    // 查询总消息数
-    const countResult = await pool.query(`
+    `, [conversationIdNum, limitNum, offsetNum], 15000);
+
+  // 查询总消息数
+  const countResult = await query(`
       SELECT COUNT(*) AS total 
       FROM messages m 
       WHERE m.conversation_id = $1 AND m.is_deleted = false
-    `, [conversationId]);
-    
-    res.json({
-      status: 'success',
-      data: result.rows,
-      count: result.rows.length,
-      total: parseInt(countResult.rows[0].total),
-      currentLimit: parseInt(limit),
-      currentOffset: parseInt(offset),
-      sort: orderBy.toLowerCase()
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-});
+    `, [conversationIdNum], 15000);
+
+  res.json({
+    status: 'success',
+    data: result.rows,
+    count: result.rows.length,
+    total: parseInt(countResult.rows[0].total),
+    currentLimit: limitNum,
+    currentOffset: offsetNum,
+    sort: orderBy.toLowerCase()
+  });
+}));
 
 // 创建或获取对话，并发送第一条消息
 router.post('/conversations', async (req, res) => {
   try {
     const { jobId, candidateId, recruiterId, message } = req.body;
-    
+
     // 检查必填字段
     if (!jobId || !candidateId || !recruiterId || !message) {
       return res.status(400).json({
@@ -157,34 +175,34 @@ router.post('/conversations', async (req, res) => {
         message: '职位ID、候选人ID、招聘者ID和消息内容是必填字段'
       });
     }
-    
+
     // 注意：前端传递的candidateId是users表的id，需要转换为candidates表的id
     // 但recruiterId已经是recruiters表的id，直接使用即可
-    
+
     // 获取候选人ID（candidates表中的id）
     const candidateResult = await pool.query(
       'SELECT id FROM candidates WHERE user_id = $1',
       [candidateId]
     );
-    
+
     if (candidateResult.rows.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: '候选人不存在'
       });
     }
-    
+
     const actualCandidateId = candidateResult.rows[0].id;
     const actualRecruiterId = recruiterId;
-    
-    // 检查对话是否已经存在
+
+    // 检查对话是否已经存在 - 移除job_id检查，同一招聘者和候选人之间只允许一个对话
     const existingConversation = await pool.query(`
       SELECT id FROM conversations 
-      WHERE job_id = $1 AND candidate_id = $2 AND recruiter_id = $3
-    `, [jobId, actualCandidateId, actualRecruiterId]);
-    
+      WHERE candidate_id = $1 AND recruiter_id = $2
+    `, [actualCandidateId, actualRecruiterId]);
+
     let conversationId;
-    
+
     if (existingConversation.rows.length > 0) {
       // 使用现有对话
       conversationId = existingConversation.rows[0].id;
@@ -203,51 +221,51 @@ router.post('/conversations', async (req, res) => {
         ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, 0, 1, 1, 0)
         RETURNING id
       `, [jobId, actualCandidateId, actualRecruiterId, message]);
-      
+
       conversationId = newConversation.rows[0].id;
     }
-  
-  // 获取招聘者的用户ID
-  const recruiterUserResult = await pool.query(
-    'SELECT user_id FROM recruiters WHERE id = $1',
-    [recruiterId]
-  );
-  
-  if (recruiterUserResult.rows.length === 0) {
-    return res.status(404).json({
-      status: 'error',
-      message: '招聘者不存在'
-    });
-  }
-  
-  const recruiterUserId = recruiterUserResult.rows[0].user_id;
-  
-  // 发送消息
-  const newMessage = await pool.query(`
+
+    // 获取招聘者的用户ID
+    const recruiterUserResult = await pool.query(
+      'SELECT user_id FROM recruiters WHERE id = $1',
+      [recruiterId]
+    );
+
+    if (recruiterUserResult.rows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: '招聘者不存在'
+      });
+    }
+
+    const recruiterUserId = recruiterUserResult.rows[0].user_id;
+
+    // 发送消息
+    const newMessage = await pool.query(`
     INSERT INTO messages (
       conversation_id, sender_id, receiver_id, text, type, status, time, is_deleted
     ) VALUES ($1, $2, $3, $4, 'text', 'sent', CURRENT_TIMESTAMP, false)
     RETURNING *
   `, [conversationId, candidateId, recruiterUserId, message]);
-  
+
     // 确定要更新的字段
     const updateFields = [
       'last_message = $1',
       'last_time = CURRENT_TIMESTAMP',
       'updated_at = CURRENT_TIMESTAMP'
     ];
-    
+
     // 如果是现有对话，增加未读计数
     if (existingConversation.rows.length > 0) {
       updateFields.push('recruiter_unread = recruiter_unread + 1');
     }
-    
+
     await pool.query(`
       UPDATE conversations 
       SET ${updateFields.join(', ')}
       WHERE id = $2
     `, [message, conversationId]);
-    
+
     res.json({
       status: 'success',
       data: {
@@ -265,47 +283,92 @@ router.post('/conversations', async (req, res) => {
 });
 
 // 发送消息
-router.post('/messages', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { conversationId, senderId, receiverId, text, type = 'text' } = req.body;
-    
+
     // 检查必填字段
-    if (!conversationId || !senderId || !receiverId || !text) {
+    if (!conversationId || !senderId || !text) {
       return res.status(400).json({
         status: 'error',
-        message: '对话ID、发送者ID、接收者ID和消息内容是必填字段'
+        message: '对话ID、发送者ID和消息内容是必填字段'
       });
     }
-    
+
+    // 添加日志，便于调试
+    console.log('发送消息请求:', {
+      conversationId,
+      senderId,
+      receiverId,
+      text,
+      type
+    });
+
+    // 首先获取对话信息，包括关联的用户ID
+    const conversation = await pool.query(`
+      SELECT 
+        cd.user_id AS candidate_user_id,
+        r.user_id AS recruiter_user_id,
+        c.candidate_id,
+        c.recruiter_id
+      FROM conversations c
+      JOIN candidates cd ON c.candidate_id = cd.id
+      JOIN recruiters r ON c.recruiter_id = r.id
+      WHERE c.id = $1
+    `, [conversationId]);
+
+    if (conversation.rows.length === 0) {
+      console.error('发送消息失败: 对话不存在', { conversationId });
+      return res.status(404).json({ status: 'error', message: '对话不存在' });
+    }
+
+    const { candidate_user_id, recruiter_user_id, candidate_id, recruiter_id } = conversation.rows[0];
+
+    console.log('对话关联用户ID:', {
+      candidate_user_id,
+      recruiter_user_id,
+      candidate_id,
+      recruiter_id
+    });
+
+    // 使用严格比较，并确保类型一致
+    const senderIdNum = parseInt(senderId);
+    const candidateUserIdNum = parseInt(candidate_user_id);
+    const recruiterUserIdNum = parseInt(recruiter_user_id);
+
+    // 如果未提供receiverId，自动确定接收者：如果发送者是候选人，则接收者是招聘者，反之亦然
+    let actualReceiverId;
+    if (receiverId && receiverId !== undefined && receiverId !== null && receiverId !== '') {
+      actualReceiverId = receiverId;
+    } else {
+      // 严格比较：如果发送者是候选人，则接收者是招聘者，反之亦然
+      actualReceiverId = senderIdNum === candidateUserIdNum ? recruiterUserIdNum : candidateUserIdNum;
+    }
+
+    // 重要修复：根据实际对话表中的ID来确定接收者，而不是用户ID
+    // 获取对话中对应的接收者ID
+    let actualReceiverConversationId;
+    if (senderIdNum === candidateUserIdNum) {
+      // 发送者是候选人，接收者是招聘者
+      actualReceiverConversationId = recruiter_id;
+    } else {
+      // 发送者是招聘者，接收者是候选人
+      actualReceiverConversationId = candidate_id;
+    }
+
+    console.log('确定的接收者ID:', actualReceiverId, '实际对话中的接收者ID:', actualReceiverConversationId);
+
     // 发送消息
     const newMessage = await pool.query(`
       INSERT INTO messages (
         conversation_id, sender_id, receiver_id, text, type, status, time, is_deleted
       ) VALUES ($1, $2, $3, $4, $5, 'sent', CURRENT_TIMESTAMP, false)
       RETURNING *
-    `, [conversationId, senderId, receiverId, text, type]);
-    
-    // 更新对话的最后消息和统计信息
-    // 首先获取对话信息，包括关联的用户ID
-    const conversation = await pool.query(`
-      SELECT 
-        cd.user_id AS candidate_user_id,
-        r.user_id AS recruiter_user_id
-      FROM conversations c
-      JOIN candidates cd ON c.candidate_id = cd.id
-      JOIN recruiters r ON c.recruiter_id = r.id
-      WHERE c.id = $1
-    `, [conversationId]);
-    
-    if (conversation.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: '对话不存在' });
-    }
-    
-    const { candidate_user_id, recruiter_user_id } = conversation.rows[0];
-    
+    `, [conversationId, senderId, actualReceiverId, text, type]);
+
     // 确定要更新的未读字段：如果发送者是候选人，则招聘者有未读消息，反之亦然
-    const unreadField = senderId == candidate_user_id ? 'recruiter_unread' : 'candidate_unread';
-    
+    const unreadField = senderIdNum === candidateUserIdNum ? 'recruiter_unread' : 'candidate_unread';
+
     await pool.query(`
       UPDATE conversations 
       SET 
@@ -316,13 +379,14 @@ router.post('/messages', async (req, res) => {
         ${unreadField} = ${unreadField} + 1
       WHERE id = $2
     `, [text, conversationId]);
-    
+
     res.json({
       status: 'success',
       data: newMessage.rows[0],
       message: '消息发送成功'
     });
   } catch (error) {
+    console.error('发送消息错误:', error);
     res.status(500).json({
       status: 'error',
       message: error.message
@@ -330,36 +394,53 @@ router.post('/messages', async (req, res) => {
   }
 });
 
-// 标记消息为已读
+// 在标记消息为已读路由中，修复ID映射逻辑
 router.put('/read/:conversationId/:userId', async (req, res) => {
   try {
     const { conversationId, userId } = req.params;
-    
+
+    // 首先获取对话信息，确定用户在对话中的角色
+    const conversation = await pool.query(`
+      SELECT 
+        cd.user_id AS candidate_user_id,
+        r.user_id AS recruiter_user_id
+      FROM conversations c
+      JOIN candidates cd ON c.candidate_id = cd.id
+      JOIN recruiters r ON c.recruiter_id = r.id
+      WHERE c.id = $1
+    `, [conversationId]);
+
+    if (conversation.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: '对话不存在' });
+    }
+
+    const { candidate_user_id, recruiter_user_id } = conversation.rows[0];
+    const userIdNum = parseInt(userId);
+
+    // 根据用户ID确定要更新的未读字段
+    let updateField;
+    if (userIdNum === parseInt(candidate_user_id)) {
+      updateField = 'candidate_unread';
+    } else if (userIdNum === parseInt(recruiter_user_id)) {
+      updateField = 'recruiter_unread';
+    } else {
+      return res.status(404).json({ status: 'error', message: '用户不在该对话中' });
+    }
+
     // 更新对话的未读计数
-    // 不再依赖user.role字段，而是直接尝试更新两种可能的未读字段
-    // 这样可以避免额外的数据库查询，同时确保所有情况下都能正确更新
-    
-    // 尝试更新候选人未读计数
     await pool.query(`
       UPDATE conversations 
-      SET candidate_unread = 0, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND candidate_id IN (SELECT id FROM candidates WHERE user_id = $2)
-    `, [conversationId, userId]);
-    
-    // 尝试更新招聘者未读计数
-    await pool.query(`
-      UPDATE conversations 
-      SET recruiter_unread = 0, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND recruiter_id IN (SELECT id FROM recruiters WHERE user_id = $2)
-    `, [conversationId, userId]);
-    
+      SET ${updateField} = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [conversationId]);
+
     // 更新消息的状态为已读
     await pool.query(`
       UPDATE messages 
       SET status = 'read'
       WHERE conversation_id = $1 AND receiver_id = $2 AND status != 'read'
     `, [conversationId, userId]);
-    
+
     res.json({
       status: 'success',
       message: '消息已标记为已读'
@@ -373,43 +454,51 @@ router.put('/read/:conversationId/:userId', async (req, res) => {
 });
 
 // 获取单个对话详情
-router.get('/conversation/:conversationId', async (req, res) => {
-  try {
-    const { conversationId } = req.params;
-    const { limit = 20, offset = 0, sort = 'desc' } = req.query;
-    
-    // 查询对话详情，只返回未被软删除的对话
-    const conversationResult = await pool.query(`
+router.get('/conversation/:conversationId', asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const { limit = 20, offset = 0, sort = 'desc' } = req.query;
+
+  // 转换参数类型，确保与数据库字段类型匹配
+  const conversationIdNum = parseInt(conversationId);
+  const limitNum = parseInt(limit);
+  const offsetNum = parseInt(offset);
+
+  // 查询对话详情，只返回未被软删除的对话
+  // 使用LEFT JOIN替代JOIN，确保即使关联表没有匹配记录也能返回对话
+  // 优化：改进JOIN顺序，先JOIN较小的表
+  const conversationResult = await query(`
       SELECT 
         c.*,
-        j.title AS job_title,
-        co.name AS company_name,
-        u1.name AS candidate_name,
-        u1.avatar AS candidate_avatar,
-        u1.id AS candidateId,
-        u2.name AS recruiter_name,
-        u2.avatar AS recruiter_avatar,
-        u2.id AS recruiterId
+        COALESCE(j.title, '未知职位') AS job_title,
+        COALESCE(co.name, '未知公司') AS company_name,
+        COALESCE(u1.name, '未知候选人') AS candidate_name,
+        COALESCE(u1.avatar, '') AS candidate_avatar,
+        COALESCE(u1.id, 0) AS candidateId,
+        COALESCE(u2.name, '未知招聘者') AS recruiter_name,
+        COALESCE(u2.avatar, '') AS recruiter_avatar,
+        COALESCE(u2.id, 0) AS recruiterId
       FROM conversations c
-      JOIN jobs j ON c.job_id = j.id
-      JOIN companies co ON j.company_id = co.id
-      JOIN candidates cd ON c.candidate_id = cd.id
-      JOIN users u1 ON cd.user_id = u1.id
-      JOIN recruiters r ON c.recruiter_id = r.id
-      JOIN users u2 ON r.user_id = u2.id
+      -- 改进JOIN顺序，先JOIN较小的表
+      LEFT JOIN recruiters r ON c.recruiter_id = r.id
+      LEFT JOIN candidates cd ON c.candidate_id = cd.id
+      LEFT JOIN users u1 ON cd.user_id = u1.id
+      LEFT JOIN users u2 ON r.user_id = u2.id
+      LEFT JOIN jobs j ON c.job_id = j.id
+      LEFT JOIN companies co ON j.company_id = co.id
       WHERE c.id = $1 AND c.deleted_at IS NULL
-    `, [conversationId]);
-    
-    if (conversationResult.rows.length === 0) {
-      return res.status(404).json({
-        status: 'error',
-        message: '对话不存在'
-      });
-    }
-    
-    // 查询对话的未删除消息，支持分页和排序
-    const orderBy = sort === 'asc' ? 'ASC' : 'DESC';
-    const messagesResult = await pool.query(`
+    `, [conversationIdNum], 15000);
+
+  if (conversationResult.rows.length === 0) {
+    const error = new Error('对话不存在');
+    error.statusCode = 404;
+    error.errorCode = 'CONVERSATION_NOT_FOUND';
+    throw error;
+  }
+
+  // 查询对话的未删除消息，支持分页和排序
+  // 优化：添加索引友好的ORDER BY
+  const orderBy = sort === 'asc' ? 'ASC' : 'DESC';
+  const messagesResult = await query(`
       SELECT 
         m.*,
         u.name AS sender_name,
@@ -419,51 +508,45 @@ router.get('/conversation/:conversationId', async (req, res) => {
       WHERE m.conversation_id = $1 AND m.is_deleted = false
       ORDER BY m.time ${orderBy}, m.id ${orderBy}
       LIMIT $2 OFFSET $3
-    `, [conversationId, parseInt(limit), parseInt(offset)]);
-    
-    // 查询总消息数
-    const countResult = await pool.query(`
+    `, [conversationIdNum, limitNum, offsetNum], 15000);
+
+  // 查询总消息数
+  const countResult = await query(`
       SELECT COUNT(*) AS total 
       FROM messages m 
       WHERE m.conversation_id = $1 AND m.is_deleted = false
-    `, [conversationId]);
-    
-    res.json({
-      status: 'success',
-      data: {
-        conversation: conversationResult.rows[0],
-        messages: messagesResult.rows,
-        total: parseInt(countResult.rows[0].total)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-});
+    `, [conversationIdNum], 15000);
+
+  res.json({
+    status: 'success',
+    data: {
+      conversation: conversationResult.rows[0],
+      messages: messagesResult.rows,
+      total: parseInt(countResult.rows[0].total)
+    }
+  });
+}));
 
 // 删除单条消息（软删除）
 router.delete('/messages/:messageId', async (req, res) => {
   try {
     const { messageId } = req.params;
-    
+
     // 检查消息是否存在并获取对话ID
     const messageResult = await pool.query(
       'SELECT id, conversation_id FROM messages WHERE id = $1 AND is_deleted = false',
       [messageId]
     );
-    
+
     if (messageResult.rows.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: '消息不存在或已被删除'
       });
     }
-    
+
     const conversationId = messageResult.rows[0].conversation_id;
-    
+
     // 软删除消息：更新is_deleted字段为true，记录删除时间和删除者
     await pool.query(
       'UPDATE messages SET is_deleted = true, deleted_at = CURRENT_TIMESTAMP, deleted_by = $1 WHERE id = $2',
@@ -478,7 +561,7 @@ router.delete('/messages/:messageId', async (req, res) => {
       ORDER BY time DESC, id DESC 
       LIMIT 1
     `, [conversationId]);
-    
+
     if (latestMessageResult.rows.length > 0) {
       const { text, time } = latestMessageResult.rows[0];
       await pool.query(`
@@ -494,7 +577,7 @@ router.delete('/messages/:messageId', async (req, res) => {
         WHERE id = $1
       `, [conversationId]);
     }
-    
+
     res.json({
       status: 'success',
       message: '消息已成功隐藏'
@@ -508,29 +591,65 @@ router.delete('/messages/:messageId', async (req, res) => {
 });
 
 // 删除对话（软删除）
+// 删除对话（软删除）
 router.delete('/conversation/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
-    
-    // 首先检查对话是否存在且未被删除
-    const conversationResult = await pool.query(
-      'SELECT id FROM conversations WHERE id = $1 AND deleted_at IS NULL',
-      [conversationId]
-    );
-    
+    // 获取发起删除的用户ID（从请求体中获取）
+    const { deletedBy } = req.body;
+
+    if (!deletedBy) {
+      return res.status(400).json({
+        status: 'error',
+        message: '缺少删除者ID信息'
+      });
+    }
+
+    const deletedByInt = parseInt(deletedBy);
+
+    // 首先获取对话关联的用户信息
+    const conversationResult = await pool.query(`
+      SELECT 
+        c.*, 
+        cd.user_id as candidate_user_id,
+        r.user_id as recruiter_user_id
+      FROM conversations c
+      LEFT JOIN candidates cd ON c.candidate_id = cd.id
+      LEFT JOIN recruiters r ON c.recruiter_id = r.id
+      WHERE c.id = $1
+    `, [conversationId]);
+
     if (conversationResult.rows.length === 0) {
       return res.status(404).json({
         status: 'error',
-        message: '对话不存在或已被删除'
+        message: '对话不存在'
       });
     }
-    
-    // 软删除对话：更新deleted_at字段为当前时间，标记为非活跃
-    await pool.query(
-      'UPDATE conversations SET deleted_at = CURRENT_TIMESTAMP, is_active = false, status = $1 WHERE id = $2',
-      ['deleted', conversationId]
-    );
-    
+
+    const conversation = conversationResult.rows[0];
+    let updateSql = '';
+
+    // 判断删除者是招聘者还是求职者
+    if (parseInt(conversation.recruiter_user_id) === deletedByInt) {
+      // 招聘者删除了对话
+      updateSql = 'UPDATE conversations SET recruiter_deleted_at = CURRENT_TIMESTAMP WHERE id = $1';
+    } else if (parseInt(conversation.candidate_user_id) === deletedByInt) {
+      // 求职者删除了对话
+      updateSql = 'UPDATE conversations SET candidate_deleted_at = CURRENT_TIMESTAMP WHERE id = $1';
+    } else {
+      // 如果不是对话的参与者
+      return res.status(403).json({
+        status: 'error',
+        message: '您无权删除此对话'
+      });
+    }
+
+    // 执行软删除
+    await pool.query(updateSql, [conversationId]);
+
+    // 如果双方都删除了，则彻底标记为非活跃或删除（可选逻辑）
+    // 暂时只做单方面不可见
+
     res.json({
       status: 'success',
       message: '对话已成功隐藏'
@@ -547,7 +666,7 @@ router.delete('/conversation/:conversationId', async (req, res) => {
 router.get('/sender/:senderId/receiver/:receiverId', async (req, res) => {
   try {
     const { senderId, receiverId } = req.params;
-    
+
     // 查询sender和receiver之间的所有未删除消息，按时间顺序排序
     const result = await pool.query(`
       SELECT 
@@ -560,7 +679,7 @@ router.get('/sender/:senderId/receiver/:receiverId', async (req, res) => {
         AND m.is_deleted = false
       ORDER BY m.time ASC
     `, [senderId, receiverId]);
-    
+
     res.json({
       status: 'success',
       data: result.rows,
@@ -613,7 +732,7 @@ router.post('/upload-image/:conversationId', (req, res) => {
 
       // 更新对话的最后一条消息
       const unreadField = await getUnreadField(conversationId, senderId);
-      
+
       await pool.query(`
         UPDATE conversations 
         SET 
@@ -647,9 +766,9 @@ async function getUnreadField(conversationId, senderId) {
     JOIN candidates cd ON c.candidate_id = cd.id
     WHERE c.id = $1
   `, [conversationId]);
-  
+
   if (conversation.rows.length === 0) return 'recruiter_unread'; // 默认
-  
+
   const { candidate_user_id } = conversation.rows[0];
   return senderId === candidate_user_id ? 'recruiter_unread' : 'candidate_unread';
 }

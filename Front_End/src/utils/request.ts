@@ -37,7 +37,7 @@ service.interceptors.request.use(
 );
 
 // 响应拦截器
-service.interceptors.response.use(
+ service.interceptors.response.use(
   (response: AxiosResponse) => {
     // 对响应数据做点什么
     // 这里可以根据后端返回的状态码进行统一处理
@@ -60,14 +60,25 @@ service.interceptors.response.use(
     console.error('Response Error:', error);
     
     if (error.response) {
+      // 确保错误响应中的数据格式一致，保留errorCode等字段
+      const errorData = error.response.data;
+      // 扩展error对象，确保errorCode和message字段被正确传递
+      error.response.data = {
+        ...errorData,
+        // 确保success字段为false
+        success: false
+      };
+      
       const { status } = error.response;
       
       switch (status) {
         case 401:
-          // 未授权，跳转到登录页
-          console.warn('未授权，请重新登录');
-          // 可以触发事件或直接跳转
-          // window.location.href = '/login';
+          // 未授权，登录页的401错误由登录组件自己处理
+          if (!window.location.pathname.includes('/login')) {
+            console.warn('未授权，请重新登录');
+            // 可以触发事件或直接跳转
+            // window.location.href = '/login';
+          }
           break;
         case 403:
           console.warn('拒绝访问');
