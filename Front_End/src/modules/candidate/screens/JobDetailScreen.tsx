@@ -5,6 +5,7 @@ import { JobPosting } from '@/types/types';
 import { jobAPI, companyAPI, recruiterAPI, candidateAPI } from '@/services/apiService';
 import { message } from 'antd';
 import { processAvatarUrl } from '@/components/AvatarUploadComponent';
+import UserAvatar from '@/components/UserAvatar';
 
 interface JobDetailScreenProps {
     jobs: JobPosting[];
@@ -365,8 +366,8 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                                 onClick={toggleSaveJob}
                                                 disabled={saving}
                                                 className={`p-2 rounded-lg border transition-all ${isSaved
-                                                        ? 'bg-indigo-50 border-indigo-300 text-indigo-600 hover:bg-indigo-100'
-                                                        : 'bg-white border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-300'
+                                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-600 hover:bg-indigo-100'
+                                                    : 'bg-white border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-300'
                                                     } ${saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                                 title={isSaved ? '取消收藏' : '收藏职位'}
                                             >
@@ -402,17 +403,13 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                     <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                                         <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">招聘负责人</h4>
                                         <div className="flex items-center">
-                                            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-xl mr-3 border-2 border-white shadow-sm overflow-hidden">
-                                                {recruiter?.avatar && recruiter.avatar.trim() !== '' ? (
-                                                    <img
-                                                        src={processAvatarUrl(recruiter.avatar)}
-                                                        alt={recruiter.name}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="text-xl">👤</div>
-                                                )}
-                                            </div>
+                                            <UserAvatar
+                                                src={recruiter?.avatar}
+                                                name={recruiter?.name || '招聘负责人'}
+                                                size={48}
+                                                className="bg-indigo-100 text-indigo-700 border-2 border-white shadow-sm mr-3"
+                                                alt="招聘负责人头像"
+                                            />
                                             <div>
                                                 <h3 className="font-bold text-gray-900">{recruiter?.name || '招聘负责人'}</h3>
                                                 <p className="text-xs text-gray-500">{recruiter?.position || 'HR'}</p>

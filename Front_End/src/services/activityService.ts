@@ -7,7 +7,7 @@ import { ApiResponse } from '@/utils/request';
 export const activityAPI = {
   // 获取最近动态列表
   getRecentActivity: (): Promise<any> => {
-    return request.get('/api/activities');
+    return request.get('/activities');
   },
   // 获取系统日志列表
   getSystemLogs: (params?: {
@@ -17,6 +17,6 @@ export const activityAPI = {
     startDate?: string;
     endDate?: string;
   }): Promise<any> => {
-    return request.get('/api/activities/logs', { params });
+    return request.get('/activities/logs', { params });
   },
 };

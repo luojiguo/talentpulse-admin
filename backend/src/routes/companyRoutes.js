@@ -279,20 +279,24 @@ router.get('/', asyncHandler(async (req, res) => {
     const { search, industry, status, size } = req.query;
     
     // 构建查询条件
-    let queryText = 'SELECT * FROM companies WHERE 1=1';
+    let queryText = `SELECT c.*, 
+                        (SELECT COUNT(*) FROM recruiters r 
+                         JOIN user_roles ur ON r.user_id = ur.user_id 
+                         WHERE r.company_id = c.id AND ur.role = 'recruiter') as hr_count 
+                   FROM companies c WHERE 1=1`;
     const queryParams = [];
     let paramIndex = 1;
     
     // 添加搜索条件
     if (search) {
-      queryText += ` AND (name ILIKE $${paramIndex} OR address ILIKE $${paramIndex})`;
+      queryText += ` AND (c.name ILIKE $${paramIndex} OR c.address ILIKE $${paramIndex})`;
       queryParams.push(`%${search}%`);
       paramIndex++;
     }
     
     // 添加行业筛选
     if (industry && industry !== 'all') {
-      queryText += ` AND industry = $${paramIndex}`;
+      queryText += ` AND c.industry = $${paramIndex}`;
       queryParams.push(industry);
       paramIndex++;
     }
@@ -300,17 +304,17 @@ router.get('/', asyncHandler(async (req, res) => {
     // 添加状态筛选
     if (status && status !== 'all') {
       if (status === 'Verified') {
-        queryText += ` AND is_verified = true`;
+        queryText += ` AND c.is_verified = true`;
       } else if (status === 'Pending') {
-        queryText += ` AND is_verified = false AND status = 'active'`;
+        queryText += ` AND c.is_verified = false AND c.status = 'active'`;
       } else if (status === 'Rejected') {
-        queryText += ` AND status = 'inactive'`;
+        queryText += ` AND c.status = 'inactive'`;
       }
     }
     
     // 添加规模筛选
     if (size && size !== 'all') {
-      queryText += ` AND size = $${paramIndex}`;
+      queryText += ` AND c.size = $${paramIndex}`;
       queryParams.push(size);
       paramIndex++;
     }
@@ -318,7 +322,7 @@ router.get('/', asyncHandler(async (req, res) => {
     // 优化：使用job_count字段排序，减少JOIN操作
     // 增加查询超时时间，并添加LIMIT防止返回过多数据
     if (!queryText.includes('LIMIT')) {
-      queryText += ' ORDER BY COALESCE(job_count, 0) DESC, created_at DESC LIMIT 200';
+      queryText += ' ORDER BY COALESCE(c.job_count, 0) DESC, c.created_at DESC LIMIT 200';
     }
     const result = await query(queryText, queryParams, 10000);
     res.json({

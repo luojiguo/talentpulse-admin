@@ -124,7 +124,7 @@ export interface JobPosting {
   job_level?: string; // '初级' | '中级' | '高级' | '管理'
   posterId?: number | string;
   applicants: number;
-  status: 'Active' | 'Closed' | 'Draft';
+  status: 'active' | 'closed' | 'draft' | 'Active' | 'Closed' | 'Draft';
   postedDate: string;
   updated_at?: string;
   required_skills?: string[];

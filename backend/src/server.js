@@ -41,7 +41,7 @@ app.use(helmet({
 app.use(compression());
 
 // Enable CORS - 使用环境变量配置
-const allowedOrigins = process.env.CORS_ORIGINS 
+const allowedOrigins = process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(',')
     : ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
@@ -180,10 +180,19 @@ app.use(errorHandler);
 
 // 启动服务器
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
     console.log(`🚀 TalentPulse API 服务器正在运行在 http://localhost:${PORT}`);
     console.log(`📡 健康检查: http://localhost:${PORT}/health`);
     console.log(`🌐 API文档: http://localhost:${PORT}/`);
+
+    // 初始化 Socket.IO
+    const { initSocket } = require('./services/socketService');
+    try {
+        initSocket(server);
+        console.log('🔌 Socket.IO 服务已启动');
+    } catch (error) {
+        console.error('Socket.IO 初始化失败:', error);
+    }
 
     // 测试数据库连接
     await testConnection();

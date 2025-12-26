@@ -28,7 +28,7 @@ export const JobsView: React.FC<JobsViewProps> = ({
   const [sortOrder, setSortOrder] = useState('desc');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [jobType, setJobType] = useState<'my' | 'company' | 'other'>('my');
-  
+
   // 职位类型筛选
   const filteredByTypeJobs = jobs.filter(job => {
     if (jobType === 'my') {
@@ -48,9 +48,9 @@ export const JobsView: React.FC<JobsViewProps> = ({
   const filteredJobs = filteredByTypeJobs
     .filter(job => {
       const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (job.company?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
-                          (job.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
-                          job.location.toLowerCase().includes(searchQuery.toLowerCase());
+        (job.company?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+        (job.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+        job.location.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = filterStatus === 'all' || job.status.toLowerCase() === filterStatus.toLowerCase();
       return matchesSearch && matchesStatus;
     })
@@ -281,7 +281,7 @@ export const JobsView: React.FC<JobsViewProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status.toLowerCase() === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {job.status}
+                        {job.status.toLowerCase() === 'active' ? '发布中' : '已关闭'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -294,7 +294,7 @@ export const JobsView: React.FC<JobsViewProps> = ({
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        
+
                         {/* 只有在自己发布的职位中显示编辑、删除按钮，状态切换在编辑中处理 */}
                         {(job.is_own_job || job.posterId === currentUserId || job.recruiter_id === currentUserId) && jobType === 'my' && (
                           <>

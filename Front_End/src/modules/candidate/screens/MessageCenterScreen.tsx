@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Search, MessageSquare, Phone, MoreVertical, Send as SendIcon, Plus, Image as ImageIcon, Camera, MapPin, Trash2, ArrowLeft, ChevronDown, Copy, Reply } from 'lucide-react';
+import { Search, MessageSquare, Phone, MoreVertical, Send as SendIcon, Plus, Image as ImageIcon, Camera, MapPin, Trash2, ArrowLeft, ChevronDown, Copy, Reply, Pin } from 'lucide-react';
 import { Conversation, JobPosting, Message, MergedConversation } from '@/types/types';
 import { formatDateTime } from '@/utils/dateUtils';
 import { useDeviceType } from '@/hooks/useMediaQuery';
-import { processAvatarUrl } from '@/components/AvatarUploadComponent';
+
 import {
     getMessageContainerHeight,
     getMessageContainerPadding,
@@ -12,6 +12,7 @@ import {
     getMessageListClasses,
     getChatWindowWidth
 } from '@/utils/layoutUtils';
+import UserAvatar from '@/components/UserAvatar';
 
 interface MessageCenterScreenProps {
     conversations: Conversation[];
@@ -29,6 +30,8 @@ interface MessageCenterScreenProps {
     setFilterUnread: (filter: boolean) => void;
     currentUser: any;
     conversationError?: string | null;
+    onPinConversation?: (conversationId: string, isPinned: boolean) => void;
+    onHideConversation?: (conversationId: string) => void;
 }
 
 const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
@@ -37,7 +40,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     onSendMessage, onUploadImage, onDeleteMessage, onDeleteConversation,
     onLoadMoreMessages,
     searchText, setSearchText, filterUnread, setFilterUnread, currentUser,
-    conversationError
+    conversationError, onPinConversation, onHideConversation
 }) => {
     const navigate = useNavigate();
     const { conversationId: paramConversationId } = useParams<{ conversationId: string }>();
@@ -61,22 +64,15 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     // Sync URL param with active ID or handle selection
     useEffect(() => {
         const syncConversation = async () => {
-            if (paramConversationId && paramConversationId !== activeConversationId) {
-                // 标记正在切换对话，避免 UI 闪烁
-                setIsInitialLoading(true);
+            if (!paramConversationId) return; // Guard against undefined param
 
-                try {
-                    // 调用父组件的选择函数（异步获取详情）
-                    await onSelectConversation(paramConversationId);
-                } catch (error) {
-                    console.error('Failed to sync conversation:', error);
-                } finally {
-                    // 增加极短延迟确保渲染同步，解决视觉突跳
-                    requestAnimationFrame(() => {
-                        setIsInitialLoading(false);
-                    });
-                }
+            try {
+                // 调用父组件的选择函数（异步获取详情）
+                await onSelectConversation(paramConversationId);
+            } catch (error) {
+                console.error('Failed to sync conversation:', error);
             }
+
         };
 
         syncConversation();
@@ -107,6 +103,16 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
         isMe: boolean
     }>({
         visible: false, x: 0, y: 0, msgId: null, msgText: '', senderName: '', isMe: false
+    });
+
+    const [convContextMenu, setConvContextMenu] = useState<{
+        visible: boolean;
+        x: number;
+        y: number;
+        convId: string | null;
+        isPinned: boolean;
+    }>({
+        visible: false, x: 0, y: 0, convId: null, isPinned: false
     });
 
     // 右键菜单处理
@@ -162,6 +168,9 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
         const handleClickOutside = () => {
             if (contextMenu.visible) {
                 setContextMenu(prev => ({ ...prev, visible: false }));
+            }
+            if (convContextMenu.visible) {
+                setConvContextMenu(prev => ({ ...prev, visible: false }));
             }
         };
 
@@ -298,6 +307,27 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     const [hasMore, setHasMore] = useState(true);
     const [showScrollToNew, setShowScrollToNew] = useState(false);
     const lastConvIdRef = useRef<string | null>(null);
+
+    const scrollToBottom = () => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    };
+
+    // Auto-scroll when active conversation changes or new messages arrive
+    useEffect(() => {
+        if (activeConversationId) {
+            // Un-smooth scroll for instant jump on load
+            if (chatContainerRef.current) {
+                chatContainerRef.current.scrollTo({
+                    top: chatContainerRef.current.scrollHeight,
+                    behavior: 'auto'
+                });
+            }
+            // Also try with smooth helper after a tick for safety
+            setTimeout(scrollToBottom, 100);
+        }
+    }, [activeConversationId, conversations]); // Depend on conversations to catch message loading
 
     // 滚动到最新消息（容器底部）
     const scrollToLatest = useCallback((smooth = false) => {
@@ -439,20 +469,34 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             // 这样 useEffect 会监听 URL 变化并触发 onSelectConversation
                                             navigate(`/messages/${targetConversationId}`);
                                         }}
-                                        className={`p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 
-                                            ${isActive && !isMobile ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent'}`}
+                                        onContextMenu={(e) => {
+                                            if (onPinConversation && onHideConversation) {
+                                                e.preventDefault();
+                                                setConvContextMenu({
+                                                    visible: true,
+                                                    x: e.clientX,
+                                                    y: e.clientY,
+                                                    convId: conv.id.toString(),
+                                                    isPinned: conv.candidatePinned || false
+                                                });
+                                            }
+                                        }}
+                                        className={`relative group p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 
+                                            ${isActive && !isMobile ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent'} ${conv.candidatePinned ? 'bg-gray-50/50' : ''}`}
                                     >
                                         <div className="flex justify-between mb-1">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-10 h-10 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center shrink-0">
-                                                    {recruiterAvatar && (recruiterAvatar.startsWith('http') || recruiterAvatar.startsWith('/')) ? (
-                                                        <img src={processAvatarUrl(recruiterAvatar)} alt={recruiterName} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <span className="font-bold text-indigo-600">{recruiterName.charAt(0)}</span>
-                                                    )}
-                                                </div>
+                                                <UserAvatar
+                                                    src={recruiterAvatar}
+                                                    name={recruiterName}
+                                                    size={40}
+                                                    className="bg-indigo-100 text-indigo-600 border border-indigo-50"
+                                                />
                                                 <div className="min-w-0">
-                                                    <h4 className={`font-bold text-sm truncate ${isActive && !isMobile ? 'text-indigo-900' : 'text-gray-900'}`}>{recruiterName}</h4>
+                                                    <div className="flex items-center gap-1">
+                                                        <h4 className={`font-bold text-sm truncate ${isActive && !isMobile ? 'text-indigo-900' : 'text-gray-900'}`}>{recruiterName}</h4>
+                                                        {conv.candidatePinned && <Pin className="w-3 h-3 text-indigo-500 fill-indigo-500 transform rotate-45" />}
+                                                    </div>
                                                     <p className="text-xs text-gray-500 truncate">{displayJobTitle} • {conv.company_name || '未知公司'}</p>
                                                 </div>
                                             </div>
@@ -499,6 +543,34 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                     </div>
                 </div>
 
+                {/* Conversation Context Menu */}
+                {convContextMenu.visible && (
+                    <div
+                        className="fixed z-50 bg-white shadow-xl rounded-lg border border-gray-100 py-1 w-32 animate-in fade-in zoom-in-95 duration-100"
+                        style={{ top: convContextMenu.y, left: convContextMenu.x }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => {
+                                onPinConversation && onPinConversation(convContextMenu.convId!, convContextMenu.isPinned);
+                                setConvContextMenu({ ...convContextMenu, visible: false });
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                            <Pin className="w-4 h-4" /> {convContextMenu.isPinned ? '取消置顶' : '置顶会话'}
+                        </button>
+                        <button
+                            onClick={() => {
+                                onHideConversation && onHideConversation(convContextMenu.convId!);
+                                setConvContextMenu({ ...convContextMenu, visible: false });
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                            <Trash2 className="w-4 h-4" /> 隐藏会话
+                        </button>
+                    </div>
+                )}
+
                 {/* --- Chat Window (Right) --- */}
                 <div className={`${chatClasses} ${chatWidth}`}>
                     {activeConv ? (
@@ -515,13 +587,12 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             <ArrowLeft className="w-6 h-6" />
                                         </button>
                                     )}
-                                    <div className="w-10 h-10 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center border border-indigo-200">
-                                        {activeConv.recruiter_avatar && (activeConv.recruiter_avatar.startsWith('http') || activeConv.recruiter_avatar.startsWith('/')) ? (
-                                            <img src={activeConv.recruiter_avatar} alt="avatar" className="w-full h-full object-cover" />
-                                        ) : (
-                                            <span className="text-lg font-bold">{activeConv.recruiter_name?.charAt(0) || 'H'}</span>
-                                        )}
-                                    </div>
+                                    <UserAvatar
+                                        src={activeConv.recruiter_avatar}
+                                        name={activeConv.recruiter_name}
+                                        size={40}
+                                        className="bg-indigo-100 text-indigo-600 border border-indigo-200"
+                                    />
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-base font-bold text-gray-900">{activeConv.recruiter_name || '招聘者'}</h2>
                                         {mergedConvForActive && mergedConvForActive.allJobs && mergedConvForActive.allJobs.length > 1 ? (
@@ -569,6 +640,16 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                 </div>
                             </div>
 
+                            {/* Quick Actions - 移到顶部 */}
+                            <div className="px-4 py-2 bg-gray-50/80 flex gap-2 border-b border-gray-100">
+                                <button onClick={() => handleSend("已发送在线简历。", 'system')} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs rounded-full whitespace-nowrap hover:bg-indigo-100 transition-colors">
+                                    发送简历
+                                </button>
+                                <button onClick={() => handleSend(`我的微信号是: ${currentUser?.wechat || '未设置'}`, 'text')} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full whitespace-nowrap hover:bg-emerald-100 transition-colors">
+                                    交换微信
+                                </button>
+                            </div>
+
                             {/* Messages */}
                             <div
                                 ref={chatContainerRef}
@@ -605,70 +686,101 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         const isMe = Number(msg.sender_id) === Number(currentUser?.id);
                                         const isSystem = msg.type === 'system';
 
+                                        // --- 时间分割线逻辑 ---
+                                        const prevMsg = activeConv.messages?.[i - 1];
+                                        let showTimeDivider = false;
+                                        if (i === 0) {
+                                            showTimeDivider = true;
+                                        } else if (prevMsg) {
+                                            const diff = new Date(msg.time).getTime() - new Date(prevMsg.time).getTime();
+                                            if (diff > 5 * 60 * 1000) { // 超过5分钟显示一次时间
+                                                showTimeDivider = true;
+                                            }
+                                        }
+
                                         if (isSystem) return (
-                                            <div key={i} className="flex justify-center my-4">
-                                                <span className="text-xs bg-gray-200 text-gray-500 px-3 py-1 rounded-full">{msg.text}</span>
+                                            <div key={i}>
+                                                {showTimeDivider && (
+                                                    <div className="flex justify-center my-4">
+                                                        <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-center my-4">
+                                                    <span className="text-xs bg-gray-200 text-gray-500 px-3 py-1 rounded-full">{msg.text}</span>
+                                                </div>
                                             </div>
                                         );
 
                                         return (
-                                            <div key={i} className={`flex gap-2 items-end ${isMe ? 'justify-end' : 'justify-start'} group`}>
-                                                {!isMe && (
-                                                    <div className="w-8 h-8 rounded-full bg-gray-200 overflow-hidden">
-                                                        {msg.sender_avatar && msg.sender_avatar !== '' ? <img src={processAvatarUrl(msg.sender_avatar)} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs">{msg.sender_name?.[0]}</span>}
+                                            <div key={i} className="flex flex-col gap-4">
+                                                {showTimeDivider && (
+                                                    <div className="flex justify-center my-2">
+                                                        <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
                                                     </div>
                                                 )}
-                                                <div
-                                                    className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
-                                                    ${isMe ? 'bg-indigo-600 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}
-                                                    hover:shadow-md transition-shadow
-                                                `}
-                                                    onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
-                                                >
-                                                    {msg.type === 'image' && msg.file_url ? (
-                                                        <div className="space-y-1">
-                                                            <img
-                                                                src={msg.file_url}
-                                                                alt="图片消息"
-                                                                className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                                                onClick={() => window.open(msg.file_url, '_blank')}
-                                                                loading="lazy"
-                                                            />
-                                                            {msg.text && msg.text !== '[图片]' && <p>{msg.text}</p>}
-                                                        </div>
-                                                    ) : (
-                                                        // 检测是否为回复消息
-                                                        msg.text?.startsWith('↩️ 回复') ? (
-                                                            <div className="space-y-2">
-                                                                {/* 回复引用部分 */}
-                                                                <div className={`
-                                                                    px-2.5 py-1.5 rounded-lg text-xs border-l-2
-                                                                    ${isMe
-                                                                        ? 'bg-indigo-500/30 border-indigo-300/50 text-indigo-100'
-                                                                        : 'bg-gray-100 border-gray-300 text-gray-500'
-                                                                    }
-                                                                `}>
-                                                                    <div className="flex items-center gap-1 mb-0.5">
-                                                                        <Reply className="w-3 h-3 opacity-70" />
-                                                                        <span className="font-medium opacity-80">
-                                                                            {msg.text.split('\n')[0].replace('↩️ ', '')}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                                {/* 实际回复内容 */}
-                                                                <p className="whitespace-pre-wrap">{msg.text.split('\n\n').slice(1).join('\n\n')}</p>
+                                                <div className={`flex gap-2 items-end ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                                                    {!isMe && (
+                                                        <UserAvatar
+                                                            src={msg.sender_avatar}
+                                                            name={msg.sender_name}
+                                                            size={32}
+                                                            className="bg-indigo-100 text-indigo-600"
+                                                        />
+                                                    )}
+                                                    <div
+                                                        className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
+                                                        ${isMe ? 'bg-indigo-600 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}
+                                                        hover:shadow-md transition-shadow
+                                                    `}
+                                                        onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
+                                                    >
+                                                        {msg.type === 'image' && msg.file_url ? (
+                                                            <div className="space-y-1">
+                                                                <img
+                                                                    src={msg.file_url}
+                                                                    alt="图片消息"
+                                                                    className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                                                    onClick={() => window.open(msg.file_url, '_blank')}
+                                                                    loading="lazy"
+                                                                />
+                                                                {msg.text && msg.text !== '[图片]' && <p>{msg.text}</p>}
                                                             </div>
                                                         ) : (
-                                                            <p className="whitespace-pre-wrap">{msg.text}</p>
-                                                        )
-                                                    )}
-                                                    <span className={`text-[10px] block text-right mt-1 opacity-70`}>{formatDateTime(msg.time)}</span>
-                                                </div>
-                                                {isMe && (
-                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 overflow-hidden">
-                                                        {currentUser?.avatar && currentUser.avatar.trim() !== '' ? <img src={processAvatarUrl(currentUser.avatar)} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs font-bold text-indigo-600">{currentUser?.name?.[0]}</span>}
+                                                            // 检测是否为回复消息
+                                                            msg.text?.startsWith('↩️ 回复') ? (
+                                                                <div className="space-y-2">
+                                                                    {/* 回复引用部分 */}
+                                                                    <div className={`
+                                                                        px-2.5 py-1.5 rounded-lg text-xs border-l-2
+                                                                        ${isMe
+                                                                            ? 'bg-indigo-500/30 border-indigo-300/50 text-indigo-100'
+                                                                            : 'bg-gray-100 border-gray-300 text-gray-500'
+                                                                        }
+                                                                    `}>
+                                                                        <div className="flex items-center gap-1 mb-0.5">
+                                                                            <Reply className="w-3 h-3 opacity-70" />
+                                                                            <span className="font-medium opacity-80">
+                                                                                {msg.text.split('\n')[0].replace('↩️ ', '')}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    {/* 实际回复内容 */}
+                                                                    <p className="whitespace-pre-wrap">{msg.text.split('\n\n').slice(1).join('\n\n')}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                            )
+                                                        )}
                                                     </div>
-                                                )}
+                                                    {isMe && (
+                                                        <UserAvatar
+                                                            src={currentUser?.avatar}
+                                                            name={currentUser?.name || '我'}
+                                                            size={32}
+                                                            className="bg-indigo-100 text-indigo-600"
+                                                        />
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -762,32 +874,44 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         </div>
                                     </div>
                                 )}
-                                {/* Quick Actions */}
-                                <div className="px-4 py-2 bg-gray-50/50 flex space-x-2 overflow-x-auto border-b border-gray-100 no-scrollbar">
-                                    <button onClick={() => handleSend("已发送在线简历。", 'system')} className="px-3 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-full whitespace-nowrap">发送简历</button>
-                                    <button onClick={() => handleSend(`我的微信号是: ${currentUser?.wechat || '未设置'}`, 'text')} className="px-3 py-1 bg-emerald-50 text-emerald-600 text-xs rounded-full whitespace-nowrap">交换微信</button>
-                                    <button onClick={() => handleSend("方便电话沟通吗？", 'text')} className="px-3 py-1 bg-blue-50 text-blue-600 text-xs rounded-full whitespace-nowrap">约电话</button>
-                                </div>
+                                {/* Input Area - 上下布局 */}
+                                <div className="p-3 space-y-2">
+                                    {/* 输入框区域 */}
+                                    <div className="w-full">
+                                        <textarea
+                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl resize-none text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all max-h-32"
+                                            rows={3}
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                                            placeholder="输入消息... (Shift+Enter 换行)"
+                                        />
+                                    </div>
 
-                                <div className="p-3 flex items-end gap-2">
-                                    <button onClick={() => setShowExtrasMenu(!showExtrasMenu)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-full">
-                                        <Plus className={`w-6 h-6 transition-transform ${showExtrasMenu ? 'rotate-45' : ''}`} />
-                                    </button>
-                                    <textarea
-                                        className="flex-grow p-2.5 bg-gray-50 border-gray-200 rounded-xl resize-none text-sm focus:ring-2 focus:ring-indigo-500 max-h-32"
-                                        rows={1}
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                        placeholder="输入消息..."
-                                    />
-                                    <button
-                                        onClick={() => handleSend()}
-                                        disabled={!input.trim()}
-                                        className={`p-2.5 rounded-xl transition ${input.trim() ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-200 text-gray-400'}`}
-                                    >
-                                        <SendIcon className="w-5 h-5" />
-                                    </button>
+                                    {/* 按钮区域 */}
+                                    <div className="flex items-center justify-between">
+                                        <button
+                                            onClick={() => setShowExtrasMenu(!showExtrasMenu)}
+                                            className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
+                                            aria-label="更多功能"
+                                        >
+                                            <Plus className={`w-6 h-6 transition-transform ${showExtrasMenu ? 'rotate-45' : ''}`} />
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleSend()}
+                                            disabled={!input.trim()}
+                                            className={`px-6 py-2.5 rounded-xl transition-all font-medium ${input.trim()
+                                                ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700 hover:shadow-lg'
+                                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <SendIcon className="w-5 h-5" />
+                                                <span>发送</span>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
                                 {showExtrasMenu && (
                                     <div className="p-4 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-2">

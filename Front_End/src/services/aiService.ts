@@ -5,17 +5,17 @@ import { StatMetric, ApplicationTrendData, JobCategoryData, Language } from "../
 // 支持多种变量名：APAKEY, QIANWEN_API_KEY, VITE_QIANWEN_API_KEY
 // 注意：Vite 默认只暴露 VITE_ 开头的变量，非 VITE_ 开头的需要在 vite.config.ts 中通过 define 暴露
 const QIANWEN_API_KEY = import.meta.env.APAKEY ||
-                        import.meta.env.QIANWEN_API_KEY ||
-                        import.meta.env.VITE_QIANWEN_API_KEY ||
-                        (import.meta.env as any).QIANWEN_API_KEY; // 备用方案
+  import.meta.env.QIANWEN_API_KEY ||
+  import.meta.env.VITE_QIANWEN_API_KEY ||
+  (import.meta.env as any).QIANWEN_API_KEY; // 备用方案
 const QIANWEN_MODEL = 'qwen-turbo';
 const QIANWEN_PROXY_URL = '/qianwen/compatible-mode/v1/chat/completions';
 const QIANWEN_DIRECT_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 
 // Gemini 配置：优先使用 GEMINI_API_KEY，然后是 VITE_GEMINI_API_KEY
 const GEMINI_API_KEY = import.meta.env.GEMINI_API_KEY ||
-                       import.meta.env.VITE_GEMINI_API_KEY ||
-                       (import.meta.env as any).GEMINI_API_KEY;
+  import.meta.env.VITE_GEMINI_API_KEY ||
+  (import.meta.env as any).GEMINI_API_KEY;
 // 注意：Gemini API 的 REST 端点通常是 v1beta。使用 v1 很容易直接 404（路径不存在）。
 const GEMINI_MODEL = import.meta.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const GEMINI_API_VERSION = import.meta.env.GEMINI_API_VERSION || 'v1beta';
@@ -26,6 +26,74 @@ const buildGeminiBaseUrl = (model: string, version: string) =>
   `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent`;
 
 const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
+
+/**
+ * 清理AI生成内容中的占位符号和优化排版
+ * 移除 {""}, {}, *, 等AI识别生成的符号,并优化换行和格式
+ */
+const cleanAIGeneratedContent = (text: string): string => {
+  if (!text) return text;
+
+  // 1. 基础清理：各种JSON/代码占位符
+  let cleaned = text
+    .replace(/\{\s*""\s*\}/g, '')
+    .replace(/\{\s*\}/g, '')
+    .replace(/\[\s*\]/g, '')
+    .replace(/""/g, '')
+    .replace(/''/g, '')
+    .replace(/``/g, '');
+
+  // 2. 统一标点与排版规范
+  cleaned = cleaned
+    .replace(/\r\n/g, '\n')      // 统一换行符
+    .replace(/[【】]/g, ' ')      // 方括号转为空格
+    .replace(/[《》]/g, ' ')
+    .replace(/：/g, ':')         // 统一冒号
+    .replace(/，/g, ',')         // 统一逗号
+    .replace(/！/g, '!');        // 统一感叹号
+
+  // 3. Markdown 符号清理
+  cleaned = cleaned
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/`([^`]+)`/g, '$1');
+
+  // 4. 增强标题与列表项换行逻辑
+  // 处理标题后紧跟列表项的情况
+  cleaned = cleaned.replace(/(:)\s*([-•·])/g, '$1\n$2');
+
+  // 处理在同一行内的列表项： 职责1 - 职责2 -> 职责1\n- 职责2 (要求符号前后有空格以区分负号/减号)
+  cleaned = cleaned.replace(/([^\n])\s+([-•·])\s+/g, '$1\n$2 ');
+
+  const sections = ['职位描述', '岗位职责', '任职要求', '工作职责', '职责描述', '加分项', '福利待遇', '公司福利', '岗位要求', '任职资格'];
+  sections.forEach(section => {
+    const regex = new RegExp(`([^\\n])\\s*${section}\\s*:`, 'g');
+    cleaned = cleaned.replace(regex, `\n\n${section}:`);
+  });
+
+  // 5. 逐行处理：标准化列表符和去处行首尾空格
+  cleaned = cleaned
+    .split('\n')
+    .map(line => {
+      let l = line.trim();
+      if (/^[-•·]\s*/.test(l)) {
+        return l.replace(/^[-•·]\s*/, '- ');
+      }
+      return l;
+    })
+    .join('\n');
+
+  // 6. 最终细节优化
+  return cleaned
+    .replace(/\n{3,}/g, '\n\n')        // 连续空行压缩
+    .replace(/ {2,}/g, ' ')            // 连续空格压缩
+    .replace(/:\s*/g, ': ')            // 冒号后空格标淮化
+    .replace(/([,。！？.!?])\1+/g, '$1') // 重复标点压缩
+    .replace(/\s*(\.\.\.|…+)\s*/g, '...') // 省略号标准化
+    .replace(/\s*(—+|-{2,})\s*/g, '-')   // 长划线标准化
+    .trim();
+};
 
 const callQianwen = async (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> => {
   try {
@@ -325,8 +393,8 @@ export const generateFullJobInfo = async (
       { role: 'user', content: prompt }
     ]);
 
-    // 移除AI生成内容中的可能的*符号
-    const cleanedText = text.replace(/\*/g, '');
+    // 清理AI生成内容中的占位符号
+    const cleanedText = cleanAIGeneratedContent(text);
 
     // 解析JSON响应
     const jobInfo = JSON.parse(cleanedText);
@@ -370,8 +438,8 @@ export const generateJobDescription = async (
       const skillStr = skillList.length ? skillList.join('、') : '无特定技能要求';
       return `职位：${title}\n\n岗位职责：\n- 负责${title}相关工作，完成团队分配的任务。\n- 与团队协作，推动项目进展。\n\n任职要求：\n- 具备${skillStr}等技能。\n- 具备良好的沟通能力和团队合作精神。\n\n公司福利：提供有竞争力的薪酬福利。`;
     }
-    // 移除AI生成内容中的*符号
-    const cleanedText = text.replace(/\*/g, '');
+    // 清理AI生成内容中的占位符号
+    const cleanedText = cleanAIGeneratedContent(text);
     return cleanedText || 'AI 生成 JD 失败，请手动填写。';
   } catch (error) {
     console.error('JD Gen Error', error);

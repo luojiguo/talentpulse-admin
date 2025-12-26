@@ -5,8 +5,9 @@ import request from '@/utils/request';
  */
 export const messageAPI = {
   // 获取对话列表
-  getConversations: (userId: string | number) => {
-    return request.get(`/messages/conversations/${userId}`);
+  getConversations: (userId: string | number, role?: 'recruiter' | 'candidate') => {
+    const params = role ? { role } : {};
+    return request.get(`/messages/conversations/${userId}`, { params });
   },
 
   // 获取对话详情
@@ -65,5 +66,10 @@ export const messageAPI = {
   // 删除对话（软删除）
   deleteConversation: (conversationId: string | number, data?: { deletedBy: string | number }) => {
     return request.delete(`/messages/conversation/${conversationId}`, { data });
+  },
+
+  // 更新对话状态（置顶/隐藏）
+  updateConversationStatus: (conversationId: string | number, data: { role: 'recruiter' | 'candidate', action: 'pin' | 'unpin' | 'hide' | 'unhide' }) => {
+    return request.patch(`/messages/conversations/${conversationId}/status`, data);
   },
 };

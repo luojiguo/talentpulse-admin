@@ -5,34 +5,34 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 // 获取招聘者相关职位（自己发布的 + 公司所有职位）
 router.get('/jobs', asyncHandler(async (req, res) => {
-        const { recruiterId } = req.query;
+    const { recruiterId } = req.query;
 
-        if (!recruiterId) {
-            const error = new Error('Recruiter ID is required');
-            error.statusCode = 400;
-            error.errorCode = 'MISSING_RECRUITER_ID';
-            throw error;
-        }
+    if (!recruiterId) {
+        const error = new Error('Recruiter ID is required');
+        error.statusCode = 400;
+        error.errorCode = 'MISSING_RECRUITER_ID';
+        throw error;
+    }
 
-        // 首先获取招聘者的公司ID和用户ID
-        // 支持通过招聘者ID或用户ID查询
-        const recruiterResult = await query(
-            'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE id = $1 OR user_id = $1',
-            [recruiterId]
-        );
+    // 首先获取招聘者的公司ID和用户ID
+    // 支持通过招聘者ID或用户ID查询
+    const recruiterResult = await query(
+        'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE id = $1 OR user_id = $1',
+        [recruiterId]
+    );
 
-        if (recruiterResult.rows.length === 0) {
-            const error = new Error('Recruiter not found');
-            error.statusCode = 404;
-            error.errorCode = 'RECRUITER_NOT_FOUND';
-            throw error;
-        }
+    if (recruiterResult.rows.length === 0) {
+        const error = new Error('Recruiter not found');
+        error.statusCode = 404;
+        error.errorCode = 'RECRUITER_NOT_FOUND';
+        throw error;
+    }
 
-        const { company_id, user_id, recruiter_id } = recruiterResult.rows[0];
+    const { company_id, user_id, recruiter_id } = recruiterResult.rows[0];
 
-        // 获取公司所有职位，包括发布者信息，并确保返回前端期望的字段名
-        // 增加查询超时时间到30秒，因为涉及多个JOIN
-        const result = await query(`
+    // 获取公司所有职位，包括发布者信息，并确保返回前端期望的字段名
+    // 增加查询超时时间到30秒，因为涉及多个JOIN
+    const result = await query(`
             SELECT 
                 j.id,
                 j.title,
@@ -54,6 +54,15 @@ router.get('/jobs', asyncHandler(async (req, res) => {
                 j.expire_date,
                 j.created_at,
                 j.updated_at,
+                j.required_skills,
+                j.preferred_skills,
+                j.benefits,
+                j.experience,
+                j.degree,
+                j.work_mode,
+                j.job_level,
+                j.hiring_count,
+                j.urgency,
                 CASE WHEN j.recruiter_id = $1 THEN true ELSE false END AS is_own_job
             FROM jobs j
             LEFT JOIN companies c ON j.company_id = c.id
@@ -63,51 +72,60 @@ router.get('/jobs', asyncHandler(async (req, res) => {
             ORDER BY j.publish_date DESC
         `, [recruiter_id, company_id], 30000);
 
-        // 将后端字段映射为前端期望的格式
-        const formattedJobs = result.rows.map(job => ({
-            id: job.id,
-            title: job.title,
-            company: job.company,
-            company_name: job.company_name,
-            department: job.department || '',
-            location: job.location,
-            salary: job.salary || '面议',
-            description: job.description || '',
-            type: job.type || '全职',
-            posterId: job.poster_id, // 前端使用posterId
-            recruiter_id: job.recruiter_id,
-            recruiter_name: job.recruiter_name,
-            recruiter_avatar: job.recruiter_avatar,
-            recruiter_position: job.recruiter_position || '未知职位',
-            applicants: job.applicants,
-            status: job.status === 'active' ? 'Active' : 'Closed',
-            posted_date: job.posted_date, // 返回原始日期格式，让前端处理
-            expire_date: job.expire_date,
-            created_at: job.created_at,
-            updated_at: job.updated_at,
-            is_own_job: job.is_own_job
-        }));
+    // 将后端字段映射为前端期望的格式
+    const formattedJobs = result.rows.map(job => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        company_name: job.company_name,
+        department: job.department || '',
+        location: job.location,
+        salary: job.salary || '面议',
+        description: job.description || '',
+        type: job.type || '全职',
+        posterId: job.poster_id, // 前端使用posterId
+        recruiter_id: job.recruiter_id,
+        recruiter_name: job.recruiter_name,
+        recruiter_avatar: job.recruiter_avatar,
+        recruiter_position: job.recruiter_position || '未知职位',
+        applicants: job.applicants,
+        status: job.status === 'active' || job.status === 'Active' ? 'Active' : 'Closed',
+        posted_date: job.posted_date, // 返回原始日期格式，让前端处理
+        expire_date: job.expire_date,
+        created_at: job.created_at,
+        updated_at: job.updated_at,
+        is_own_job: job.is_own_job,
+        required_skills: job.required_skills,
+        preferred_skills: job.preferred_skills,
+        benefits: job.benefits,
+        experience: job.experience,
+        degree: job.degree,
+        work_mode: job.work_mode,
+        job_level: job.job_level,
+        hiring_count: job.hiring_count,
+        urgency: job.urgency
+    }));
 
-        res.json({
-            status: 'success',
-            data: formattedJobs,
-            count: formattedJobs.length
-        });
+    res.json({
+        status: 'success',
+        data: formattedJobs,
+        count: formattedJobs.length
+    });
 }));
 
 // 获取申请招聘者职位的候选人
 router.get('/candidates', asyncHandler(async (req, res) => {
-        const { recruiterId } = req.query;
+    const { recruiterId } = req.query;
 
-        if (!recruiterId) {
-            const error = new Error('Recruiter ID is required');
-            error.statusCode = 400;
-            error.errorCode = 'MISSING_RECRUITER_ID';
-            throw error;
-        }
+    if (!recruiterId) {
+        const error = new Error('Recruiter ID is required');
+        error.statusCode = 400;
+        error.errorCode = 'MISSING_RECRUITER_ID';
+        throw error;
+    }
 
-        // 增加查询超时时间到30秒，因为涉及多个JOIN
-        const result = await query(`
+    // 增加查询超时时间到30秒，因为涉及多个JOIN
+    const result = await query(`
             SELECT DISTINCT
                 c.id,
                 u.name,
@@ -131,11 +149,11 @@ router.get('/candidates', asyncHandler(async (req, res) => {
             ORDER BY a.created_at DESC
         `, [recruiterId], 30000);
 
-        res.json({
-            status: 'success',
-            data: result.rows,
-            count: result.rows.length
-        });
+    res.json({
+        status: 'success',
+        data: result.rows,
+        count: result.rows.length
+    });
 }));
 
 module.exports = router;

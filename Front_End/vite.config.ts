@@ -35,6 +35,22 @@ export default defineConfig(({ mode }) => {
               // 处理重复的/api前缀问题
               return p.replace(/^\/api\/api/, '/api');
             }
+          },
+          '/avatars': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
+          },
+          '/uploads': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
+          },
+          '/business_license': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
+          },
+          '/companies_logo': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
           }
         },
         // 禁用可能导致日志的功能
@@ -59,6 +75,22 @@ export default defineConfig(({ mode }) => {
               // 处理重复的/api前缀问题
               return p.replace(/^\/api\/api/, '/api');
             }
+          },
+          '/avatars': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
+          },
+          '/uploads': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
+          },
+          '/business_license': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
+          },
+          '/companies_logo': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
           }
         },
       },

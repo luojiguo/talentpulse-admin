@@ -4,6 +4,7 @@ import { Modal, message } from 'antd';
 import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation, Message } from '@/types/types';
 import { userAPI, jobAPI, companyAPI, messageAPI, candidateAPI, applicationAPI } from '@/services/apiService';
 import { useApi } from '@/hooks/useApi';
+import { socketService } from '@/services/socketService';
 
 // Import Candidate screens
 import HomeScreen from './screens/HomeScreen';
@@ -35,6 +36,30 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const [localCurrentUser, setLocalCurrentUser] = useState<User>(currentUser);
   const navigate = useNavigate();
 
+  // Dropdown menu state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Candidate Screen Props Management
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const activeConversationIdRef = React.useRef<string | null>(null);
+
+  // Sync ref with state
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [collectedJobs, setCollectedJobs] = useState<JobPosting[]>([]);
+  const [followedCompanies, setFollowedCompanies] = useState<(string | number)[]>([]);
+  const [searchText, setSearchText] = useState('');
+  const [filterUnread, setFilterUnread] = useState(false);
+  const [userResume, setUserResume] = useState({});
+  const [currentJob, setCurrentJob] = useState<JobPosting | null>(null);
+
+  // 消息相关状态
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+
   // Sync with external currentUser prop changes
   useEffect(() => {
     setLocalCurrentUser(currentUser);
@@ -57,45 +82,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
     };
   }, []);
-
-  // Local setCurrentUser function that updates local state and ensures id is always a number
-  const handleSetCurrentUser = (userOrUpdater: User | ((prevUser: User) => User)) => {
-    setLocalCurrentUser((prevUser) => {
-      const newUser = typeof userOrUpdater === 'function'
-        ? userOrUpdater(prevUser)
-        : userOrUpdater;
-
-      const updatedUser = {
-        ...newUser,
-        id: typeof newUser.id === 'string' ? parseInt(newUser.id, 10) : newUser.id
-      };
-
-      // Update global state
-      onUpdateUser(updatedUser);
-
-      // Trigger profile refetch to ensure data consistency
-      setTimeout(() => refetchProfile(), 100);
-
-      return updatedUser;
-    });
-  };
-  // Dropdown menu state
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
-  // Candidate Screen Props Management
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [collectedJobs, setCollectedJobs] = useState<JobPosting[]>([]);
-  const [followedCompanies, setFollowedCompanies] = useState<(string | number)[]>([]);
-  const [searchText, setSearchText] = useState('');
-  const [filterUnread, setFilterUnread] = useState(false);
-  const [userResume, setUserResume] = useState({});
-  const [currentJob, setCurrentJob] = useState<JobPosting | null>(null);
-
-  // 消息相关状态
-  const [loadingConversations, setLoadingConversations] = useState(false);
-  const [conversationError, setConversationError] = useState<string | null>(null);
-
   // 优化：并行获取所有初始数据，减少加载时间
   // 使用 useApi Hook 获取智能推荐的职位数据（并行加载）
   const {
@@ -103,9 +89,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     loading: loadingJobs,
     error: jobsError
   } = useApi<{ status: string; data: JobPosting[] }>(
-    () => jobAPI.getRecommendedJobs(localCurrentUser.id) as any,
-    [localCurrentUser.id],
-    { autoFetch: true, cache: true } // 启用缓存
+    () => localCurrentUser?.id ? jobAPI.getRecommendedJobs(localCurrentUser.id) as any : Promise.resolve({ data: [] }),
+    [localCurrentUser?.id],
+    { autoFetch: !!localCurrentUser?.id, cache: true } // 启用缓存，仅当ID存在时请求
   );
   const jobs = jobsData?.data || [];
 
@@ -116,9 +102,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     error: profileError,
     refetch: refetchProfile
   } = useApi<{ status: string; data: Profile }>(
-    () => userAPI.getUserById(localCurrentUser.id) as any,
-    [localCurrentUser.id],
-    { autoFetch: true, cache: true } // 启用缓存
+    () => localCurrentUser?.id ? userAPI.getUserById(localCurrentUser.id) as any : Promise.resolve({ data: {} }),
+    [localCurrentUser?.id],
+    { autoFetch: !!localCurrentUser?.id, cache: true } // 启用缓存
   );
 
   // 使用 useApi Hook 获取关注的公司（并行加载）
@@ -139,6 +125,33 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [followedCompaniesData]);
 
+  // Local setCurrentUser function that updates local state and ensures id is always a number
+  const handleSetCurrentUser = (userOrUpdater: User | ((prevUser: User) => User)) => {
+    // Determine the new user object based on the current localCurrentUser state
+    // Note: We use the localCurrentUser from closure. This is safe enough here as we don't expect
+    // rapid-fire batched updates for user profile changes.
+    const newUser = typeof userOrUpdater === 'function'
+      ? userOrUpdater(localCurrentUser)
+      : userOrUpdater;
+
+    const updatedUser = {
+      ...newUser,
+      id: typeof newUser.id === 'string' ? parseInt(newUser.id, 10) : newUser.id
+    };
+
+    // Update local state
+    setLocalCurrentUser(updatedUser);
+
+    // Update global state (Side effect - must be outside the setter)
+    if (onUpdateUser) {
+      onUpdateUser(updatedUser);
+    }
+
+    // Trigger profile refetch to ensure data consistency
+    setTimeout(() => refetchProfile(), 100);
+  };
+
+
   // --- 所有回调函数均放在此处定义，确保初始化顺序 ---
 
   // 获取用户对话列表
@@ -150,7 +163,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
     try {
       // 直接调用 API，API 服务层已经处理了超时（60秒）
-      const response = await messageAPI.getConversations(localCurrentUser.id);
+      const response = await messageAPI.getConversations(localCurrentUser.id, 'candidate');
 
       if ((response as any).status === 'success') {
         const newData = response.data || [];
@@ -165,11 +178,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           });
 
           // 处理新数据，合并现有消息
-          // 过滤掉当前用户是招聘者的对话（只显示作为候选人的对话）
-          const candidateConversations = newData.filter((c: any) => {
-            const rId = c.recruiterUserId || c.recruiter_user_id;
-            return Number(rId) !== Number(localCurrentUser.id);
-          });
+          // 后端已过滤，直接使用候选人的对话
+          const candidateConversations = newData;
 
           // 如果没有新对话，直接返回旧的
           if (candidateConversations.length === 0 && prevConversations.length === 0) return [];
@@ -210,6 +220,105 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [localCurrentUser.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
 
+  // Socket.IO Integration
+  useEffect(() => {
+    if (localCurrentUser?.id) {
+      // Connect to socket
+      const socket = socketService.connect(localCurrentUser.id);
+
+      // Listen for new messages
+      socketService.onNewMessage((message: any) => {
+        console.log('Received new message via socket:', message);
+
+        setConversations(prevConversations => {
+          // Check if conversation exists
+          const conversationExists = prevConversations.some(c => c.id.toString() === message.conversation_id.toString());
+
+          if (conversationExists) {
+            return prevConversations.map(conv => {
+              if (conv.id.toString() === message.conversation_id.toString()) {
+                const currentActiveId = activeConversationIdRef.current;
+                const isCurrentConversation = currentActiveId && currentActiveId.toString() === message.conversation_id.toString();
+
+                const existingMessages = conv.messages || [];
+                // Avoid duplicates by ID
+                if (existingMessages.some(m => m.id === message.id)) {
+                  return conv;
+                }
+
+                // Fuzzy Match Deduplication for Optimistic Updates
+                const isFromMe = message.sender_id.toString() === localCurrentUser.id.toString();
+                if (isFromMe) {
+                  const lastMsg = existingMessages[existingMessages.length - 1];
+                  if (lastMsg &&
+                    lastMsg.text === message.text &&
+                    (Date.now() - new Date(lastMsg.time).getTime() < 5000)) {
+                    // Update optimistic message with real data
+                    const updatedMessages = [...existingMessages];
+                    updatedMessages[updatedMessages.length - 1] = {
+                      ...message,
+                      sender_name: message.sender_name || '我',
+                      sender_avatar: message.sender_avatar || ''
+                    };
+                    return {
+                      ...conv,
+                      messages: updatedMessages,
+                      lastMessage: message.type === 'text' ? message.text : '[图片]',
+                      lastTime: message.time
+                    };
+                  }
+                }
+
+                return {
+                  ...conv,
+                  lastMessage: message.type === 'text' ? message.text : '[图片]',
+                  lastTime: message.time || new Date().toISOString(),
+                  updated_at: message.time || new Date().toISOString(),
+                  totalMessages: (conv.totalMessages || 0) + 1,
+                  unreadCount: isCurrentConversation ? 0 : (conv.unreadCount || 0) + 1,
+                  messages: [...existingMessages, {
+                    ...message,
+                    sender_name: message.sender_name || '对方',
+                    sender_avatar: message.sender_avatar || ''
+                  }]
+                };
+              }
+              return conv;
+            });
+          } else {
+            // New conversation handling (optional: fetch full list or add incomplete stub)
+            return prevConversations;
+          }
+        });
+      });
+    }
+
+    return () => {
+      socketService.disconnect();
+      socketService.offNewMessage();
+    };
+  }, [localCurrentUser?.id]); // Only depend on User ID
+
+  // Handle joining conversation rooms when active conversation changes
+  useEffect(() => {
+    if (activeConversationId) {
+      socketService.joinConversation(activeConversationId);
+
+      // Mark as read when entering room (handled by API call in handleSelectConversation, but good to keep in mind)
+    }
+  }, [activeConversationId]);
+
+  // 保留一个长轮询作为备份，但延长间隔到5分钟，主要依靠Socket
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchConversations();
+      }
+    }, 300000); // 5分钟刷新一次作为兜底
+
+    return () => clearInterval(refreshInterval);
+  }, [fetchConversations]);
+
   // 修改setActiveConversationId的调用方式，添加获取详细消息的逻辑
   const handleSelectConversation = useCallback(async (conversationId: string | number, limit = 15, offset = 0) => {
     try {
@@ -249,49 +358,79 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         }
 
         // 更新对话列表中的消息，并进行去重和排序
-        setConversations(prevConversations =>
-          prevConversations.map(conv => {
-            if (conv.id.toString() === idToSet.toString()) {
-              // 合并新旧消息并去重
-              const existingMessages = conv.messages || [];
-              const newMessages = messages || [];
+        setConversations(prevConversations => {
+          const existingIndex = prevConversations.findIndex(c => c.id.toString() === idToSet.toString());
 
-              // 使用 Map 进行去重，以 ID 为键
-              const messageMap = new Map();
-              [...existingMessages, ...newMessages].forEach(msg => {
-                if (msg && msg.id) {
-                  messageMap.set(msg.id.toString(), msg);
-                }
-              });
+          if (existingIndex > -1) {
+            // 对话已存在，更新
+            return prevConversations.map((conv, index) => {
+              if (index === existingIndex) {
+                // 合并新旧消息并去重
+                const existingMessages = conv.messages || [];
+                const newMessages = messages || [];
 
-              const mergedMessages = Array.from(messageMap.values());
+                // 使用 Map 进行去重，以 ID 为键
+                const messageMap = new Map();
+                [...existingMessages, ...newMessages].forEach(msg => {
+                  if (msg && msg.id) {
+                    messageMap.set(msg.id.toString(), msg);
+                  }
+                });
 
-              // 将消息按时间升序排序（最早在上，最新在下）
-              const sortedMessages = mergedMessages.sort((a, b) =>
-                new Date(a.time).getTime() - new Date(b.time).getTime()
-              );
+                const mergedMessages = Array.from(messageMap.values());
 
-              return {
-                ...conv,
-                messages: sortedMessages,
-                total_messages: total,
-                // 如果后端返回了最新的对话信息，也可以在这里更新
-                lastMessage: conversation?.last_message || conversation?.lastMessage || conv.lastMessage,
-                lastTime: conversation?.last_time || conversation?.lastTime || conv.lastTime,
-                // 标记消息为已读后，重置未读计数
-                unreadCount: 0,
-                candidateUnread: 0
-              };
-            }
-            return conv;
-          })
-        );
+                // 将消息按时间升序排序（最早在上，最新在下）
+                const sortedMessages = mergedMessages.sort((a, b) =>
+                  new Date(a.time).getTime() - new Date(b.time).getTime()
+                );
+
+                return {
+                  ...conv,
+                  messages: sortedMessages,
+                  total_messages: total,
+                  lastMessage: conversation?.last_message || conversation?.lastMessage || conv.lastMessage,
+                  lastTime: conversation?.last_time || conversation?.lastTime || conv.lastTime,
+                  unreadCount: 0,
+                  candidateUnread: 0
+                };
+              }
+              return conv;
+            });
+          } else if (conversation) {
+            // 对话不存在但API返回了详情，添加到列表
+            // 构造新的Conversation对象
+            const newConv: Conversation = {
+              ...conversation,
+              id: idToSet,
+              messages: messages,
+              total_messages: total,
+              unreadCount: 0,
+              candidateUnread: 0,
+              lastMessage: conversation.last_message || conversation.lastMessage || '',
+              lastTime: conversation.last_time || conversation.lastTime || new Date().toISOString(),
+              // 确保包含必要字段，如果API返回不全可能需要fallback
+              candidate_id: conversation.candidate_id || localCurrentUser.id,
+              recruiter_id: conversation.recruiter_id,
+              jobId: conversation.job_id || conversation.jobId,
+              recruiter_name: conversation.recruiter_name || '招聘者',
+              recruiter_avatar: conversation.recruiter_avatar || '',
+              candidate_name: conversation.candidate_name || localCurrentUser.name,
+              candidate_avatar: conversation.candidate_avatar || localCurrentUser.avatar,
+              job_title: conversation.job_title || '职位',
+              company_name: conversation.company_name || '公司'
+            };
+            return [newConv, ...prevConversations];
+          } else {
+            // 无法更新也无法添加
+            return prevConversations;
+          }
+        });
       }
     } catch (error) {
       console.error('获取对话详情失败:', error);
       // 不影响用户体验，仅记录错误
     }
-  }, [currentUser.id]);
+  }, [localCurrentUser.id]);
 
   // 加载更多历史消息
   const handleLoadMoreMessages = useCallback(async (conversationId: string | number, currentMessageCount: number) => {
@@ -418,6 +557,12 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               sender_avatar: localCurrentUser.avatar
             };
 
+            // Deduplication: Check if message (from socket) already exists
+            const msgExists = (c.messages || []).some((m: any) => m.id.toString() === newMessage.id.toString());
+            if (msgExists) {
+              return c;
+            }
+
             return {
               ...c,
               lastMessage: text,
@@ -457,7 +602,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const handleDeleteMessage = useCallback(async (conversationId: string | number, messageId: number | string) => {
     try {
       // 调用后端API删除消息，传入deletedBy参数
-      const response = await messageAPI.deleteMessage(messageId, { deletedBy: currentUser.id });
+      const response = await messageAPI.deleteMessage(messageId, { deletedBy: localCurrentUser.id });
 
       if ((response as any).status === 'success') {
         // 更新本地对话列表，从消息列表中移除删除的消息
@@ -490,33 +635,86 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       console.error('删除消息失败:', error);
       message.error('删除消息失败，请稍后重试');
     }
-  }, [currentUser.id, fetchConversations]);
+  }, [localCurrentUser.id, fetchConversations]);
 
-  // Handle Delete Conversation
+  // Handle Delete Conversation -> Changed to Hide
   const handleDeleteConversation = useCallback(async (conversationId: string | number) => {
     try {
-      // 调用后端API删除对话
-      const response = await messageAPI.deleteConversation(conversationId);
+      // 优化：改为"隐藏"而非"删除"
+      await messageAPI.updateConversationStatus(conversationId, {
+        role: 'candidate',
+        action: 'hide'
+      });
 
-      if ((response as any).status === 'success') {
-        // 从本地状态中删除对话
-        setConversations(prevConversations =>
-          prevConversations.filter(conv => conv.id.toString() !== conversationId.toString())
-        );
+      // 从本地状态中删除 (隐藏)
+      setConversations(prevConversations =>
+        prevConversations.filter(conv => conv.id.toString() !== conversationId.toString())
+      );
 
-        // 如果删除的是当前活跃的对话，重置活跃对话ID
-        if (activeConversationId?.toString() === conversationId.toString()) {
-          setActiveConversationId(null);
-        }
-
-        // 显示删除成功提示
-        message.success('聊天记录已删除');
+      // 如果隐藏的是当前活跃的对话，重置活跃对话ID
+      if (activeConversationId?.toString() === conversationId.toString()) {
+        setActiveConversationId(null);
       }
+
+      message.success('对话已移除');
     } catch (error) {
-      console.error('删除对话失败:', error);
-      message.error('删除聊天记录失败，请稍后重试');
+      console.error('移除对话失败:', error);
+      message.error('操作失败，请重试');
     }
   }, [activeConversationId]);
+
+  const handlePinConversation = async (conversationId: string, isPinned: boolean) => {
+    try {
+      await messageAPI.updateConversationStatus(conversationId, {
+        role: 'candidate',
+        action: isPinned ? 'unpin' : 'pin'
+      });
+
+      setConversations(prev => {
+        const updated = prev.map(conv => {
+          if (conv.id.toString() === conversationId.toString()) {
+            return { ...conv, candidatePinned: !isPinned };
+          }
+          return conv;
+        });
+
+        // Re-sort: Pinned first, then time
+        return updated.sort((a: any, b: any) => {
+          if (a.candidatePinned !== b.candidatePinned) {
+            return a.candidatePinned ? -1 : 1;
+          }
+          const timeA = new Date(a.updatedAt || a.updated_at || a.lastTime).getTime();
+          const timeB = new Date(b.updatedAt || b.updated_at || b.lastTime).getTime();
+          return timeB - timeA;
+        });
+      });
+    } catch (error) {
+      console.error('置顶操作失败:', error);
+      message.error('操作失败，请重试');
+    }
+  };
+
+  const handleHideConversation = async (conversationId: string) => {
+    try {
+      await messageAPI.updateConversationStatus(conversationId, {
+        role: 'candidate',
+        action: 'hide'
+      });
+
+      // Optimistic removal
+      setConversations(prev => prev.filter(conv => conv.id.toString() !== conversationId.toString()));
+
+      if (activeConversationId?.toString() === conversationId.toString()) {
+        setActiveConversationId(null);
+      }
+      message.success('会话已隐藏');
+    } catch (error) {
+      console.error('隐藏会话失败:', error);
+      message.error('隐藏失败，请重试');
+    }
+  };
+
+  // Handle Upload Image Message
 
   // Handle Upload Image Message
   const handleUploadImage = useCallback(async (conversationId: string | number, file: File) => {
@@ -578,7 +776,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [currentUser.id]);
+  }, [localCurrentUser.id]);
 
   // 实时更新对话列表，每60秒刷新一次（只在有对话时刷新）
   useEffect(() => {
@@ -598,27 +796,27 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
   // 处理用户资料数据
   const userProfile: Profile = userProfileData?.status === 'success' ? {
-    id: currentUser.id,
-    name: userProfileData.data.name || currentUser.name,
+    id: localCurrentUser.id,
+    name: userProfileData.data.name || localCurrentUser.name,
     phone: userProfileData.data.phone || '',
-    email: userProfileData.data.email || currentUser.email,
+    email: userProfileData.data.email || localCurrentUser.email,
     city: userProfileData.data.city || '',
     expectedSalary: userProfileData.data.expectedSalary || '',
     jobStatus: userProfileData.data.jobStatus || '',
     bio: userProfileData.data.bio || '',
     experience: userProfileData.data.experience || '',
-    avatar: userProfileData.data.avatar || currentUser.avatar
+    avatar: userProfileData.data.avatar || localCurrentUser.avatar
   } : {
-    id: currentUser.id,
-    name: currentUser.name,
+    id: localCurrentUser.id,
+    name: localCurrentUser.name,
     phone: '',
-    email: currentUser.email,
+    email: localCurrentUser.email,
     city: '',
     expectedSalary: '',
     jobStatus: '',
     bio: '',
     experience: '',
-    avatar: currentUser.avatar
+    avatar: localCurrentUser.avatar
   };
 
   // Handle Chat Redirect - 立即沟通功能
@@ -665,7 +863,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         const newConversation = {
           id: conversationId,
           jobId,
-          candidateId: currentUser.id,
+          candidateId: localCurrentUser.id,
           recruiterId,
           lastMessage: defaultMessage,
           lastTime: new Date().toISOString(),
@@ -793,6 +991,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               setFilterUnread={setFilterUnread}
               currentUser={localCurrentUser}
               conversationError={conversationError}
+              onPinConversation={handlePinConversation}
+              onHideConversation={handleHideConversation}
             />
           </CandidateLayout>
         }

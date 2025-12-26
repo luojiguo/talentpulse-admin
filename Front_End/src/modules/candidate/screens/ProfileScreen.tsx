@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Modal } from 'antd';
+import { Modal, message } from 'antd';
 import { userAPI, candidateAPI, resumeAPI } from '../../../services/apiService';
 import { processAvatarUrl } from '@/components/AvatarUploadComponent';
+import UserAvatar from '@/components/UserAvatar';
+
 
 // 修复文件名编码问题的函数
 const fixFilenameEncoding = (filename: string): string => {
@@ -50,11 +52,15 @@ interface ProfileScreenProps {
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser }) => {
+    // Debug logging
+    console.log('ProfileScreen rendering', { currentUser });
+
     const [user, setUser] = useState<UserData | null>(null);
     const [candidateProfile, setCandidateProfile] = useState<CandidateData | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // 简历相关状态
@@ -88,12 +94,20 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [genderOptions, setGenderOptions] = useState<string[]>([]);
 
     useEffect(() => {
-        if (currentUser?.id || localStorage.getItem('userId')) {
+        const userId = currentUser?.id || localStorage.getItem('userId');
+        console.log('ProfileScreen effect triggered', { userId });
+
+        if (userId) {
             fetchData();
             fetchGenderOptions();
             fetchResumes();
+        } else {
+            console.error('ProfileScreen: No user ID found');
+            setError('未找到用户信息，请重新登录');
+            setLoading(false);
         }
-    }, [currentUser]);
+        // fix: 仅当ID变化时重新加载，避免name变化导致的死循环刷新
+    }, [currentUser?.id]);
 
     const fetchGenderOptions = async () => {
         try {
@@ -111,27 +125,43 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const fetchData = async () => {
         try {
             setLoading(true);
+            setError(null);
             // 优先使用传入的 currentUser.id，如果不存在则回退到 localStorage
             const userId = currentUser?.id || localStorage.getItem('userId');
             if (!userId) {
                 throw new Error('未找到用户ID');
             }
+            console.log('Fetching data for user:', userId);
 
             // 获取用户基本信息
             const userRes = await userAPI.getUserById(userId);
+            console.log('ProfileScreen: user API response:', userRes);
             const userData: UserData = userRes.data;
+
+            if (!userData) {
+                throw new Error('获取用户数据为空');
+            }
+
             setUser(userData);
+
+            // 安全修复：仅当 fetched data 与 currentUser prop 不一致时才更新父组件
+            // 这打破了无限循环：fetch -> update parent -> prop change -> useEffect -> fetch -> NO update -> LOOP ENDS
+            if (onUpdateUser && currentUser && userData.name !== (currentUser as any).name) {
+                console.log('Syncing user name to navbar:', userData.name);
+                onUpdateUser(userData);
+            }
 
             // 获取求职者档案信息 (如果存在)
             let candidateData: CandidateData = {};
             try {
                 const candidateRes = await candidateAPI.getCandidateProfile(userId);
+                console.log('Candidate profile response:', candidateRes);
                 if (candidateRes.data) {
                     candidateData = candidateRes.data;
                     setCandidateProfile(candidateData);
                 }
             } catch (e) {
-                // 移除调试日志，减少性能开销和控制台输出
+                console.warn('Failed to fetch candidate profile (may not exist yet):', e);
             }
 
             // 日期格式化辅助函数
@@ -167,7 +197,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             });
 
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || '加载个人资料失败' });
+            console.error('加载个人资料失败:', error);
+            setError(error.message || '加载个人资料失败');
+            message.error(error.message || '加载个人资料失败');
         } finally {
             setLoading(false);
         }
@@ -179,7 +211,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             setResumeLoading(true);
             const userId = currentUser?.id || localStorage.getItem('userId');
             if (!userId) {
-                throw new Error('未找到用户ID');
+                // throw new Error('未找到用户ID'); // Already handled in main fetch
+                return;
             }
 
             const res = await resumeAPI.getUserResumes(userId);
@@ -207,11 +240,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
 
             const res = await resumeAPI.uploadResume(userId, file);
             if ((res as any).status === 'success') {
-                setMessage({ type: 'success', text: '简历上传成功' });
+                message.success('简历上传成功');
                 await fetchResumes(); // 刷新简历列表
             }
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || '简历上传失败' });
+            message.error(error.message || '简历上传失败');
         } finally {
             setSaving(false);
         }
@@ -223,11 +256,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             setSaving(true);
             const res = await resumeAPI.deleteResume(id);
             if ((res as any).status === 'success') {
-                setMessage({ type: 'success', text: '简历删除成功' });
+                message.success('简历删除成功');
                 await fetchResumes(); // 刷新简历列表
             }
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || '简历删除失败' });
+            message.error(error.message || '简历删除失败');
         } finally {
             setSaving(false);
         }
@@ -256,9 +289,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             setUser(prev => prev ? ({ ...prev, avatar: processAvatarUrl(res.data.avatar) }) : null);
             // 更新全局用户状态，确保导航栏头像同步更新
             onUpdateUser?.({ ...currentUser, avatar: processAvatarUrl(res.data.avatar) });
-            setMessage({ type: 'success', text: '头像更新成功' });
+            message.success('头像更新成功');
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || '头像上传失败' });
+            message.error(error.message || '头像上传失败');
         } finally {
             setSaving(false);
         }
@@ -306,14 +339,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             };
             await candidateAPI.updateCandidateProfile(userId, candidateDataToUpdate);
 
-            setMessage({ type: 'success', text: '个人资料保存成功' });
+            message.success('个人资料保存成功');
 
             // 刷新数据以确保同步
             await fetchData();
             await fetchResumes();
 
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || '保存失败' });
+            message.error(error.message || '保存失败');
         } finally {
             setSaving(false);
         }
@@ -321,29 +354,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
 
     if (loading) return <div className="p-8 text-center">正在加载个人资料...</div>;
 
+    if (error) {
+        return (
+            <div className="p-8 text-center">
+                <div className="text-red-500 mb-4">加载失败: {error}</div>
+                <button
+                    onClick={() => { window.location.reload(); }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                    重试
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-4xl mx-auto p-6">
             <h1 className="text-2xl font-bold mb-6 text-gray-800">个人中心</h1>
 
-            {message && (
-                <div className={`p-4 mb-6 rounded-md ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                    {message.text}
-                </div>
-            )}
+
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 {/* 头部 / 头像区域 */}
                 <div className="p-8 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-6">
                     <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-md bg-gray-200">
-                            {user?.avatar && user.avatar.trim() !== '' ? (
-                                <img src={processAvatarUrl(user.avatar)} alt="头像" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl font-bold">
-                                    {user?.name?.charAt(0).toUpperCase() || 'U'}
-                                </div>
-                            )}
-                        </div>
+                        <UserAvatar
+                            src={user?.avatar}
+                            name={user?.name}
+                            size={96}
+                            className="w-24 h-24 rounded-full border-4 border-white shadow-md"
+                        />
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-full transition-all flex items-center justify-center">
                             <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium">更换</span>
                         </div>
@@ -378,14 +418,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">邮箱</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    邮箱 <span className="text-xs text-blue-500 font-normal">（可修改）</span>
+                                </label>
                                 <input
                                     type="email"
                                     name="email"
                                     value={formData.email}
                                     onChange={handleInputChange}
-                                    disabled
-                                    className="w-full px-4 py-2 border border-gray-200 bg-gray-50 text-gray-500 rounded-lg cursor-not-allowed"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                    placeholder="请输入您的邮箱"
                                 />
                             </div>
                             <div>
@@ -415,25 +457,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">出生日期</label>
-                                <div className="relative">
-                                    <input
-                                        type="date"
-                                        name="birth_date"
-                                        value={formData.birth_date}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all opacity-0 absolute inset-0 z-10 cursor-pointer"
-                                    />
-                                    <div className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900">
-                                        {formData.birth_date ? (
-                                            (() => {
-                                                const date = new Date(formData.birth_date);
-                                                return isNaN(date.getTime()) ? '' : `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, '0')}月${String(date.getDate()).padStart(2, '0')}日`;
-                                            })()
-                                        ) : (
-                                            <span className="text-gray-400">请选择出生日期</span>
-                                        )}
-                                    </div>
-                                </div>
+                                <input
+                                    type="date"
+                                    name="birth_date"
+                                    value={formData.birth_date}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">微信号</label>
@@ -681,7 +711,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                         </button>
                     </div>
                 </form>
-                
+
                 {/* 注销账号功能 */}
                 <div className="p-8 border-t border-gray-100 bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">账号管理</h3>
@@ -712,14 +742,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                             setLoading(true);
                                             const userId = user?.id;
                                             if (!userId) return;
-                                            
+
                                             const response = await userAPI.deleteAccount(String(userId));
                                             // 无论响应状态如何，都清除本地存储并跳转到登录页
                                             // 因为数据库已经删除了用户，本地状态必须同步
                                             localStorage.removeItem('currentUser');
                                             localStorage.removeItem('token');
                                             localStorage.removeItem('userId');
-                                            
+
                                             if (response.status === 'success') {
                                                 // 显示成功消息
                                                 message.success('账号注销成功，所有数据已清除');
@@ -727,10 +757,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                                 // 显示错误消息
                                                 message.error('账号注销失败，请稍后重试');
                                             }
-                                            
+
                                             // 立即跳转到登录页面
                                             window.location.href = '/';
-                                            
+
                                             // 确保跳转执行
                                             setTimeout(() => {
                                                 window.location.href = '/';

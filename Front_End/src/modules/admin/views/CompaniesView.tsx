@@ -58,7 +58,7 @@ const CompaniesView: React.FC<{ lang: Language }> = ({ lang }) => {
                     logo: company.logo || '🏢',
                     status: company.is_verified ? '已验证' : company.status === 'active' ? '待审核' : '已拒绝',
                     location: company.address || '',
-                    hrCount: 0, // 数据库中没有这个字段，暂时设为0
+                    hrCount: company.hr_count || 0,
                     jobCount: company.job_count || 0,
                     createdAt: new Date(company.created_at).toLocaleDateString()
                 }));

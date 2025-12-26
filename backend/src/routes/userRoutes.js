@@ -226,21 +226,21 @@ router.post('/register', registerValidator, asyncHandler(async (req, res) => {
     await client.query('COMMIT');
 
     // 记录注册日志
-  await logAction(req, res, '用户注册', `新用户 ${name} 成功注册为 ${userType}`, 'create', { type: 'user', id: userId });
+    await logAction(req, res, '用户注册', `新用户 ${name} 成功注册为 ${userType}`, 'create', { type: 'user', id: userId });
 
-  // 返回成功响应
-  res.status(201).json({
-    status: 'success',
-    message: '注册成功',
-    data: {
-      id: userId,
-      name,
-      email,
-      phone,
-      roles: [userType],
-      role: userType
-    }
-  });
+    // 返回成功响应
+    res.status(201).json({
+      status: 'success',
+      message: '注册成功',
+      data: {
+        id: userId,
+        name,
+        email,
+        phone,
+        roles: [userType],
+        role: userType
+      }
+    });
 
   } catch (error) {
     await client.query('ROLLBACK');
@@ -429,6 +429,43 @@ router.post('/:id/avatar', asyncHandler(async (req, res) => {
   });
 }));
 
+// 获取性别选项配置 - 必须在 /:id 路由之前
+router.get('/config/genders', asyncHandler(async (req, res) => {
+  // 查询数据库中的 check 约束定义
+  const result = await query(`
+      SELECT pg_get_constraintdef(oid) as definition
+      FROM pg_constraint
+      WHERE conname = 'users_gender_check'
+    `);
+
+  if (result.rows.length === 0) {
+    // 如果没有找到约束，返回默认值
+    return res.json({
+      status: 'success',
+      data: ['男', '女', '其他']
+    });
+  }
+
+  const definition = result.rows[0].definition;
+  // 解析定义字符串: CHECK (((gender)::text = ANY ((ARRAY['男'::character varying, '女'::character varying, '其他'::character varying])::text[])))
+  // 使用正则提取单引号中的内容
+  const matches = definition.match(/'([^']*)'::character varying/g);
+
+  if (matches) {
+    const options = matches.map(m => m.match(/'([^']*)'/)[1]);
+    return res.json({
+      status: 'success',
+      data: options
+    });
+  }
+
+  // 如果解析失败，返回默认值
+  res.json({
+    status: 'success',
+    data: ['男', '女', '其他']
+  });
+}));
+
 // 获取用户信息
 router.get('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -471,8 +508,32 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // 检查用户是否存在
   const userResult = await query('SELECT * FROM users WHERE id = $1', [id]);
   if (userResult.rows.length === 0) {
-    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
   }
+  const currentUserRecord = userResult.rows[0];
+
+  // 检查邮箱冲突（如果更改了邮箱）
+  if (email && email !== currentUserRecord.email) {
+    const emailCheck = await query(
+      'SELECT id FROM users WHERE email = $1 AND id != $2',
+      [email, id]
+    );
+    if (emailCheck.rows.length > 0) {
+      throw new AppError('该邮箱已被其他账号占用', 400, 'EMAIL_EXISTS');
+    }
+  }
+
+  // 检查手机号冲突（如果更改了手机号）
+  if (phone && phone !== currentUserRecord.phone) {
+    const phoneCheck = await query(
+      'SELECT id FROM users WHERE phone = $1 AND id != $2',
+      [phone, id]
+    );
+    if (phoneCheck.rows.length > 0) {
+      throw new AppError('该手机号已被其他账号占用', 400, 'PHONE_EXISTS');
+    }
+  }
+
 
   // 更新用户信息
   const updateResult = await query(
@@ -724,42 +785,7 @@ router.post('/switch-role', asyncHandler(async (req, res) => {
   });
 }));
 
-// 获取性别选项配置
-router.get('/config/genders', asyncHandler(async (req, res) => {
-  // 查询数据库中的 check 约束定义
-  const result = await query(`
-      SELECT pg_get_constraintdef(oid) as definition
-      FROM pg_constraint
-      WHERE conname = 'users_gender_check'
-    `);
 
-  if (result.rows.length === 0) {
-    // 如果没有找到约束，返回默认值
-    return res.json({
-      status: 'success',
-      data: ['男', '女', '其他']
-    });
-  }
-
-  const definition = result.rows[0].definition;
-  // 解析定义字符串: CHECK (((gender)::text = ANY ((ARRAY['男'::character varying, '女'::character varying, '其他'::character varying])::text[])))
-  // 使用正则提取单引号中的内容
-  const matches = definition.match(/'([^']*)'::character varying/g);
-
-  if (matches) {
-    const options = matches.map(m => m.match(/'([^']*)'/)[1]);
-    return res.json({
-      status: 'success',
-      data: options
-    });
-  }
-
-  // 如果解析失败，返回默认值
-  res.json({
-    status: 'success',
-    data: ['男', '女', '其他']
-  });
-}));
 
 // 验证验证码路由验证
 const verifyCodeValidator = createValidator({
@@ -815,14 +841,14 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
   }
 
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
 
     // 1. 删除用户相关的所有关联数据
     // 删除用户角色关联
     await client.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
-    
+
     // 删除用户头像文件（如果存在）
     const user = userCheck.rows[0];
     if (user.avatar && user.avatar.startsWith('/avatars/')) {
@@ -835,7 +861,7 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
         }
       }
     }
-    
+
     // 2. 删除求职者相关数据
     // 先获取求职者ID
     const candidateCheck = await client.query('SELECT id FROM candidates WHERE user_id = $1', [id]);
@@ -844,21 +870,21 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
       // 删除求职者简历
       await client.query('DELETE FROM resumes WHERE candidate_id = $1', [candidateId]);
     }
-    
+
     // 删除求职者记录
     await client.query('DELETE FROM candidate_user WHERE user_id = $1', [id]);
     await client.query('DELETE FROM candidates WHERE user_id = $1', [id]);
-    
+
     // 3. 删除招聘者相关数据
     // 获取招聘者关联的公司ID
     const recruiterCheck = await client.query('SELECT company_id FROM recruiter_user WHERE user_id = $1', [id]);
     if (recruiterCheck.rows.length > 0) {
       const companyId = recruiterCheck.rows[0].company_id;
-      
+
       // 删除招聘者记录
       await client.query('DELETE FROM recruiter_user WHERE user_id = $1', [id]);
       await client.query('DELETE FROM recruiters WHERE user_id = $1', [id]);
-      
+
       // 检查是否还有其他招聘者关联该公司
       const otherRecruiters = await client.query('SELECT id FROM recruiter_user WHERE company_id = $1', [companyId]);
       if (otherRecruiters.rows.length === 0) {
@@ -875,7 +901,7 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
             }
           }
         }
-        
+
         // 删除公司营业执照文件
         const companyLicenseCheck = await client.query('SELECT business_license FROM companies WHERE id = $1', [companyId]);
         if (companyLicenseCheck.rows[0]?.business_license) {
@@ -888,20 +914,20 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
             }
           }
         }
-        
+
         // 删除公司职位
         await client.query('DELETE FROM job_postings WHERE company_id = $1', [companyId]);
-        
+
         // 删除公司
         await client.query('DELETE FROM companies WHERE id = $1', [companyId]);
       }
     }
-    
+
     // 4. 最后删除用户本身
     await client.query('DELETE FROM users WHERE id = $1', [id]);
-    
+
     await client.query('COMMIT');
-    
+
     // 记录账号注销日志
     await logAction(req, res, '账号注销', `用户 ${userCheck.rows[0].email || userCheck.rows[0].phone} 成功注销账号`, 'delete', { type: 'user', id: id });
 

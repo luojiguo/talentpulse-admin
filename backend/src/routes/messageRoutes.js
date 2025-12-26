@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { notifyConversation, notifyUser } = require('../services/socketService');
 
 // 确保聊天文件上传目录存在
 const baseUploadDir = path.join(__dirname, '../../../Front_End/public/uploads/chats');
@@ -52,14 +53,46 @@ const upload = multer({
 // 获取对话列表 - 优化：只返回对话元数据，不包含详细消息，实现真正的按需加载
 router.get('/conversations/:userId', asyncHandler(async (req, res) => {
   const { userId } = req.params;
+  const { role } = req.query; // 添加 role 参数：'recruiter' 或 'candidate'
+
   // 将userId转换为数字类型，避免PostgreSQL无法确定参数数据类型
   const userIdNum = parseInt(userId);
 
+  // 根据 role 参数决定查询逻辑
+  let subQuery;
+
+  if (role === 'recruiter') {
+    // 招聘者：只查询用户作为招聘者的对话
+    subQuery = `
+      SELECT c.id
+      FROM conversations c
+      JOIN recruiters r ON c.recruiter_id = r.id
+      WHERE r.user_id = $1 AND c.recruiter_deleted_at IS NULL AND c.deleted_at IS NULL
+    `;
+  } else if (role === 'candidate') {
+    // 候选人：只查询用户作为候选人的对话
+    subQuery = `
+      SELECT c.id
+      FROM conversations c
+      JOIN candidates cd ON c.candidate_id = cd.id
+      WHERE cd.user_id = $1 AND c.candidate_deleted_at IS NULL AND c.deleted_at IS NULL
+    `;
+  } else {
+    // 兼容旧版本：查询用户作为候选人或招聘者的所有对话
+    subQuery = `
+      SELECT c.id
+      FROM conversations c
+      JOIN candidates cd ON c.candidate_id = cd.id
+      WHERE cd.user_id = $1 AND c.candidate_deleted_at IS NULL AND c.deleted_at IS NULL
+      UNION ALL
+      SELECT c.id
+      FROM conversations c
+      JOIN recruiters r ON c.recruiter_id = r.id
+      WHERE r.user_id = $1 AND c.recruiter_deleted_at IS NULL AND c.deleted_at IS NULL
+    `;
+  }
+
   // 查询用户参与的所有未被软删除的对话，使用LEFT JOIN确保即使关联记录缺失，对话也能显示
-  // 优化：添加了15秒超时设置，确保查询不会无限期等待
-  // 优化：同一招聘者和候选人只返回一个对话，按更新时间降序
-  // 优化：改进JOIN顺序，先JOIN较小的表
-  // 优化：使用子查询优化OR条件，提高索引使用率
   const result = await query(`
       SELECT 
         c.id,
@@ -73,6 +106,10 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
         COALESCE(c.total_messages, 0) AS "totalMessages",
         COALESCE(c.candidate_unread, 0) AS "candidateUnread",
         COALESCE(c.recruiter_unread, 0) AS "recruiterUnread",
+        COALESCE(c.recruiter_pinned, false) AS "recruiterPinned",
+        COALESCE(c.recruiter_hidden, false) AS "recruiterHidden",
+        COALESCE(c.candidate_pinned, false) AS "candidatePinned",
+        COALESCE(c.candidate_hidden, false) AS "candidateHidden",
         COALESCE(c.status, 'active') AS status,
         c.created_at AS "createdAt",
         c.updated_at AS "updatedAt",
@@ -86,16 +123,7 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
         COALESCE(u2.avatar, '') AS recruiter_avatar,
         COALESCE(u2.id, r.user_id) AS "recruiterUserId"
       FROM (
-        -- 先获取候选对话ID，使用UNION ALL优化OR条件，提高索引使用率
-        SELECT c.id
-        FROM conversations c
-        JOIN candidates cd ON c.candidate_id = cd.id
-        WHERE cd.user_id = $1 AND c.candidate_deleted_at IS NULL AND c.deleted_at IS NULL
-        UNION ALL
-        SELECT c.id
-        FROM conversations c
-        JOIN recruiters r ON c.recruiter_id = r.id
-        WHERE r.user_id = $1 AND c.recruiter_deleted_at IS NULL AND c.deleted_at IS NULL
+        ${subQuery}
       ) AS sub
       JOIN conversations c ON sub.id = c.id
       -- 改进JOIN顺序，先JOIN较小的表
@@ -105,9 +133,14 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
       LEFT JOIN users u2 ON r.user_id = u2.id
       LEFT JOIN jobs j ON c.job_id = j.id
       LEFT JOIN companies co ON j.company_id = co.id
-      ORDER BY c.updated_at DESC
+      WHERE 
+        (CASE WHEN $2 = 'recruiter' THEN (c.recruiter_hidden IS FALSE OR c.recruiter_hidden IS NULL) ELSE TRUE END) AND
+        (CASE WHEN $2 = 'candidate' THEN (c.candidate_hidden IS FALSE OR c.candidate_hidden IS NULL) ELSE TRUE END)
+      ORDER BY 
+        (CASE WHEN $2 = 'recruiter' THEN c.recruiter_pinned ELSE c.candidate_pinned END) DESC,
+        c.updated_at DESC
       LIMIT 100
-    `, [userIdNum], 15000);
+    `, [userIdNum, role], 15000);
 
   const conversations = result.rows;
 
@@ -116,7 +149,8 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
   res.json({
     status: 'success',
     data: conversations,
-    count: conversations.length
+    count: conversations.length,
+    role: role || 'all' // 返回使用的角色参数
   });
 }));
 
@@ -304,16 +338,21 @@ router.post('/', async (req, res) => {
       type
     });
 
-    // 首先获取对话信息，包括关联的用户ID
+    // 获取对话详情，用于确认发送者身份和头像信息
+    // 关键修复：直接关联 users 表获取最新的头像和名称，因为 recruiters/candidates 表中的副本可能不是最新的
     const conversation = await pool.query(`
-      SELECT 
-        cd.user_id AS candidate_user_id,
-        r.user_id AS recruiter_user_id,
-        c.candidate_id,
-        c.recruiter_id
+      SELECT c.*, 
+        u_can.name as candidate_name, u_can.avatar as candidate_avatar, can.user_id as candidate_user_id,
+        u_rec.name as recruiter_name, u_rec.avatar as recruiter_avatar, r.user_id as recruiter_user_id,
+        j.title as job_title,
+        comp.name as company_name, comp.logo as company_logo
       FROM conversations c
-      JOIN candidates cd ON c.candidate_id = cd.id
+      LEFT JOIN candidates can ON c.candidate_id = can.id
+      LEFT JOIN users u_can ON can.user_id = u_can.id
+      LEFT JOIN jobs j ON c.job_id = j.id
+      LEFT JOIN companies comp ON j.company_id = comp.id
       JOIN recruiters r ON c.recruiter_id = r.id
+      LEFT JOIN users u_rec ON r.user_id = u_rec.id
       WHERE c.id = $1
     `, [conversationId]);
 
@@ -322,7 +361,7 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ status: 'error', message: '对话不存在' });
     }
 
-    const { candidate_user_id, recruiter_user_id, candidate_id, recruiter_id } = conversation.rows[0];
+    const { candidate_user_id, recruiter_user_id, candidate_id, recruiter_id, candidate_name, candidate_avatar, recruiter_name, recruiter_avatar } = conversation.rows[0];
 
     console.log('对话关联用户ID:', {
       candidate_user_id,
@@ -333,6 +372,7 @@ router.post('/', async (req, res) => {
 
     // 使用严格比较，并确保类型一致
     const senderIdNum = parseInt(senderId);
+    // user_id 可能是字符串或数字，统一转换
     const candidateUserIdNum = parseInt(candidate_user_id);
     const recruiterUserIdNum = parseInt(recruiter_user_id);
 
@@ -376,9 +416,32 @@ router.post('/', async (req, res) => {
         last_time = CURRENT_TIMESTAMP,
         total_messages = total_messages + 1,
         updated_at = CURRENT_TIMESTAMP,
-        ${unreadField} = ${unreadField} + 1
+        ${unreadField} = ${unreadField} + 1,
+        -- 关键修复：发送新消息时，自动解除双方的隐藏/删除状态，确保消息可见
+        recruiter_hidden = false,
+        candidate_hidden = false,
+        recruiter_deleted_at = NULL,
+        candidate_deleted_at = NULL
       WHERE id = $2
     `, [text, conversationId]);
+
+    // 即使双方都在线，也广播消息，让前端通过socket实时接收
+    // 1. 广播到对话房间 (用于活跃聊天窗口)
+    const messageData = {
+      ...newMessage.rows[0],
+      sender_name: senderIdNum === candidateUserIdNum ? (conversation.rows[0].candidate_name || '求职者') : (conversation.rows[0].recruiter_name || '招聘者'),
+      sender_avatar: senderIdNum === candidateUserIdNum ? (conversation.rows[0].candidate_avatar || '') : (conversation.rows[0].recruiter_avatar || '')
+    };
+
+    notifyConversation(conversationId, 'new_message', messageData);
+
+    // 2. 广播到接收者的个人房间 (用于消息列表更新和通知)
+    // 这样当用户在列表页而没有进入具体对话时，也能收到更新
+    console.log(`Sending explicit notification to user ${actualReceiverId} via socket`);
+    notifyUser(actualReceiverId, 'new_message', {
+      ...messageData,
+      conversation_id: conversationId // 确保包含conversation_id方便前端匹配
+    });
 
     res.json({
       status: 'success',
@@ -662,6 +725,47 @@ router.delete('/conversation/:conversationId', async (req, res) => {
   }
 });
 
+// 更新对话状态（置顶/隐藏）
+router.patch('/conversations/:conversationId/status', asyncHandler(async (req, res) => {
+  const { conversationId } = req.params;
+  const { role, action } = req.body;
+
+  if (!['recruiter', 'candidate'].includes(role)) {
+    return res.status(400).json({ status: 'error', message: '无效的角色' });
+  }
+
+  if (!['pin', 'unpin', 'hide', 'unhide'].includes(action)) {
+    return res.status(400).json({ status: 'error', message: '无效的操作' });
+  }
+
+  let updateField;
+  let updateValue;
+
+  if (role === 'recruiter') {
+    if (action === 'pin') { updateField = 'recruiter_pinned'; updateValue = true; }
+    else if (action === 'unpin') { updateField = 'recruiter_pinned'; updateValue = false; }
+    else if (action === 'hide') { updateField = 'recruiter_hidden'; updateValue = true; }
+    else if (action === 'unhide') { updateField = 'recruiter_hidden'; updateValue = false; }
+  } else {
+    if (action === 'pin') { updateField = 'candidate_pinned'; updateValue = true; }
+    else if (action === 'unpin') { updateField = 'candidate_pinned'; updateValue = false; }
+    else if (action === 'hide') { updateField = 'candidate_hidden'; updateValue = true; }
+    else if (action === 'unhide') { updateField = 'candidate_hidden'; updateValue = false; }
+  }
+
+  await query(`
+    UPDATE conversations 
+    SET ${updateField} = $1 
+    WHERE id = $2
+  `, [updateValue, conversationId]);
+
+  res.json({
+    status: 'success',
+    message: '操作成功',
+    data: { [updateField]: updateValue }
+  });
+}));
+
 // 获取两个用户之间的所有消息记录
 router.get('/sender/:senderId/receiver/:receiverId', async (req, res) => {
   try {
@@ -740,9 +844,41 @@ router.post('/upload-image/:conversationId', (req, res) => {
           last_time = CURRENT_TIMESTAMP,
           total_messages = total_messages + 1,
           updated_at = CURRENT_TIMESTAMP,
-          ${unreadField} = ${unreadField} + 1
+          ${unreadField} = ${unreadField} + 1,
+          -- 关键修复：发送图片时，自动解除双方的隐藏/删除状态
+          recruiter_hidden = false,
+          candidate_hidden = false,
+          recruiter_deleted_at = NULL,
+          candidate_deleted_at = NULL
         WHERE id = $2
       `, ['[图片]', conversationId]);
+
+      // 获取发送者信息用于socket推送
+      // 需要知道发送者是候选人还是招聘者，以及对应的名字头像
+      const conversationInfo = await pool.query(`
+      SELECT
+      c.candidate_id, c.recruiter_id,
+        u1.name as candidate_name, u1.avatar as candidate_avatar, cd.user_id as candidate_user_id,
+        u2.name as recruiter_name, u2.avatar as recruiter_avatar, r.user_id as recruiter_user_id
+        FROM conversations c
+        LEFT JOIN candidates cd ON c.candidate_id = cd.id
+        LEFT JOIN recruiters r ON c.recruiter_id = r.id
+        LEFT JOIN users u1 ON cd.user_id = u1.id
+        LEFT JOIN users u2 ON r.user_id = u2.id
+        WHERE c.id = $1
+        `, [conversationId]);
+
+      if (conversationInfo.rows.length > 0) {
+        const info = conversationInfo.rows[0];
+        const senderIdNum = parseInt(senderId);
+        const candidateUserIdNum = parseInt(info.candidate_user_id);
+
+        notifyConversation(conversationId, 'new_message', {
+          ...result.rows[0],
+          sender_name: senderIdNum === candidateUserIdNum ? (info.candidate_name || '求职者') : (info.recruiter_name || '招聘者'),
+          sender_avatar: senderIdNum === candidateUserIdNum ? (info.candidate_avatar || '') : (info.recruiter_avatar || '')
+        });
+      }
 
       res.json({
         status: 'success',
@@ -765,7 +901,7 @@ async function getUnreadField(conversationId, senderId) {
     FROM conversations c
     JOIN candidates cd ON c.candidate_id = cd.id
     WHERE c.id = $1
-  `, [conversationId]);
+        `, [conversationId]);
 
   if (conversation.rows.length === 0) return 'recruiter_unread'; // 默认
 

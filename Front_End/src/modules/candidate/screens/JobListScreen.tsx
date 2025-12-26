@@ -17,6 +17,8 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
   const [localJobs, setLocalJobs] = useState<JobPosting[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(!propsJobs);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+
 
   // 使用父组件传递的jobs数据，如果没有则使用本地数据
   const jobs = propsJobs || localJobs;
@@ -25,7 +27,7 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
     return data.map((job: any) => ({
       id: job.id,
       title: job.title,
-      company: job.company_name || job.company_id || '未知公司',
+      company: String(job.company_name || job.company_id || '未知公司'),
       company_name: job.company_name,
       department: job.department || '',
       location: job.location || '未知地点',
@@ -83,12 +85,56 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propsJobs, propsLoadingJobs, propsJobsError]); // 注意：不要把 loadingJobs 放入依赖，否则会死循环
 
+  // 搜索过滤逻辑
+  const filteredJobs = useMemo(() => {
+    if (!searchText.trim()) return jobs;
+    const lowerSearch = searchText.toLowerCase().trim();
+    return jobs.filter(job => {
+      const title = String(job.title || '').toLowerCase();
+      const company = String(job.company || '').toLowerCase();
+      const location = String(job.location || '').toLowerCase();
+      const description = String(job.description || '').toLowerCase();
+
+      return title.includes(lowerSearch) ||
+        company.includes(lowerSearch) ||
+        location.includes(lowerSearch) ||
+        description.includes(lowerSearch);
+    });
+  }, [jobs, searchText]);
+
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div>
-        <div className="mb-6 flex items-center gap-4">
-          <h3 className="text-xl font-bold text-slate-900">所有岗位</h3>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <h3 className="text-2xl font-bold text-slate-900">所有岗位</h3>
+        <div className="relative w-full md:w-96">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
+            placeholder="搜索职位、公司、地点或描述..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          {searchText && (
+            <button
+              onClick={() => setSearchText('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
         </div>
+      </div>
+
+      <div>
+
         <div className="space-y-4">
           {loadingJobs ? (
             <div className="text-center py-12">
@@ -112,10 +158,10 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
                 重新加载
               </button>
             </div>
-          ) : jobs.length > 0 ? (
+          ) : filteredJobs.length > 0 ? (
             <>
               {/* Show jobs with infinite scroll */}
-              {jobs.map(job => (
+              {filteredJobs.map(job => (
                 <JobCard key={job.id} job={job} onChat={onChat} />
               ))}
 
@@ -127,7 +173,17 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-              <p className="text-gray-500 font-medium">暂无职位发布</p>
+              <p className="text-gray-500 font-medium">
+                {searchText ? `未找到与 "${searchText}" 相关的职位` : '暂无职位发布'}
+              </p>
+              {searchText && (
+                <button
+                  onClick={() => setSearchText('')}
+                  className="mt-4 text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                >
+                  清空搜索条件
+                </button>
+              )}
             </div>
           )}
         </div>

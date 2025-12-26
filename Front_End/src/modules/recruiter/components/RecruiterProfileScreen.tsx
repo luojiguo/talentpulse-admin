@@ -7,6 +7,8 @@ import { InputField } from './CommonComponents';
 import { generateCompanyDescription } from '@/services/aiService';
 import { Modal, message } from 'antd';
 import { processAvatarUrl } from '@/components/AvatarUploadComponent';
+import UserAvatar from '@/components/UserAvatar';
+
 
 interface RecruiterProfileScreenProps {
     onSwitchRole: (role: UserRole) => void;
@@ -22,64 +24,16 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
-    
-    // 自动保存函数
-    const handleAutoSave = async () => {
-        try {
-            setLoading(true);
-            // 调用后端API更新用户信息
-            const userId = profile.id?.toString() || profile.id;
 
-            // 只发送companies表中实际存在的字段
-            const userData = {
-                ...profile,
-                company: {
-                    ...profile.company,
-                    // 移除可能不存在于companies表中的字段
-                    verification_status: undefined
-                }
-            };
 
-            const response = await userAPI.updateUser(userId, userData);
-
-            if (response.status === 'success') {
-                // 保存成功后，重新获取最新的个人信息，确保页面显示的是最新数据
-                const latestRecruiterProfile = await fetchRecruiterProfile();
-
-                setMessage('个人及公司信息已成功更新！');
-                setTimeout(() => setMessage(''), 3000);
-            } else {
-                setMessage('个人及公司信息更新失败：' + response.message);
-                setTimeout(() => setMessage(''), 3000);
-            }
-        } catch (error) {
-            console.error('个人及公司信息更新错误:', error);
-            setMessage('个人及公司信息更新失败，请稍后重试！');
-            setTimeout(() => setMessage(''), 3000);
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    // 处理失去焦点事件，触发自动保存
-    const handleFieldBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        handleAutoSave();
-    };
-    
-    // 处理按键事件，回车时触发自动保存
-    const handleFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        if (e.key === 'Enter') {
-            handleAutoSave();
-        }
-    };
 
     // Company logo upload state
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const logoInputRef = useRef<HTMLInputElement>(null);
-    
+
     // Business license upload state
     const businessLicenseInputRef = useRef<HTMLInputElement>(null);
-    
+
     // AI company description generation handler
     const handleGenerateCompanyDescription = async () => {
         // Check if required fields are filled
@@ -88,7 +42,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
             setTimeout(() => setMessage(''), 3000);
             return;
         }
-        
+
         try {
             setLoading(true);
             // Generate company description using AI
@@ -227,7 +181,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 // 创建FormData上传公司Logo
                 const formData = new FormData();
                 formData.append('company_logo', file);
-                
+
                 // 调用后端API上传公司Logo到companies_logo目录
                 const response = await fetch(`/api/companies/${profile.company?.id}/logo`, {
                     method: 'POST',
@@ -237,7 +191,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
                 });
-                
+
                 const responseData = await response.json();
 
                 if (responseData.status === 'success') {
@@ -319,16 +273,15 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 </div>
                 <div className="p-8 flex flex-col md:flex-row items-start gap-8">
                     <div className="relative mb-4">
-                        <div className="w-24 h-24 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-4xl font-bold border-4 border-white shadow-sm overflow-hidden">
-                            {typeof profile.avatar === 'string' && profile.avatar.trim() !== '' ? (
-                                <img src={processAvatarUrl(profile.avatar)} alt="头像" className="w-full h-full object-cover" />
-                            ) : (
-                                <span className="text-emerald-700">{profile.name && profile.name.length > 0 ? profile.name.charAt(0) : 'U'}</span>
-                            )}
-                        </div>
+                        <UserAvatar
+                            src={profile.avatar}
+                            name={profile.name}
+                            size={96}
+                            className="w-24 h-24 rounded-full border-4 border-white shadow-sm"
+                        />
                         <button
                             onClick={() => avatarInputRef.current?.click()}
-                            className="absolute bottom-0 right-0 bg-emerald-600 text-white p-2 rounded-full shadow-md hover:bg-emerald-700 transition-colors border-2 border-white"
+                            className="absolute bottom-0 right-0 bg-emerald-600 text-white p-2 rounded-full shadow-md hover:bg-emerald-700 transition-colors border-2 border-white z-10"
                             disabled={loading}
                         >
                             <Camera className="w-5 h-5" />
@@ -347,8 +300,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 label="姓名"
                                 value={profile.name}
                                 onChange={(e: any) => setProfile({ ...profile, name: e.target.value })}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={handleFieldKeyDown}
                                 placeholder={getFieldPlaceholder('name', '')}
                                 disabled={loading}
                             />
@@ -356,8 +307,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 label="职位"
                                 value={profile.position || ''}
                                 onChange={(e: any) => setProfile({ ...profile, position: e.target.value })}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={handleFieldKeyDown}
                                 placeholder="请输入职位"
                                 disabled={loading}
                             />
@@ -365,8 +314,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 label="联系邮箱"
                                 value={profile.email}
                                 onChange={(e: any) => setProfile({ ...profile, email: e.target.value })}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={handleFieldKeyDown}
                                 placeholder={getFieldPlaceholder('email', '')}
                                 disabled={loading}
                             />
@@ -374,8 +321,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 label="联系电话"
                                 value={profile.phone}
                                 onChange={(e: any) => setProfile({ ...profile, phone: e.target.value })}
-                                onBlur={handleFieldBlur}
-                                onKeyDown={handleFieldKeyDown}
                                 placeholder={getFieldPlaceholder('phone', '')}
                                 disabled={loading}
                             />
@@ -409,7 +354,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             </div>
                         </div>
                     ) : null}
-                    
+
                     {/* 认证状态显示 */}
                     <div className={`mb-6 p-4 rounded-lg ${profile.company?.is_verified ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
                         <div className="flex items-start">
@@ -476,14 +421,12 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         </div>
                         <div className="flex-1">
                             <InputField
-                            label="公司名称"
-                            value={profile.company?.name}
-                            onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, name: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
-                            placeholder={getFieldPlaceholder('company.name', '')}
-                            disabled={loading}
-                        />
+                                label="公司名称"
+                                value={profile.company?.name}
+                                onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, name: e.target.value } })}
+                                placeholder={getFieldPlaceholder('company.name', '')}
+                                disabled={loading}
+                            />
                         </div>
                     </div>
 
@@ -493,7 +436,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             label="所属行业"
                             value={profile.company?.industry}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, industry: e.target.value } })}
-                            onBlur={handleFieldBlur}
                             placeholder="请选择所属行业"
                             options={[
                                 { value: '互联网', label: '互联网' },
@@ -511,13 +453,12 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             ]}
                             disabled={loading}
                         />
-                        
+
                         {/* 公司规模 - 下拉选择 */}
                         <InputField
                             label="公司规模"
                             value={profile.company?.size}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, size: e.target.value } })}
-                            onBlur={handleFieldBlur}
                             placeholder="请选择公司规模"
                             options={[
                                 { value: '10-50人', label: '10-50人' },
@@ -528,13 +469,12 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             ]}
                             disabled={loading}
                         />
-                        
+
                         {/* 公司类型 - 下拉选择 */}
                         <InputField
                             label="公司类型"
                             value={profile.company?.company_type}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, company_type: e.target.value } })}
-                            onBlur={handleFieldBlur}
                             placeholder="请选择公司类型"
                             options={[
                                 { value: '国企', label: '国企' },
@@ -547,83 +487,70 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             ]}
                             disabled={loading}
                         />
-                        
+
                         {/* 成立日期 - 日期选择器 */}
                         <InputField
                             label="成立日期"
                             type="date"
                             value={profile.company?.establishment_date}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, establishment_date: e.target.value } })}
-                            onBlur={handleFieldBlur}
                             placeholder={getFieldPlaceholder('company.establishment_date', '')}
                             disabled={loading}
                         />
-                        
+
                         {/* 注册资本 - 数字输入 */}
                         <InputField
                             label="注册资本"
                             type="number"
                             value={profile.company?.registered_capital}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, registered_capital: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder="请输入注册资本（万元）"
                             disabled={loading}
                         />
-                        
+
                         {/* 统一社会信用代码 - 支持字母和数字 */}
                         <InputField
                             label="统一社会信用代码"
                             value={profile.company?.social_credit_code}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, social_credit_code: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder={getFieldPlaceholder('company.social_credit_code', '')}
                             disabled={loading}
                         />
-                        
+
                         {/* 公司网站 - URL输入 */}
                         <InputField
                             label="公司网站"
                             type="url"
                             value={profile.company?.company_website}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, company_website: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder={getFieldPlaceholder('company.company_website', '')}
                             disabled={loading}
                         />
-                        
+
                         {/* 公司电话 - 电话输入 */}
                         <InputField
                             label="公司电话"
                             type="tel"
                             value={profile.company?.company_phone}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, company_phone: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder={getFieldPlaceholder('company.company_phone', '')}
                             disabled={loading}
                         />
-                        
+
                         {/* 公司邮箱 - 邮箱输入 */}
                         <InputField
                             label="公司邮箱"
                             type="email"
                             value={profile.company?.company_email}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, company_email: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder={getFieldPlaceholder('company.company_email', '')}
                             disabled={loading}
                         />
-                        
+
                         <InputField
                             label="联系人信息"
                             value={profile.company?.contact_info || ''}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, contact_info: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder={getFieldPlaceholder('company.contact_info', '')}
                             disabled={loading}
                         />
@@ -634,8 +561,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         label="公司地址"
                         value={profile.company?.address}
                         onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, address: e.target.value } })}
-                        onBlur={handleFieldBlur}
-                        onKeyDown={handleFieldKeyDown}
                         placeholder={getFieldPlaceholder('company.address', '')}
                         disabled={loading}
                     />
@@ -656,8 +581,6 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         <InputField
                             value={profile.company?.description || ''}
                             onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, description: e.target.value } })}
-                            onBlur={handleFieldBlur}
-                            onKeyDown={handleFieldKeyDown}
                             placeholder={getFieldPlaceholder('company.description', '')}
                             textarea={true}
                             disabled={loading}
@@ -678,7 +601,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
 
                         <div className="mb-6">
                             <label className="block text-sm font-medium text-gray-700 mb-1">营业执照照片</label>
-                            <div 
+                            <div
                                 className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors cursor-pointer"
                                 onClick={() => businessLicenseInputRef.current?.click()}
                             >
@@ -730,7 +653,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                                                     }
                                                 });
-                                                
+
                                                 const responseData = await response.json();
 
                                                 if (responseData.status === 'success') {
@@ -788,7 +711,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             <User className="w-5 h-5 mr-2" /> 切换为求职者 (Candidate) 身份
                         </button>
                     </div>
-                    
+
                     {/* 注销账号功能 */}
                     <div className="pt-6 border-t border-gray-200">
                         <h4 className="text-md font-semibold text-red-700 flex items-center mb-4">
@@ -824,14 +747,14 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                                 setLoading(true);
                                                 const userId = profile.id;
                                                 if (!userId) return;
-                                                
+
                                                 const response = await userAPI.deleteAccount(String(userId));
                                                 // 无论响应状态如何，都清除本地存储并跳转到登录页
                                                 // 因为数据库已经删除了用户，本地状态必须同步
                                                 localStorage.removeItem('currentUser');
                                                 localStorage.removeItem('token');
                                                 localStorage.removeItem('userId');
-                                                
+
                                                 if (response.status === 'success') {
                                                     // 显示成功消息
                                                     message.success('账号注销成功，所有数据已清除');
@@ -839,10 +762,10 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                                     // 显示错误消息
                                                     message.error('账号注销失败，请稍后重试');
                                                 }
-                                                
+
                                                 // 立即跳转到登录页面
                                                 window.location.href = '/';
-                                                
+
                                                 // 确保跳转执行
                                                 setTimeout(() => {
                                                     window.location.href = '/';

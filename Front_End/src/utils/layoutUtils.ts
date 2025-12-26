@@ -19,13 +19,13 @@ export const getMessageContainerHeight = (
     // 手机端：全屏高度，减去 header (64px)
     return 'h-[calc(100vh-64px)]';
   } else if (isTablet) {
-    // 平板端：全屏高度，减去 header 和 padding
-    return 'h-[calc(100vh-80px)]'; // header 64px + padding 16px
+    // 平板端：全屏高度，减去 header (64px) 和少量 padding (8px)
+    return 'h-[calc(100vh-72px)]';
   } else {
-    // 桌面端：全屏高度，减去 header、footer 和 padding
+    // 桌面端：全屏高度，减去 header 和少量 padding，取消 footer 空间
     return layoutType === 'candidate'
-      ? 'h-[calc(100vh-200px)]' // header 64px + footer ~72px + padding 64px
-      : 'h-[calc(100vh-120px)]'; // RecruiterLayout 主内容区有 lg:p-8 (32px) + header 88px
+      ? 'h-[calc(100vh-96px)]' // header 64px + padding 32px (上下各16px)
+      : 'h-[calc(100vh-96px)]'; // 统一高度
   }
 };
 
@@ -42,9 +42,9 @@ export const getMessageContainerPadding = (
   if (isMobile) {
     return 'p-0';
   } else if (isTablet) {
-    return 'px-4 py-4';
+    return 'px-4 py-2'; // 减少垂直padding
   } else {
-    return 'px-4 sm:px-6 lg:px-8 py-6';
+    return 'px-4 sm:px-6 lg:px-8 py-4'; // 减少垂直padding从py-6到py-4
   }
 };
 
@@ -61,7 +61,7 @@ export const getChatWindowClasses = (
   showChat: boolean
 ): string => {
   const baseClasses = 'flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative';
-  
+
   if (isMobile) {
     // 手机端：全屏显示，不使用 fixed，而是通过路由切换
     return `${baseClasses} ${showChat ? 'block' : 'hidden'} w-full border-0 rounded-none shadow-none p-2`;
@@ -87,7 +87,7 @@ export const getMessageListClasses = (
   showList: boolean
 ): string => {
   const baseClasses = 'bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden';
-  
+
   if (isMobile) {
     // 手机端：全宽，无边框和阴影
     return `${baseClasses} ${showList ? 'block' : 'hidden'} w-full border-0 rounded-none shadow-none p-2`;
