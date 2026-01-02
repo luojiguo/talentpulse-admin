@@ -5,6 +5,7 @@ import { Search, ChevronUp, ChevronDown } from 'lucide-react';
 import CompanyCard from '../components/CompanyCard';
 import JobCard from '../components/JobCard';
 import CityPickerModal from '../components/CityPickerModal';
+import { EXPERIENCE_OPTIONS, DEGREE_OPTIONS, JOB_TYPE_OPTIONS } from '@/constants/constants';
 
 interface HomeScreenProps {
   jobs?: JobPosting[];
@@ -20,6 +21,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   // State for jobs and companies
   // 如果父组件传递了jobs数据，使用父组件的数据，否则自己获取
   const [localJobs, setLocalJobs] = useState<JobPosting[]>([]);
+  const [useFilteredData, setUseFilteredData] = useState(false); // 标记是否使用筛选后的数据
   const [companies, setCompanies] = useState<Company[]>([]);
   const [allCompanies, setAllCompanies] = useState<Company[]>([]); // 存储所有公司
   const [matchedCompanies, setMatchedCompanies] = useState<Company[]>([]); // 存储匹配的公司
@@ -39,10 +41,60 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   const [filterJobType, setFilterJobType] = useState('全部');
   const [visibleJobsCount, setVisibleJobsCount] = useState(10);
 
-  // Filter options
-  const experiences = ['全部', '应届', '1-3年', '3-5年', '5-10年', '10年以上'];
-  const degrees = ['全部', '高中/中专', '大专', '本科', '硕士', '博士'];
-  const jobTypes = ['全部', '全职', '兼职', '实习', '远程'];
+  // 使用固定的筛选选项，确保选项完整且一致
+  // 同时从数据库中获取实际存在的值，用于验证和显示
+  const filterOptions = useMemo(() => {
+    // 从jobs数据中提取实际存在的值（用于验证数据一致性）
+    const existingExperiences = new Set<string>();
+    const existingDegrees = new Set<string>();
+    const existingJobTypes = new Set<string>();
+    
+    jobs.forEach(job => {
+      if (job.experience && job.experience.trim()) {
+        existingExperiences.add(job.experience);
+      }
+      if (job.degree && job.degree.trim()) {
+        existingDegrees.add(job.degree);
+      }
+      if (job.type && job.type.trim()) {
+        existingJobTypes.add(job.type);
+      }
+      if (job.work_mode && job.work_mode.trim() === '远程') {
+        existingJobTypes.add('远程');
+      }
+    });
+    
+    // 使用固定的选项列表，确保选项完整
+    // 如果数据库中有不在固定列表中的值，也会包含进来（向后兼容）
+    const experiences = [...EXPERIENCE_OPTIONS];
+    const degrees = [...DEGREE_OPTIONS];
+    const jobTypes = [...JOB_TYPE_OPTIONS];
+    
+    // 添加数据库中存在的但不在固定列表中的值（向后兼容）
+    existingExperiences.forEach(exp => {
+      if (!experiences.includes(exp)) {
+        experiences.push(exp);
+      }
+    });
+    
+    existingDegrees.forEach(deg => {
+      if (!degrees.includes(deg)) {
+        degrees.push(deg);
+      }
+    });
+    
+    existingJobTypes.forEach(type => {
+      if (!jobTypes.includes(type)) {
+        jobTypes.push(type);
+      }
+    });
+    
+    return {
+      experiences,
+      degrees,
+      jobTypes
+    };
+  }, [jobs]);
 
   // Toggle follow company
   const toggleFollowCompany = async (companyId: string | number) => {
@@ -64,21 +116,100 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   const [isAIPending, setIsAIPending] = useState(false);
   const [aiJobsError, setAIJobsError] = useState<string | null>(null);
 
-  // Filtered jobs based on search and filters
+  // Filtered jobs based on search and filters (多条件AND筛选)
   const filteredJobs = useMemo(() => {
-    return jobs.filter(job => {
+    if (!jobs || jobs.length === 0) return [];
+
+    const filtered = jobs.filter(job => {
+      // 1. 搜索关键词匹配（OR逻辑：匹配标题、公司名或描述）
       const matchesSearch = !combinedSearchQuery ||
         (job.title && job.title.toLowerCase().includes(combinedSearchQuery.toLowerCase())) ||
         (job.company_name && job.company_name.toLowerCase().includes(combinedSearchQuery.toLowerCase())) ||
         (job.description && job.description.toLowerCase().includes(combinedSearchQuery.toLowerCase()));
 
-      const matchesLocation = filterLocation === '全部' || job.location === filterLocation;
-      const matchesExperience = filterExperience === '全部' || job.experience === filterExperience;
-      const matchesDegree = filterDegree === '全部' || job.degree === filterDegree;
-      const matchesJobType = filterJobType === '全部' || job.type === filterJobType;
+      // 2. 城市筛选（精确匹配）
+      const matchesLocation = filterLocation === '全部' ||
+        (job.location && job.location === filterLocation);
 
+      // 3. 经验筛选
+      // - 如果筛选条件是"全部"，显示所有职位
+      // - 如果筛选条件是具体值：
+      //   * 如果职位经验是 undefined/null/空/"不限"，表示接受任何经验，应该匹配
+      //   * 否则精确匹配
+      const matchesExperience = filterExperience === '全部'
+        ? true
+        : (() => {
+            // 处理 undefined、null、空字符串的情况
+            if (job.experience === undefined || job.experience === null) {
+              return true; // undefined/null 表示接受任何经验
+            }
+            if (typeof job.experience === 'string' && job.experience.trim() === '') {
+              return true; // 空字符串表示接受任何经验
+            }
+            if (job.experience === '不限') {
+              return true; // "不限"表示接受任何经验
+            }
+            return job.experience === filterExperience; // 精确匹配
+          })();
+
+      // 4. 学历筛选
+      // - 如果筛选条件是"全部"，显示所有职位
+      // - 如果筛选条件是具体值：
+      //   * 如果职位学历是 undefined/null/空/"不限"，表示接受任何学历，应该匹配
+      //   * 否则精确匹配
+      const matchesDegree = filterDegree === '全部'
+        ? true
+        : (() => {
+            // 处理 undefined、null、空字符串的情况
+            if (job.degree === undefined || job.degree === null) {
+              return true; // undefined/null 表示接受任何学历
+            }
+            if (typeof job.degree === 'string' && job.degree.trim() === '') {
+              return true; // 空字符串表示接受任何学历
+            }
+            if (job.degree === '不限') {
+              return true; // "不限"表示接受任何学历
+            }
+            return job.degree === filterDegree; // 精确匹配
+          })();
+
+      // 5. 职位类型筛选
+      // - 如果选择"全部"，显示所有职位
+      // - 如果选择"远程"，匹配 type 为"远程"或 work_mode 为"远程"的职位
+      // - 否则精确匹配 job.type
+      // - 如果 job.type 是 undefined/null，视为匹配所有类型
+      const matchesJobType = filterJobType === '全部'
+        ? true
+        : filterJobType === '远程'
+          ? (job.type === '远程' || job.work_mode === '远程')
+          : (() => {
+              // 处理 undefined/null 的情况
+              if (job.type === undefined || job.type === null) {
+                return true; // undefined/null 表示接受任何类型
+              }
+              return job.type === filterJobType; // 精确匹配
+            })();
+
+      // 所有筛选条件必须同时满足（AND逻辑）
       return matchesSearch && matchesLocation && matchesExperience && matchesDegree && matchesJobType;
     });
+
+    // 调试信息（仅在开发环境）
+    if (process.env.NODE_ENV === 'development') {
+      console.log('筛选结果:', {
+        总职位数: jobs.length,
+        筛选后数量: filtered.length,
+        筛选条件: {
+          城市: filterLocation,
+          经验: filterExperience,
+          学历: filterDegree,
+          职位类型: filterJobType,
+          搜索关键词: combinedSearchQuery || '无'
+        }
+      });
+    }
+
+    return filtered;
   }, [jobs, combinedSearchQuery, filterLocation, filterExperience, filterDegree, filterJobType]);
 
   // Initial job fetch and triggers AI recommendation
@@ -101,8 +232,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
           ? await jobAPI.getRecommendedJobs(currentUser.id, true) // Pass true to trigger AI
           : await jobAPI.getAllJobs();
 
+        console.log('API响应:', response);
+        
         if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
+          console.log('原始API数据:', response.data.slice(0, 5));
           const formattedJobs = formatJobData(response.data);
+          console.log('格式化后的数据:', formattedJobs.slice(0, 5));
           setLocalJobs(formattedJobs);
           // If a user is logged in, start polling for AI results
           if (currentUser?.id) {
@@ -125,6 +260,88 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
 
     return () => { isMounted = false; };
   }, [propsJobs, propsLoadingJobs, propsJobsError, currentUser?.id]);
+
+  // Fetch jobs from backend based on filter conditions
+  useEffect(() => {
+    if (propsJobs) {
+      return; // 如果父组件传递了数据，使用父组件的数据
+    }
+
+    // 检查是否有筛选条件
+    const hasFilters = filterLocation !== '全部' ||
+                       filterExperience !== '全部' ||
+                       filterDegree !== '全部' ||
+                       filterJobType !== '全部';
+
+    if (!hasFilters) {
+      // 没有筛选条件，使用初始数据
+      setUseFilteredData(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchFilteredJobs = async () => {
+      setLoadingJobs(true);
+      setJobsError(null);
+
+      try {
+        // 构建筛选参数
+        const params: any = {
+          limit: 1000
+        };
+
+        // 城市筛选
+        if (filterLocation !== '全部') {
+          params.location = filterLocation;
+        }
+
+        // 经验筛选 - 排除"不限"选项
+        if (filterExperience !== '全部' && filterExperience !== '不限') {
+          params.experience = filterExperience;
+        }
+
+        // 学历筛选 - 排除"不限"选项
+        if (filterDegree !== '全部' && filterDegree !== '不限') {
+          params.degree = filterDegree;
+        }
+
+        // 职位类型筛选 - 处理"远程"和其他类型
+        if (filterJobType !== '全部') {
+          if (filterJobType === '远程') {
+            // 远程工作可以同时设置type和work_mode，或者只设置work_mode
+            params.work_mode = '远程';
+            // 也可以设置type为远程，但后端主要用work_mode筛选
+            // params.type = '远程';
+          } else {
+            // 其他职位类型
+            params.type = filterJobType;
+          }
+        }
+
+        const response = await jobAPI.getAllJobs(params);
+
+        if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
+          const formattedJobs = formatJobData(response.data);
+          setLocalJobs(formattedJobs);
+          setUseFilteredData(true);
+        } else if (isMounted) {
+          setJobsError('职位数据格式不正确');
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setJobsError(error.message || '加载筛选职位失败');
+          console.error('获取筛选职位失败:', error);
+        }
+      } finally {
+        if (isMounted) setLoadingJobs(false);
+      }
+    };
+
+    fetchFilteredJobs();
+
+    return () => { isMounted = false; };
+  }, [filterLocation, filterExperience, filterDegree, filterJobType, propsJobs]);
 
   // Poll for AI recommendations
   useEffect(() => {
@@ -171,27 +388,97 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   }, [isAIPending, currentUser?.id]);
 
   const formatJobData = (data: any[]): JobPosting[] => {
-    return data.map((job: any) => ({
-      id: job.id,
-      title: job.title,
-      company: job.company_name || job.company_id || '未知公司',
-      company_name: job.company_name,
-      department: job.department || '',
-      location: job.location || '未知地点',
-      salary: job.salary || '面议',
-      description: job.description || '',
-      type: job.type || '全职',
-      experience: job.experience || '不限',
-      degree: job.degree || '不限',
-      posterId: job.recruiter_id || 0,
-      applicants: job.applications_count || 0,
-      status: job.status === 'active' ? 'Active' : 'Closed',
-      postedDate: job.publish_date ? new Date(job.publish_date).toLocaleDateString() : new Date().toLocaleDateString(),
-      recruiter_name: job.recruiter_name,
-      recruiter_position: job.recruiter_position,
-      recruiter_id: job.recruiter_id,
-      recruiter_avatar: job.recruiter_avatar
-    }));
+    if (!data || !Array.isArray(data)) {
+      console.warn('formatJobData: 数据格式不正确', data);
+      return [];
+    }
+    
+    return data.map((job: any) => {
+      // 打印单个职位数据，查看具体字段
+      console.log('单个职位原始数据:', job);
+      
+      // 直接使用数据库值，如果是 undefined 或 null 才使用默认值
+      // 确保处理所有可能的字段名差异
+      const title = job.title !== undefined && job.title !== null ? job.title : '未知职位';
+      
+      // 处理公司名称，可能来自job.company_name或job.company
+      const companyName = job.company_name !== undefined && job.company_name !== null ? job.company_name : 
+                         job.company !== undefined && job.company !== null ? job.company : '未知公司';
+      
+      const department = job.department !== undefined && job.department !== null ? job.department : '';
+      const location = job.location !== undefined && job.location !== null ? job.location : '未知地点';
+      const salary = job.salary !== undefined && job.salary !== null ? job.salary : '面议';
+      const description = job.description !== undefined && job.description !== null ? job.description : '';
+      const type = job.type !== undefined && job.type !== null ? job.type : '全职';
+      const work_mode = job.work_mode !== undefined && job.work_mode !== null ? job.work_mode : undefined;
+      const job_level = job.job_level !== undefined && job.job_level !== null ? job.job_level : '初级';
+      const hiring_count = job.hiring_count !== undefined && job.hiring_count !== null ? job.hiring_count : 1;
+      const urgency = job.urgency !== undefined && job.urgency !== null ? job.urgency : '普通';
+      const views_count = job.views_count !== undefined && job.views_count !== null ? job.views_count : 0;
+      const match_rate = job.match_rate !== undefined && job.match_rate !== null ? job.match_rate : 0;
+      
+      // 对于经验和学历，保持 trim 处理，但只有在字段不是 undefined 或 null 时才 trim
+      const experience = job.experience !== undefined && job.experience !== null 
+        ? (typeof job.experience === 'string' ? job.experience.trim() : job.experience) 
+        : '经验不限';
+      
+      const degree = job.degree !== undefined && job.degree !== null 
+        ? (typeof job.degree === 'string' ? job.degree.trim() : job.degree) 
+        : '学历不限';
+      
+      const recruiter_name = job.recruiter_name !== undefined && job.recruiter_name !== null ? job.recruiter_name : '招聘负责人';
+      const recruiter_position = job.recruiter_position !== undefined && job.recruiter_position !== null ? job.recruiter_position : '招聘专员';
+      const recruiter_id = job.recruiter_id !== undefined && job.recruiter_id !== null ? job.recruiter_id : job.posterId !== undefined && job.posterId !== null ? job.posterId : 0;
+      
+      const applicants = job.applications_count !== undefined && job.applications_count !== null ? job.applications_count : 
+                        job.applicants !== undefined && job.applicants !== null ? job.applicants : 0;
+      
+      const status = (job.status === 'active' || job.status === 'Active') ? 'Active' as const : 
+                     (job.status === 'draft' || job.status === 'Draft') ? 'Draft' as const : 
+                     (job.status === 'closed' || job.status === 'Closed') ? 'Closed' as const : 
+                     'Active' as const;
+      
+      const postedDate = job.publish_date ? new Date(job.publish_date).toLocaleDateString() : new Date().toLocaleDateString();
+      
+      const formatted = {
+        id: job.id,
+        title: title,
+        company: companyName,
+        company_name: companyName,
+        company_id: job.company_id,
+        department: department,
+        location: location,
+        salary: salary,
+        description: description,
+        type: type,
+        work_mode: work_mode,
+        experience: experience,
+        degree: degree,
+        posterId: recruiter_id,
+        applicants: applicants,
+        status: status,
+        postedDate: postedDate,
+        recruiter_name: recruiter_name,
+        recruiter_position: recruiter_position,
+        recruiter_id: recruiter_id,
+        recruiter_avatar: job.recruiter_avatar,
+        // 新增jobs表字段
+        job_level: job_level,
+        hiring_count: hiring_count,
+        urgency: urgency,
+        views_count: views_count,
+        match_rate: match_rate,
+        // 公司相关字段（如果后端返回）
+        company_industry: job.company_industry,
+        company_size: job.company_size,
+        company_address: job.company_address,
+        company_logo: job.company_logo,
+        company_website: job.company_website
+      };
+      
+      console.log('单个职位格式化后:', formatted);
+      return formatted;
+    });
   };
 
   // Modify companies data loading logic - 根据用户期望职位智能推荐公司
@@ -343,41 +630,65 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
                 className="flex items-center px-3 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 hover:text-indigo-600 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[80px]"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5 text-indigo-500"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                {filterLocation === '鍏ㄩ儴' ? '城市' : filterLocation}
+                <span className="flex-1 text-left">{filterLocation === '全部' ? '城市' : filterLocation}</span>
+                <ChevronDown className="w-4 h-4 text-gray-400 ml-1" />
               </button>
 
               {/* Experience Select */}
-              <select
-                value={filterExperience}
-                onChange={(e) => setFilterExperience(e.target.value)}
-                className="px-3 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[100px]"
-              >
-                {experiences.map(exp => (
-                  <option key={exp} value={exp}>{exp === '鍏ㄩ儴' ? '经验' : exp}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={filterExperience}
+                  onChange={(e) => setFilterExperience(e.target.value)}
+                  className="px-3 py-2.5 pr-8 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[100px] appearance-none cursor-pointer"
+                >
+                  {filterOptions.experiences.map(exp => (
+                    <option key={exp} value={exp}>{exp}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
 
               {/* Degree Select */}
-              <select
-                value={filterDegree}
-                onChange={(e) => setFilterDegree(e.target.value)}
-                className="px-3 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[100px]"
-              >
-                {degrees.map(deg => (
-                  <option key={deg} value={deg}>{deg === '鍏ㄩ儴' ? '学历' : deg}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={filterDegree}
+                  onChange={(e) => setFilterDegree(e.target.value)}
+                  className="px-3 py-2.5 pr-8 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[100px] appearance-none cursor-pointer"
+                >
+                  {filterOptions.degrees.map(deg => (
+                    <option key={deg} value={deg}>{deg}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
 
               {/* Job Type Select */}
-              <select
-                value={filterJobType}
-                onChange={(e) => setFilterJobType(e.target.value)}
-                className="px-3 py-2.5 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[120px]"
+              <div className="relative">
+                <select
+                  value={filterJobType}
+                  onChange={(e) => setFilterJobType(e.target.value)}
+                  className="px-3 py-2.5 pr-8 rounded-lg bg-white border border-gray-300 text-gray-700 hover:border-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[120px] appearance-none cursor-pointer"
+                >
+                  {filterOptions.jobTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+              
+              {/* Clear Filters Button */}
+              <button
+                onClick={() => {
+                  setCombinedSearchQuery('');
+                  setFilterLocation('全部');
+                  setFilterExperience('全部');
+                  setFilterDegree('全部');
+                  setFilterJobType('全部');
+                }}
+                className="px-3 py-2.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 transition-all font-medium text-sm shadow-sm flex-shrink-0 min-w-[100px]"
               >
-                {jobTypes.map(type => (
-                  <option key={type} value={type}>{type === '全部' ? '职位类型' : type}</option>
-                ))}
-              </select>
+                清除筛选
+              </button>
             </div>
           </div>
         </div>
@@ -428,25 +739,42 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 sm:gap-6">
+          <div className="flex flex-wrap justify-start gap-3">
             {displayedCompanies.map(company => (
-              <CompanyCard key={company.id} company={company} isFollowed={followedCompanies.includes(company.id)} onToggleFollow={toggleFollowCompany} />
+              <CompanyCard key={company.id} company={company} />
             ))}
           </div>
         )}
       </div>
 
       <div>
-        <div className="mb-6 flex items-center gap-4">
-          <h3 className="text-xl font-bold text-slate-900">最新职位</h3>
-          {isAIPending && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-              <span>AI 推荐中...</span>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <h3 className="text-xl font-bold text-slate-900">最新职位</h3>
+            {isAIPending && (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                <span>AI 推荐中...</span>
+              </div>
+            )}
+            {aiJobsError && (
+              <div className="text-sm text-red-500">{aiJobsError}</div>
+            )}
+          </div>
+          {/* 显示筛选结果数量 */}
+          {!loadingJobs && !jobsError && (
+            <div className="text-sm text-gray-600">
+              {filteredJobs.length > 0 ? (
+                <span>
+                  找到 <span className="font-semibold text-indigo-600">{filteredJobs.length}</span> 个符合条件的职位
+                  {filteredJobs.length !== jobs.length && (
+                    <span className="text-gray-400 ml-1">（共 {jobs.length} 个职位）</span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-gray-500">未找到符合条件的职位</span>
+              )}
             </div>
-          )}
-          {aiJobsError && (
-            <div className="text-sm text-red-500">{aiJobsError}</div>
           )}
         </div>
         <div className="space-y-4">

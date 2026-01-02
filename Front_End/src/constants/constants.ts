@@ -483,3 +483,36 @@ export const ANALYTICS_SOURCE_QUALITY = [
   { name: 'LinkedIn', hires: 60, quality: 80 },
   { name: '招聘网站', hires: 55, quality: 75 },
 ];
+
+// --- 筛选选项常量 ---
+// 工作经验选项（按逻辑顺序排列）
+export const EXPERIENCE_OPTIONS = [
+  '全部',
+  '不限',
+  '应届生',
+  '1年以下',
+  '1-3年',
+  '3-5年',
+  '5-10年',
+  '10年以上'
+];
+
+// 学历选项（按逻辑顺序排列）
+export const DEGREE_OPTIONS = [
+  '全部',
+  '不限',
+  '高中',
+  '大专',
+  '本科',
+  '硕士',
+  '博士'
+];
+
+// 职位类型选项（包括工作类型和工作模式）
+export const JOB_TYPE_OPTIONS = [
+  '全部',
+  '全职',
+  '兼职',
+  '实习',
+  '远程'
+];

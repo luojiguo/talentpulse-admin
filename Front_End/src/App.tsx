@@ -144,6 +144,27 @@ const App: React.FC = () => {
       window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
     };
   }, [currentUser]);
+
+  // 根据用户角色动态设置浏览器标题
+  useEffect(() => {
+    if (currentUser) {
+      switch (currentUser.role) {
+        case 'admin':
+          document.title = '系统管理员';
+          break;
+        case 'recruiter':
+          document.title = '招聘者系统';
+          break;
+        case 'candidate':
+          document.title = '求职者系统';
+          break;
+        default:
+          document.title = 'TalentPulse';
+      }
+    } else {
+      document.title = 'TalentPulse';
+    }
+  }, [currentUser]);
   
   // 邮箱绑定成功处理
   const handleEmailBindSuccess = () => {

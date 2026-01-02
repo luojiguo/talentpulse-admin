@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from '
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     MessageSquare, Phone, MoreVertical, Send, Plus as PlusIcon, Image as ImageIcon,
-    Camera, Mic, Trash2, MapPin, ArrowLeft, Pin
+    Camera, Mic, Trash2, MapPin, ArrowLeft, Pin, Calendar as CalendarIcon, XCircle, CheckCircle
 } from 'lucide-react';
-import { Modal } from 'antd';
+import { Modal, message } from 'antd';
 import { formatDateTime } from '@/utils/dateUtils';
 import { useDeviceType } from '@/hooks/useMediaQuery';
 import {
@@ -15,6 +15,7 @@ import {
     getChatWindowWidth
 } from '@/utils/layoutUtils';
 import UserAvatar from '@/components/UserAvatar';
+import { interviewAPI, applicationAPI } from '@/services/apiService';
 
 interface RecruiterMessageScreenProps {
     conversations: any[];
@@ -30,6 +31,8 @@ interface RecruiterMessageScreenProps {
     isMessagesLoading?: boolean;
     onPinConversation?: (conversationId: string, isPinned: boolean) => void;
     onHideConversation?: (conversationId: string) => void;
+    currentUserId: number;
+    companyAddress?: string;
 }
 
 const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
@@ -39,7 +42,9 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
     currentUser,
     isMessagesLoading = false,
     onPinConversation,
-    onHideConversation
+    onHideConversation,
+    currentUserId,
+    companyAddress
 }) => {
     const navigate = useNavigate();
     const { conversationId: paramConversationId } = useParams<{ conversationId: string }>();
@@ -47,6 +52,23 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
     const [input, setInput] = useState('');
     const [showExtrasMenu, setShowExtrasMenu] = useState(false);
     const [searchText, setSearchText] = useState('');
+    
+    // 面试邀请模态框状态
+    const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
+    // 面试表单状态
+    const [interviewForm, setInterviewForm] = useState({
+        applicationId: 0,
+        interviewDate: '',
+        interviewTime: '',
+        interviewTimeEnd: '',
+        interviewerName: '',
+        interviewerPosition: '',
+        notes: '',
+        location: '',
+        interviewPosition: ''
+    });
+    // 表单加载状态
+    const [formLoading, setFormLoading] = useState(false);
 
     // 使用精确的设备类型判断
     const { isMobile, isTablet, isDesktop } = useDeviceType();
@@ -91,6 +113,117 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
 
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
+    
+    // 打开面试邀请模态框
+    const openInterviewModal = () => {
+        // 从活跃对话中获取相关信息
+        if (activeConv) {
+            // 这里假设对话数据中包含以下字段，实际项目中可能需要调整
+            const applicationId = activeConv.applicationId || activeConv.app_id || 0;
+            
+            setInterviewForm(prev => ({
+                ...prev,
+                applicationId,
+                // 自动填充字段
+                interviewerName: currentUser.name || '', // 面试官自动使用当前招聘者姓名
+                interviewerPosition: currentUser.position || '', // 面试官职位自动使用当前招聘者职位
+                location: companyAddress || '', // 自动填充面试地址
+                interviewPosition: activeJob?.title || '' // 自动填充面试岗位
+            }));
+        }
+        setIsInterviewModalOpen(true);
+    };
+    
+    // 关闭面试邀请模态框
+    const closeInterviewModal = () => {
+        setIsInterviewModalOpen(false);
+        // 重置表单
+        setInterviewForm({
+            applicationId: 0,
+            interviewDate: '',
+            interviewTime: '',
+            interviewTimeEnd: '',
+            interviewerName: '',
+            interviewerPosition: '',
+            notes: '',
+            location: '',
+            interviewPosition: ''
+        });
+    };
+    
+    // 处理表单字段变化
+    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setInterviewForm(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+    
+    // 创建面试邀请
+    const handleCreateInterview = async () => {
+        try {
+            setFormLoading(true);
+            // 验证必填字段
+            if (interviewForm.applicationId === 0 || !interviewForm.interviewDate || !interviewForm.interviewTime || !interviewForm.interviewTimeEnd) {
+                message.error('请填写必填字段');
+                return;
+            }
+            
+            // 验证结束时间必须晚于开始时间
+            const startTime = new Date(`2000-01-01T${interviewForm.interviewTime}`);
+            const endTime = new Date(`2000-01-01T${interviewForm.interviewTimeEnd}`);
+            if (endTime <= startTime) {
+                message.error('面试结束时间必须晚于开始时间');
+                return;
+            }
+            
+            // 准备完整的面试数据，只包含数据库中存在的字段
+            const interviewData = {
+                applicationId: interviewForm.applicationId,
+                interviewDate: interviewForm.interviewDate,
+                interviewTime: interviewForm.interviewTime,
+                interviewTimeEnd: interviewForm.interviewTimeEnd,
+                interviewerId: currentUserId,
+                status: 'scheduled', // 默认状态：已安排
+                notes: interviewForm.notes,
+                interviewRound: 1, // 默认第1轮
+                interviewerName: interviewForm.interviewerName,
+                interviewerPosition: interviewForm.interviewerPosition,
+                interviewResult: null, // 默认为空，面试后填写
+                interviewFeedback: null, // 默认为空，面试后填写
+                location: interviewForm.location,
+                interviewPosition: interviewForm.interviewPosition
+            };
+            
+            const response = await interviewAPI.createInterview(interviewData);
+            
+            if ((response as any).status === 'success') {
+                // 更新对应的申请状态为Interview，并增加面试次数
+                await applicationAPI.updateApplicationStatus(
+                    interviewForm.applicationId,
+                    'Interview',
+                    '已安排面试'
+                );
+                
+                message.success('面试邀请创建成功');
+                // 发送一条消息给候选人
+                onSendMessage(`已向您发送面试邀请，请查收！`, 'text');
+                // 通过Socket.IO发送面试邀请信息，让候选人实时收到
+                onSendMessage(JSON.stringify({
+                    type: 'interview_invitation',
+                    interview: response.data,
+                    message: `已向您发送面试邀请，请查收！`
+                }), 'interview_invitation');
+                closeInterviewModal();
+            }
+        } catch (error) {
+            console.error('创建面试失败:', error);
+            message.error('创建面试邀请失败，请重试');
+        } finally {
+            setFormLoading(false);
+        }
+    };
 
     // Handle scroll event to load more messages
     const handleScroll = useCallback(async (e: React.UIEvent<HTMLDivElement>) => {
@@ -383,7 +516,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                 <button onClick={() => handleSend("您好，为了方便后续沟通，方便加一下微信吗？", 'text')} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full hover:bg-emerald-100 transition whitespace-nowrap border border-emerald-200">
                                     索取微信
                                 </button>
-                                <button onClick={() => handleSend("您好，已收到您的简历，想约您进行面试。", 'text')} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full hover:bg-emerald-100 transition whitespace-nowrap border border-emerald-200">
+                                <button onClick={openInterviewModal} className="px-3 py-1.5 bg-purple-50 text-purple-600 text-xs rounded-full hover:bg-purple-100 transition whitespace-nowrap border border-purple-200">
                                     邀请面试
                                 </button>
                             </div>
@@ -585,6 +718,203 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                     >
                         <Trash2 className="w-4 h-4" /> 隐藏会话
                     </button>
+                </div>
+            )}
+            
+            {/* 面试邀请模态框 */}
+            {isInterviewModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+                    <div 
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all duration-300 animate-in fade-in zoom-in-95"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="p-5 border-b flex justify-between items-center bg-emerald-50/50">
+                            <h3 className="text-xl font-bold text-gray-800 flex items-center">
+                                <CalendarIcon className="w-5 h-5 mr-2 text-emerald-600" />
+                                安排面试邀请
+                            </h3>
+                            <button 
+                                onClick={closeInterviewModal} 
+                                className="p-2 rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                            >
+                                <XCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+                            <form className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {/* 申请ID - 隐藏字段 */}
+                                    <input
+                                        type="hidden"
+                                        name="applicationId"
+                                        value={interviewForm.applicationId}
+                                    />
+                                    
+                                    {/* 面试日期 */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试日期 *</label>
+                                        <input
+                                            type="date"
+                                            name="interviewDate"
+                                            value={interviewForm.interviewDate}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            required
+                                        />
+                                    </div>
+                                    
+                                    {/* 面试开始时间 */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试开始时间 *</label>
+                                        <select
+                                            name="interviewTime"
+                                            value={interviewForm.interviewTime}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            required
+                                        >
+                                            <option value="">请选择时间</option>
+                                            {/* 生成固定时间选项：08:00到18:00，分钟为00, 15, 30, 45 */}
+                                            {Array.from({ length: 11 }).map((_, i) => {
+                                                const hour = 8 + i; // 8到18点
+                                                const hourStr = hour.toString().padStart(2, '0');
+                                                return [0, 15, 30, 45].map(minute => {
+                                                    const minuteStr = minute.toString().padStart(2, '0');
+                                                    const timeValue = `${hourStr}:${minuteStr}`;
+                                                    return (
+                                                        <option key={timeValue} value={timeValue}>
+                                                            {timeValue}
+                                                        </option>
+                                                    );
+                                                });
+                                            }).flat()}
+                                        </select>
+                                    </div>
+                                    
+                                    {/* 面试结束时间 */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试结束时间 *</label>
+                                        <select
+                                            name="interviewTimeEnd"
+                                            value={interviewForm.interviewTimeEnd}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            required
+                                        >
+                                            <option value="">请选择时间</option>
+                                            {/* 生成固定时间选项：08:00到18:00，分钟为00, 15, 30, 45 */}
+                                            {Array.from({ length: 11 }).map((_, i) => {
+                                                const hour = 8 + i; // 8到18点
+                                                const hourStr = hour.toString().padStart(2, '0');
+                                                return [0, 15, 30, 45].map(minute => {
+                                                    const minuteStr = minute.toString().padStart(2, '0');
+                                                    const timeValue = `${hourStr}:${minuteStr}`;
+                                                    return (
+                                                        <option key={timeValue} value={timeValue}>
+                                                            {timeValue}
+                                                        </option>
+                                                    );
+                                                });
+                                            }).flat()}
+                                        </select>
+                                    </div>
+                                    
+                                    {/* 自动填充字段 - 只读显示 */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试官姓名</label>
+                                        <input
+                                            type="text"
+                                            name="interviewerName"
+                                            value={interviewForm.interviewerName}
+                                            className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                                            disabled
+                                        />
+                                    </div>
+                                    
+                                    {interviewForm.interviewerPosition && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">面试官职位</label>
+                                            <input
+                                                type="text"
+                                                name="interviewerPosition"
+                                                value={interviewForm.interviewerPosition}
+                                                className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                                                disabled
+                                            />
+                                        </div>
+                                    )}
+                                    
+                                    {/* 面试岗位 - 下拉选择 */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试岗位 *</label>
+                                        <select
+                                            name="interviewPosition"
+                                            value={interviewForm.interviewPosition}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            required
+                                        >
+                                            {jobs.map(job => (
+                                                <option key={job.id} value={job.title}>
+                                                    {job.title}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    
+                                    {/* 面试地址 */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试地址</label>
+                                        <input
+                                            type="text"
+                                            name="location"
+                                            value={interviewForm.location}
+                                            onChange={handleFormChange}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            placeholder="请输入面试地址"
+                                        />
+                                    </div>
+                                    
+                                    {/* 面试备注 */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">面试备注</label>
+                                        <textarea
+                                            name="notes"
+                                            value={interviewForm.notes}
+                                            onChange={handleFormChange}
+                                            rows={3}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            placeholder="请输入面试备注（选填）"
+                                        ></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex justify-end gap-3 pt-4 border-t">
+                                    <button 
+                                        type="button" 
+                                        onClick={closeInterviewModal}
+                                        className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                                    >
+                                        取消
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={handleCreateInterview}
+                                        disabled={formLoading}
+                                        className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                                    >
+                                        {formLoading ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        ) : (
+                                            <CheckCircle className="w-4 h-4" />
+                                        )}
+                                        {formLoading ? '创建中...' : '发送面试邀请'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

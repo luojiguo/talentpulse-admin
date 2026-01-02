@@ -11,7 +11,7 @@ export const resumeAPI = {
   getResumeById: (id: string | number) => request.get(`/resumes/${id}`),
 
   // 上传简历文件
-  uploadResume: (userId: string | number, file: File) => {
+  uploadResume: (userId: string | number, file: File, onUploadProgress?: (progress: number) => void) => {
     const formData = new FormData();
     formData.append('resume', file);
     formData.append('user_id', userId.toString());
@@ -19,6 +19,12 @@ export const resumeAPI = {
     return request.post('/resumes/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onUploadProgress) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onUploadProgress(progress);
+        }
       },
     });
   },

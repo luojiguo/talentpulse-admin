@@ -51,6 +51,10 @@ export default defineConfig(({ mode }) => {
           '/companies_logo': {
             target: 'http://localhost:3001',
             changeOrigin: true
+          },
+          '/User_Resume': {
+            target: 'http://localhost:3001',
+            changeOrigin: true
           }
         },
         // 禁用可能导致日志的功能

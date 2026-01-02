@@ -287,15 +287,23 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                         }`}
                                 >
                                     <h3 className={`font-bold text-base mb-1 ${item.id === parseInt(id || '0') ? 'text-indigo-700' : 'text-gray-900'}`}>
-                                        {item.title}
+                                        {item.title !== undefined && item.title !== null ? item.title : '未知职位'}
                                     </h3>
                                     <div className="flex justify-between items-center mb-2">
-                                        <span className="text-sm text-gray-600 truncate max-w-[60%]">{item.company_name}</span>
-                                        <span className="text-sm font-bold text-indigo-600">{item.salary}</span>
+                                        <span className="text-sm text-gray-600 truncate max-w-[60%]">
+                                            {item.company_name !== undefined && item.company_name !== null ? item.company_name : '未知公司'}
+                                        </span>
+                                        <span className="text-sm font-bold text-indigo-600">
+                                            {item.salary !== undefined && item.salary !== null ? item.salary : '面议'}
+                                        </span>
                                     </div>
                                     <div className="flex gap-2 text-xs text-gray-400">
-                                        <span className="flex items-center"><MapPin className="w-3 h-3 mr-1" />{item.location}</span>
-                                        <span className="flex items-center"><Briefcase className="w-3 h-3 mr-1" />{item.experience || '经验不限'}</span>
+                                        <span className="flex items-center"><MapPin className="w-3 h-3 mr-1" />
+                                            {item.location !== undefined && item.location !== null ? item.location : '未知地点'}
+                                        </span>
+                                        <span className="flex items-center"><Briefcase className="w-3 h-3 mr-1" />
+                                            {item.experience !== undefined && item.experience !== null ? item.experience : '经验不限'}
+                                        </span>
                                     </div>
                                 </div>
                             ))
@@ -330,37 +338,47 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
                                         <div className="flex items-center gap-3 mb-3">
-                                            <h1 className="text-3xl font-extrabold text-gray-900">{job.title}</h1>
-                                            {job.urgency && ['紧急', '非常紧急'].includes(job.urgency) && (
-                                                <span className="flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                                    <Flame className="w-3 h-3 mr-1" />
-                                                    {job.urgency}
-                                                </span>
-                                            )}
-                                        </div>
+                                        <h1 className="text-3xl font-extrabold text-gray-900">
+                                            {job.title !== undefined && job.title !== null ? job.title : '未知职位'}
+                                        </h1>
+                                        {(job.urgency !== undefined && job.urgency !== null) && ['紧急', '非常紧急'].includes(job.urgency) && (
+                                            <span className="flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                <Flame className="w-3 h-3 mr-1" />
+                                                {job.urgency}
+                                            </span>
+                                        )}
+                                    </div>
                                         <div className="flex flex-wrap gap-3 text-sm text-gray-600">
                                             <span className="flex items-center bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
-                                                <MapPin className="w-4 h-4 mr-1.5 text-indigo-500" /> {job.location}
+                                                <MapPin className="w-4 h-4 mr-1.5 text-indigo-500" /> 
+                                                {job.location !== undefined && job.location !== null ? job.location : '未知地点'}
                                             </span>
                                             <span className="flex items-center bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
-                                                <Briefcase className="w-4 h-4 mr-1.5 text-indigo-500" /> {job.experience || '经验不限'}
+                                                <Briefcase className="w-4 h-4 mr-1.5 text-indigo-500" /> 
+                                                {job.experience !== undefined && job.experience !== null ? job.experience : '经验不限'}
                                             </span>
                                             <span className="flex items-center bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
-                                                <GraduationCap className="w-4 h-4 mr-1.5 text-indigo-500" /> {job.degree || '学历不限'}
+                                                <GraduationCap className="w-4 h-4 mr-1.5 text-indigo-500" /> 
+                                                {job.degree !== undefined && job.degree !== null ? job.degree : '学历不限'}
                                             </span>
                                             <span className="flex items-center bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
-                                                <Clock className="w-4 h-4 mr-1.5 text-indigo-500" /> {job.type}
+                                                <Clock className="w-4 h-4 mr-1.5 text-indigo-500" /> 
+                                                {job.type !== undefined && job.type !== null ? job.type : '全职'}
                                             </span>
                                             <span className="flex items-center bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
-                                                <Monitor className="w-4 h-4 mr-1.5 text-indigo-500" /> {job.work_mode || '现场'}
+                                                <Monitor className="w-4 h-4 mr-1.5 text-indigo-500" /> 
+                                                {job.work_mode !== undefined && job.work_mode !== null ? job.work_mode : '现场'}
                                             </span>
                                             <span className="flex items-center bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
-                                                <TrendingUp className="w-4 h-4 mr-1.5 text-indigo-500" /> {job.job_level || '初级'}
+                                                <TrendingUp className="w-4 h-4 mr-1.5 text-indigo-500" /> 
+                                                {job.job_level !== undefined && job.job_level !== null ? job.job_level : '初级'}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-3xl font-bold text-indigo-600 mb-2">{job.salary}</div>
+                                        <div className="text-3xl font-bold text-indigo-600 mb-2">
+                                            {job.salary !== undefined && job.salary !== null ? job.salary : '面议'}
+                                        </div>
                                         <div className="flex gap-3 justify-end">
                                             <button
                                                 onClick={toggleSaveJob}

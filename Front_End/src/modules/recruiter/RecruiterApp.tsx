@@ -1199,6 +1199,13 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
             <RecruiterJobDetail
                 job={job}
                 onBack={() => navigate('/recruiter/dashboard')}
+                currentUserId={currentUser.id}
+                currentUser={{
+                    name: currentUser.name,
+                    position: profile.position
+                }}
+                companyAddress={profile.company.address}
+                jobs={jobs}
             />
         );
     };
@@ -1286,20 +1293,21 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                         path="/messages"
                         element={
                             <RecruiterMessageScreen
-                                conversations={conversations}
-                                candidates={candidates}
-                                jobs={jobs}
-                                activeConversationId={activeConversationId}
-                                onSelectConversation={setActiveConversationId}
-                                onSendMessage={handleSendMessage}
-                                onDeleteMessage={handleDeleteMessage}
-                                onDeleteConversation={handleDeleteConversation}
-                                onLoadMoreMessages={handleLoadMoreMessages}
-                                currentUser={currentUser}
-                                isMessagesLoading={messagesLoading}
-                                onPinConversation={handlePinConversation}
-                                onHideConversation={handleHideConversation}
-                            />
+                                    conversations={conversations}
+                                    candidates={candidates}
+                                    jobs={jobs}
+                                    activeConversationId={activeConversationId}
+                                    onSelectConversation={setActiveConversationId}
+                                    onSendMessage={handleSendMessage}
+                                    onDeleteMessage={handleDeleteMessage}
+                                    onDeleteConversation={handleDeleteConversation}
+                                    onLoadMoreMessages={handleLoadMoreMessages}
+                                    currentUser={currentUser}
+                                    isMessagesLoading={messagesLoading}
+                                    onPinConversation={handlePinConversation}
+                                    onHideConversation={handleHideConversation}
+                                    companyAddress={profile.company.address}
+                                />
                         }
                     />
                     <Route

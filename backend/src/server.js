@@ -81,6 +81,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../../Front_End/public/
 app.use('/business_license', express.static(path.join(__dirname, '../../Front_End/public/business_license')));
 // 配置静态文件服务，用于访问上传的公司Logo
 app.use('/companies_logo', express.static(path.join(__dirname, '../../Front_End/public/companies_logo')));
+// 配置静态文件服务，用于访问上传的简历
+app.use('/User_Resume', express.static(path.join(__dirname, '../../Front_End/public/User_Resume')));
 
 // 配置请求速率限制 - 根据环境设置不同的限制
 const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';

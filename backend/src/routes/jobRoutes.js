@@ -205,7 +205,12 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
 
   // 2. 获取所有活跃职位 (限制数量提高速度)
   const allJobsResult = await query(`
-        SELECT j.id, j.title, j.description, j.required_skills, c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar, r.position AS recruiter_position
+        SELECT 
+          j.id, j.title, j.location, j.salary, j.description, j.experience, j.degree, j.type,
+          j.work_mode, j.job_level, j.department, j.status, j.publish_date, j.created_at,
+          j.updated_at, j.company_id, j.recruiter_id, j.required_skills, j.preferred_skills, j.benefits,
+          c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
+          r.position AS recruiter_position, r.id AS recruiter_table_id
         FROM jobs j
         LEFT JOIN companies c ON j.company_id = c.id
         LEFT JOIN recruiters r ON j.recruiter_id = r.id
@@ -283,7 +288,7 @@ router.get('/recommended/:userId/status', asyncHandler(async (req, res) => {
 
 // 获取所有职位 - 支持分页和过滤
 router.get('/', asyncHandler(async (req, res) => {
-  const { recruiterId, companyId, excludeRecruiterId, page = 1, limit = 20 } = req.query;
+  const { recruiterId, companyId, excludeRecruiterId, page = 1, limit = 20, location, experience, degree, type, work_mode } = req.query;
 
   // 构建查询条件
   const conditions = ["j.status = 'active'"];
@@ -308,10 +313,41 @@ router.get('/', asyncHandler(async (req, res) => {
     paramIndex++;
   }
 
+  // 添加筛选条件
+  if (location && location !== '全部') {
+    conditions.push(`j.location = $${paramIndex}`);
+    values.push(location);
+    paramIndex++;
+  }
+
+  if (experience && experience !== '全部' && experience !== '不限') {
+    conditions.push(`j.experience = $${paramIndex}`);
+    values.push(experience);
+    paramIndex++;
+  }
+
+  if (degree && degree !== '全部' && degree !== '不限') {
+    conditions.push(`j.degree = $${paramIndex}`);
+    values.push(degree);
+    paramIndex++;
+  }
+
+  if (type && type !== '全部') {
+    conditions.push(`j.type = $${paramIndex}`);
+    values.push(type);
+    paramIndex++;
+  }
+
+  if (work_mode && work_mode !== '全部') {
+    conditions.push(`j.work_mode = $${paramIndex}`);
+    values.push(work_mode);
+    paramIndex++;
+  }
+
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
   const offset = (page - 1) * limit;
 
-  // 获取总数的查询
+  // 获取总数的查询 - 修复：使用jobs j表，并确保条件中的表别名一致
   const totalResult = await query(`SELECT COUNT(*) FROM jobs j ${whereClause}`, values);
   const totalCount = parseInt(totalResult.rows[0].count, 10);
 

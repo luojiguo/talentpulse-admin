@@ -6,7 +6,7 @@ import { JobPosting } from '@/types/types';
  */
 export const jobAPI = {
   // 获取所有职位
-  getAllJobs: (params?: { page?: number; limit?: number; recruiterId?: string | number, companyId?: string | number }) => request.get('/jobs', { params: { ...params, limit: params?.limit || 1000 }, timeout: 60000 }),
+  getAllJobs: (params?: { page?: number; limit?: number; recruiterId?: string | number, companyId?: string | number, location?: string, experience?: string, degree?: string, type?: string, work_mode?: string }) => request.get('/jobs', { params: { ...params, limit: params?.limit || 1000 }, timeout: 60000 }),
 
   // 获取智能推荐的职位（基于用户信息）
   getRecommendedJobs: (userId: string | number, triggerAI: boolean = false) => {
@@ -37,5 +37,10 @@ export const jobAPI = {
   // 删除职位
   deleteJob: (id: string | number) => {
     return request.delete(`/jobs/${id}`);
+  },
+  
+  // 根据公司ID获取职位
+  getJobsByCompanyId: (companyId: string | number) => {
+    return request.get('/jobs', { params: { companyId }, timeout: 60000 });
   },
 };

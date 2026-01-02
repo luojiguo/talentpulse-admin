@@ -18,6 +18,7 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
   const [loadingJobs, setLoadingJobs] = useState(!propsJobs);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearchText, setDebouncedSearchText] = useState('');
 
 
   // 使用父组件传递的jobs数据，如果没有则使用本地数据
@@ -34,6 +35,7 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
       salary: job.salary || '面议',
       description: job.description || '',
       type: job.type || '全职',
+      work_mode: job.work_mode || '',
       experience: job.experience || '不限',
       degree: job.degree || '不限',
       posterId: job.recruiter_id || 0,
@@ -85,6 +87,69 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propsJobs, propsLoadingJobs, propsJobsError]); // 注意：不要把 loadingJobs 放入依赖，否则会死循环
 
+  // Debounce search text
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
+  // Fetch filtered jobs from backend when search text changes
+  useEffect(() => {
+    if (propsJobs) {
+      return; // 如果父组件传递了数据，使用父组件的数据
+    }
+
+    if (!debouncedSearchText.trim()) {
+      // 没有搜索条件，获取所有职位
+      return;
+    }
+
+    let isMounted = true;
+
+    const fetchSearchedJobs = async () => {
+      setLoadingJobs(true);
+      setJobsError(null);
+
+      try {
+        const response = await jobAPI.getAllJobs();
+
+        if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
+          // 后端目前不支持搜索关键词，所以我们仍然在前端过滤
+          const allJobs = formatJobData(response.data);
+          const filtered = allJobs.filter(job => {
+            const title = String(job.title || '').toLowerCase();
+            const company = String(job.company || '').toLowerCase();
+            const location = String(job.location || '').toLowerCase();
+            const description = String(job.description || '').toLowerCase();
+            const lowerSearch = debouncedSearchText.toLowerCase().trim();
+
+            return title.includes(lowerSearch) ||
+              company.includes(lowerSearch) ||
+              location.includes(lowerSearch) ||
+              description.includes(lowerSearch);
+          });
+          setLocalJobs(filtered);
+        } else if (isMounted) {
+          setJobsError('职位数据格式不正确');
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          setJobsError(error.message || '搜索职位数据失败');
+          console.error('搜索职位失败:', error);
+        }
+      } finally {
+        if (isMounted) setLoadingJobs(false);
+      }
+    };
+
+    fetchSearchedJobs();
+
+    return () => { isMounted = false; };
+  }, [debouncedSearchText, propsJobs]);
+
   // 搜索过滤逻辑
   const filteredJobs = useMemo(() => {
     if (!searchText.trim()) return jobs;
@@ -106,32 +171,33 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <h3 className="text-2xl font-bold text-slate-900">所有岗位</h3>
-        <div className="relative w-full md:w-96">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <input
-            type="text"
-            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
-            placeholder="搜索职位、公司、地点或描述..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-          />
-          {searchText && (
-            <button
-              onClick={() => setSearchText('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          <h3 className="text-2xl font-bold text-slate-900">所有岗位</h3>
+          <div className="relative w-full md:w-96">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
               </svg>
-            </button>
-          )}
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
+              placeholder="搜索职位、公司、地点或描述..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+            {searchText && (
+              <button
+                onClick={() => setSearchText('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                title="清除搜索"
+              >
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
       <div>
 

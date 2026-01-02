@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, useNavigate, useParams, Outlet } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Modal, message } from 'antd';
-import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation, Message } from '@/types/types';
-import { userAPI, jobAPI, companyAPI, messageAPI, candidateAPI, applicationAPI } from '@/services/apiService';
+import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation } from '@/types/types';
+import { userAPI, jobAPI, companyAPI, messageAPI, candidateAPI } from '@/services/apiService';
 import { useApi } from '@/hooks/useApi';
 import { socketService } from '@/services/socketService';
 
@@ -18,6 +18,7 @@ import ResumeEditorScreen from './screens/ResumeEditorScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import InterviewsScreen from './screens/InterviewsScreen';
 import SavedItemsScreen from './screens/SavedItemsScreen';
+import CompanyDetailScreen from './screens/CompanyDetailScreen';
 
 import EnterpriseVerificationScreen from './screens/EnterpriseVerificationScreen';
 
@@ -36,9 +37,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const [localCurrentUser, setLocalCurrentUser] = useState<User>(currentUser);
   const navigate = useNavigate();
 
-  // Dropdown menu state
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   // Candidate Screen Props Management
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const activeConversationIdRef = React.useRef<string | null>(null);
@@ -54,10 +52,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const [searchText, setSearchText] = useState('');
   const [filterUnread, setFilterUnread] = useState(false);
   const [userResume, setUserResume] = useState({});
-  const [currentJob, setCurrentJob] = useState<JobPosting | null>(null);
 
   // 消息相关状态
-  const [loadingConversations, setLoadingConversations] = useState(false);
   const [conversationError, setConversationError] = useState<string | null>(null);
 
   // Sync with external currentUser prop changes
@@ -99,7 +95,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const {
     data: userProfileData,
     loading: loadingProfile,
-    error: profileError,
     refetch: refetchProfile
   } = useApi<{ status: string; data: Profile }>(
     () => localCurrentUser?.id ? userAPI.getUserById(localCurrentUser.id) as any : Promise.resolve({ data: {} }),
@@ -110,8 +105,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // 使用 useApi Hook 获取关注的公司（并行加载）
   const {
     data: followedCompaniesData,
-    loading: loadingFollowedCompanies,
-    error: followedCompaniesError
+    loading: loadingFollowedCompanies
   } = useApi<{ status: string; data: Company[] }>(
     () => companyAPI.getFollowedCompanies(localCurrentUser.id) as any,
     [localCurrentUser.id],
@@ -146,9 +140,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     if (onUpdateUser) {
       onUpdateUser(updatedUser);
     }
-
-    // Trigger profile refetch to ensure data consistency
-    setTimeout(() => refetchProfile(), 100);
   };
 
 
@@ -158,7 +149,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const fetchConversations = useCallback(async () => {
     if (!localCurrentUser.id) return;
 
-    setLoadingConversations(true);
     setConversationError(null);
 
     try {
@@ -215,8 +205,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       } else {
         setConversationError('获取对话列表失败，请稍后重试');
       }
-    } finally {
-      setLoadingConversations(false);
     }
   }, [localCurrentUser.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
 
@@ -459,11 +447,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
         if (!messages || messages.length === 0) return false;
 
-        // 排序新获取的消息（升序，最早在上）
-        const sortedNewMessages = messages.sort((a: any, b: any) =>
-          new Date(a.time).getTime() - new Date(b.time).getTime()
-        );
-
         // 将更早的消息添加到现有消息列表，并进行去重和排序
         setConversations(prevConversations =>
           prevConversations.map(conv => {
@@ -480,13 +463,13 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
               const mergedMessages = Array.from(messageMap.values());
               // 升序排序（最早在上）
-              const sortedMessages = mergedMessages.sort((a, b) =>
+              const finalSortedMessages = mergedMessages.sort((a, b) =>
                 new Date(a.time).getTime() - new Date(b.time).getTime()
               );
 
               return {
                 ...conv,
-                messages: sortedMessages
+                messages: finalSortedMessages
               };
             }
             return conv;
@@ -788,11 +771,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     return () => clearInterval(interval); // 清理定时器
   }, [fetchConversations]);
 
-  // 监听对话变化，实现实时更新
-  const handleConversationUpdate = (conversationId: string) => {
-    // 当对话有新消息或更新时，重新获取对话列表
-    fetchConversations();
-  };
 
   // 处理用户资料数据
   const userProfile: Profile = userProfileData?.status === 'success' ? {
@@ -970,6 +948,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
         <Route path="/job" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobListScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
         <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} /></CandidateLayout>} />
+        <Route path="/company/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><CompanyDetailScreen /></CandidateLayout>} />
 
         {/* Message Center Routes */}
         {/* Message Center Routes - Unified Responsive Route */}

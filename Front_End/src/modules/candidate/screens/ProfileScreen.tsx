@@ -8,9 +8,21 @@ import UserAvatar from '@/components/UserAvatar';
 // 修复文件名编码问题的函数
 const fixFilenameEncoding = (filename: string): string => {
     try {
-        // 将字符串视为 ISO-8859-1 编码的字节，重新用 UTF-8 解码
-        const buf = Buffer.from(filename, 'latin1');
-        return buf.toString('utf8');
+        if (!filename) return '';
+        
+        // 尝试多种方式修复中文文件名编码
+        let fixedFilename = filename;
+        
+        // 1. 检查是否需要URL解码（包含%符号）
+        if (filename.includes('%')) {
+            try {
+                fixedFilename = decodeURIComponent(filename);
+            } catch (decodeErr) {
+                console.warn('URL解码失败，使用原始文件名:', filename);
+            }
+        }
+        
+        return fixedFilename;
     } catch (err) {
         console.warn('Filename encoding fix failed, using original:', filename);
         return filename;
@@ -66,6 +78,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     // 简历相关状态
     const [resumes, setResumes] = useState<any[]>([]);
     const [resumeLoading, setResumeLoading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const resumeFileInputRef = useRef<HTMLInputElement>(null);
 
     // 表单状态
@@ -94,8 +107,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
     const [genderOptions, setGenderOptions] = useState<string[]>([]);
 
     useEffect(() => {
+        // 优先使用传入的 currentUser.id，如果不存在则回退到 localStorage
         const userId = currentUser?.id || localStorage.getItem('userId');
-        console.log('ProfileScreen effect triggered', { userId });
+        console.log('ProfileScreen effect triggered', { userId, currentUser });
 
         if (userId) {
             fetchData();
@@ -124,7 +138,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
 
     const fetchData = async () => {
         try {
-            setLoading(true);
+            // 不设置 loading 为 true，避免页面空白
             setError(null);
             // 优先使用传入的 currentUser.id，如果不存在则回退到 localStorage
             const userId = currentUser?.id || localStorage.getItem('userId');
@@ -142,15 +156,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 throw new Error('获取用户数据为空');
             }
 
-            setUser(userData);
-
-            // 安全修复：仅当 fetched data 与 currentUser prop 不一致时才更新父组件
-            // 这打破了无限循环：fetch -> update parent -> prop change -> useEffect -> fetch -> NO update -> LOOP ENDS
-            if (onUpdateUser && currentUser && userData.name !== (currentUser as any).name) {
-                console.log('Syncing user name to navbar:', userData.name);
-                onUpdateUser(userData);
-            }
-
             // 获取求职者档案信息 (如果存在)
             let candidateData: CandidateData = {};
             try {
@@ -158,7 +163,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 console.log('Candidate profile response:', candidateRes);
                 if (candidateRes.data) {
                     candidateData = candidateRes.data;
-                    setCandidateProfile(candidateData);
                 }
             } catch (e) {
                 console.warn('Failed to fetch candidate profile (may not exist yet):', e);
@@ -173,7 +177,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
             };
 
             // 初始化表单数据
-            setFormData({
+            const newFormData = {
                 name: userData.name || '',
                 email: userData.email || '',
                 phone: userData.phone || '',
@@ -194,13 +198,46 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                 expected_salary_max: candidateData.expected_salary_max ? String(candidateData.expected_salary_max) : '',
                 availability_status: candidateData.availability_status || 'available',
                 preferred_locations: candidateData.preferred_locations || '',
-            });
+            };
+
+            // 同时更新所有状态，确保页面不会出现空白
+            setUser(userData);
+            setCandidateProfile(candidateData);
+            setFormData(newFormData);
+
+            // 安全修复：仅当 fetched data 与 currentUser prop 不一致时才更新父组件
+            // 这打破了无限循环：fetch -> update parent -> prop change -> useEffect -> fetch -> NO update -> LOOP ENDS
+            if (onUpdateUser && currentUser) {
+                // 比较多个关键字段，确保任何用户信息更新都会触发导航栏同步
+                const shouldUpdate = 
+                    userData.name !== (currentUser as any).name ||
+                    userData.avatar !== (currentUser as any).avatar ||
+                    userData.email !== (currentUser as any).email;
+                
+                if (shouldUpdate) {
+                    console.log('Syncing user data to navbar:', userData.name);
+                    onUpdateUser(userData);
+                    
+                    // 更新 localStorage 中的用户信息，确保刷新页面后显示最新数据
+                    const currentUserFromStorage = localStorage.getItem('currentUser');
+                    if (currentUserFromStorage) {
+                        const updatedUser = {
+                            ...JSON.parse(currentUserFromStorage),
+                            name: userData.name,
+                            avatar: userData.avatar,
+                            email: userData.email
+                        };
+                        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+                    }
+                }
+            }
 
         } catch (error: any) {
             console.error('加载个人资料失败:', error);
             setError(error.message || '加载个人资料失败');
             message.error(error.message || '加载个人资料失败');
         } finally {
+            // 始终设置 loading 为 false，确保页面可以正常显示
             setLoading(false);
         }
     };
@@ -231,37 +268,69 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // 文件大小验证：不超过10MB
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+        if (file.size > MAX_FILE_SIZE) {
+            message.error('文件大小不能超过10MB');
+            return;
+        }
+
         try {
             setSaving(true);
+            setUploadProgress(0);
             const userId = currentUser?.id || localStorage.getItem('userId');
             if (!userId) {
                 throw new Error('未找到用户ID');
             }
 
-            const res = await resumeAPI.uploadResume(userId, file);
+            const res = await resumeAPI.uploadResume(userId, file, (progress) => {
+                setUploadProgress(progress);
+            });
             if ((res as any).status === 'success') {
                 message.success('简历上传成功');
                 await fetchResumes(); // 刷新简历列表
+                // 清空文件输入，允许重新选择同一文件
+                if (resumeFileInputRef.current) {
+                    resumeFileInputRef.current.value = '';
+                }
             }
         } catch (error: any) {
             message.error(error.message || '简历上传失败');
+            // 清空文件输入，允许重新选择文件
+            if (resumeFileInputRef.current) {
+                resumeFileInputRef.current.value = '';
+            }
         } finally {
             setSaving(false);
+            setUploadProgress(0);
         }
     };
 
     // 删除简历
     const handleResumeDelete = async (id: number) => {
         try {
-            setSaving(true);
-            const res = await resumeAPI.deleteResume(id);
-            if ((res as any).status === 'success') {
-                message.success('简历删除成功');
-                await fetchResumes(); // 刷新简历列表
-            }
+            // 添加确认提示，防止误操作
+            Modal.confirm({
+                title: '确认删除简历',
+                content: '确定要删除这份简历吗？此操作不可恢复。',
+                okText: '确定',
+                okType: 'danger',
+                cancelText: '取消',
+                onOk: async () => {
+                    setSaving(true);
+                    const res = await resumeAPI.deleteResume(id);
+                    if ((res as any).status === 'success') {
+                        message.success('简历删除成功');
+                        await fetchResumes(); // 刷新简历列表
+                    }
+                    setSaving(false);
+                },
+                onCancel: () => {
+                    console.log('取消删除简历');
+                }
+            });
         } catch (error: any) {
             message.error(error.message || '简历删除失败');
-        } finally {
             setSaving(false);
         }
     };
@@ -341,8 +410,42 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
 
             message.success('个人资料保存成功');
 
-            // 刷新数据以确保同步
-            await fetchData();
+            // 3. 直接更新本地状态，就像更新头像一样
+            const updatedUserData = {
+                ...user,
+                ...userDataToUpdate
+            };
+            
+            // 更新user状态
+            setUser(updatedUserData);
+            
+            // 更新导航栏和localStorage
+            if (onUpdateUser && currentUser) {
+                // 比较多个关键字段，确保任何用户信息更新都会触发导航栏同步
+                const shouldUpdate = 
+                    updatedUserData.name !== (currentUser as any).name ||
+                    updatedUserData.avatar !== (currentUser as any).avatar ||
+                    updatedUserData.email !== (currentUser as any).email;
+                
+                if (shouldUpdate) {
+                    console.log('Syncing user data to navbar:', updatedUserData.name);
+                    onUpdateUser(updatedUserData);
+                    
+                    // 更新 localStorage 中的用户信息，确保刷新页面后显示最新数据
+                    const currentUserFromStorage = localStorage.getItem('currentUser');
+                    if (currentUserFromStorage) {
+                        const updatedUser = {
+                            ...JSON.parse(currentUserFromStorage),
+                            name: updatedUserData.name,
+                            avatar: updatedUserData.avatar,
+                            email: updatedUserData.email
+                        };
+                        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+                    }
+                }
+            }
+            
+            // 仅刷新简历列表
             await fetchResumes();
 
         } catch (error: any) {
@@ -626,26 +729,44 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                         <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">简历管理</h3>
 
                         {/* 上传按钮 */}
-                        <div className="mb-6">
-                            <div className="flex items-center gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => resumeFileInputRef.current?.click()}
-                                    disabled={saving}
-                                    className={`px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
-                                >
-                                    {saving ? '正在上传...' : '上传简历'}
-                                </button>
-                                <input
-                                    type="file"
-                                    ref={resumeFileInputRef}
-                                    className="hidden"
-                                    accept=".pdf,.doc,.docx,.txt"
-                                    onChange={handleResumeUpload}
-                                />
-                                <span className="text-sm text-gray-500">支持 PDF、Word 等格式，单个文件大小不超过 10MB</span>
-                            </div>
-                        </div>
+                                <div className="mb-6">
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => resumeFileInputRef.current?.click()}
+                                                disabled={saving}
+                                                className={`px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
+                                            >
+                                                {saving ? `${uploadProgress}% · 正在上传...` : '上传简历'}
+                                            </button>
+                                            <input
+                                                type="file"
+                                                ref={resumeFileInputRef}
+                                                className="hidden"
+                                                accept=".pdf,.doc,.docx,.txt"
+                                                onChange={handleResumeUpload}
+                                            />
+                                            <span className="text-sm text-gray-500">支持 PDF、Word 等格式，单个文件大小不超过 10MB</span>
+                                        </div>
+                                        
+                                        {/* 上传进度条 */}
+                                        {saving && (
+                                            <div className="w-full">
+                                                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                                    <span>上传进度</span>
+                                                    <span>{uploadProgress}%</span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                                    <div 
+                                                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                                                        style={{ width: `${uploadProgress}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
 
                         {/* 简历列表 */}
                         <div className="bg-gray-50 rounded-lg p-4">
@@ -678,7 +799,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                             <div className="flex items-center gap-2">
                                                 {/* 查看按钮 - 可下载简历 */}
                                                 <a
-                                                    href={resume.resume_file_url}
+                                                    href={`/api/resumes/file/${resume.id}?view=true`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
@@ -687,6 +808,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser
                                                 </a>
                                                 {/* 删除按钮 */}
                                                 <button
+                                                    type="button"
                                                     onClick={() => handleResumeDelete(Number(resume.id))}
                                                     disabled={saving}
                                                     className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition"

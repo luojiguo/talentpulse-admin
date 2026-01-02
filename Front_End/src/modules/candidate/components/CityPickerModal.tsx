@@ -79,6 +79,14 @@ const CityPickerModal = ({ isOpen, onClose, currentCity, onSelectCity }: any) =>
                         </div>
                     ) : (
                         <div className="space-y-8">
+                            {/* 全部选项 */}
+                            <div className="mb-4">
+                                <FilterPill 
+                                    label="全部" 
+                                    isActive={currentCity === '全部'} 
+                                    onClick={() => { onSelectCity('全部'); onClose(); }} 
+                                />
+                            </div>
                             {filteredCityData.map(group => (
                                 <div key={group.province}>
                                     <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider flex items-center">

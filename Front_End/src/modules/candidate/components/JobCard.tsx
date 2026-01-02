@@ -23,26 +23,39 @@ const JobCard: React.FC<{ job: JobPosting; onChat?: (jobId: number, recruiterId:
             onClick={handleSelect}
         >
             <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3 mb-3">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">{job.title}</h3>
-                <span className="text-base sm:text-lg font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">{job.salary}</span>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                    {job.title !== undefined && job.title !== null ? job.title : '未知职位'}
+                </h3>
+                <span className="text-base sm:text-lg font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
+                    {job.salary !== undefined && job.salary !== null ? job.salary : '面议'}
+                </span>
             </div>
-            <div className="flex flex-wrap items-center text-sm text-gray-500 mb-4 gap-2">
-                <span className="flex items-center whitespace-nowrap"><Building2 className="w-4 h-4 mr-1"/>{job.company}</span>
+            <div className="flex flex-wrap items-center text-sm text-gray-500 mb-3 gap-2">
+                <span className="flex items-center whitespace-nowrap"><Building2 className="w-4 h-4 mr-1"/>
+                    {job.company_name !== undefined && job.company_name !== null ? job.company_name : '未知公司'}
+                </span>
                 <span className="text-gray-300">•</span>
-                <span className="flex items-center whitespace-nowrap"><MapPin className="w-4 h-4 mr-1"/>{job.location}</span>
+                <span className="flex items-center whitespace-nowrap"><MapPin className="w-4 h-4 mr-1"/>
+                    {job.location !== undefined && job.location !== null ? job.location : '未知地点'}
+                </span>
                 <span className="text-gray-300">•</span>
-                <span className="flex items-center whitespace-nowrap"><Briefcase className="w-4 h-4 mr-1"/>{job.experience || '经验不限'}</span>
+                <span className="flex items-center whitespace-nowrap"><Briefcase className="w-4 h-4 mr-1"/>
+                    {job.experience !== undefined && job.experience !== null ? job.experience : '经验不限'}
+                </span>
+                <span className="text-gray-300">•</span>
+                <span className="flex items-center whitespace-nowrap"><Briefcase className="w-4 h-4 mr-1"/>
+                    {job.degree !== undefined && job.degree !== null ? job.degree : '学历不限'}
+                </span>
             </div>
             
-            {/* HR信息显示 */}
-            <div className="flex items-center text-sm mb-4 flex-wrap gap-2">
-                <div className="flex items-center text-gray-500">
-                    <User className="w-3 h-3 mr-1" />
-                    <span>招聘负责人：</span>
-                    <span className="font-medium text-gray-700 ml-1">{job.recruiter_name || '招聘负责人'}</span>
-                    {job.recruiter_position && (
-                        <span className="text-gray-500 ml-1">• {job.recruiter_position}</span>
-                    )}
+            {/* HR招聘人信息 - 添加在公司和岗位中间 */}
+            <div className="flex items-center gap-3 mb-3 text-sm">
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium">
+                    {job.recruiter_name?.charAt(0) || 'HR'}
+                </div>
+                <div>
+                    <div className="font-medium text-gray-900">{job.recruiter_name || '招聘负责人'}</div>
+                    <div className="text-gray-500">{job.recruiter_position || '招聘职位'}</div>
                 </div>
             </div>
             
