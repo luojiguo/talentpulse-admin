@@ -167,15 +167,30 @@ export interface Recruiter {
 export interface Message {
   id: number | string;
   role: 'user' | 'ai' | 'system';
-  type: 'text' | 'image' | 'location' | 'system';
+  type: 'text' | 'image' | 'location' | 'system' | 'file' | 'exchange_request' | 'exchange_accept' | 'exchange_reject';
   text: string;
   time: string;
   sender_id?: number | string;
   receiver_id?: number | string;
   sender_name?: string;
   sender_avatar?: string;
-  status?: string;
+  status?: string | 'pending' | 'accepted' | 'rejected';
   file_url?: string;
+  file_name?: string;
+  file_size?: number;
+  file_type?: string;
+  // 引用式回复相关字段
+  quoted_message?: {
+    id: number | string;
+    text: string;
+    sender_name: string;
+    type: 'text' | 'image' | 'file' | 'location';
+    file_name?: string;
+  };
+  // 微信交换相关字段
+  wechat?: string;
+  sender_wechat?: string;
+  receiver_wechat?: string;
 }
 
 export interface Conversation {

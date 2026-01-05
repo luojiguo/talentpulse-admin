@@ -1,0 +1,130 @@
+// 上传聊天文件（支持简历等）
+router.post('/upload-file/:conversationId', (req, res) => {
+  const { conversationId } = req.params;
+
+  fileUpload.single('file')(req, res, async (err) => {
+    if (err) {
+      console.error('简历上传 - Multer错误:', err.message);
+      return res.status(400).json({ status: 'error', message: err.message });
+    }
+
+    if (!req.file) {
+      console.error('简历上传 - 没有文件');
+      return res.status(400).json({ status: 'error', message: '未选择文件' });
+    }
+
+    console.log('简历上传 - 接收到文件:', {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      conversationId,
+      body: req.body
+    });
+
+    try {
+      const { senderId, receiverId, fileType } = req.body;
+
+      console.log('简历上传 - 参数:', { senderId, receiverId, fileType });
+
+      if (!senderId || !receiverId) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        console.error('简历上传 - 缺少必要参数');
+        return res.status(400).json({ status: 'error', message: 'senderId 和 receiverId 是必填项' });
+      }
+
+      // 修复文件名编码问题 - 关键修复！
+      let fileName = req.file.originalname;
+      try {
+        // 将 latin1 编码转换为正确的 UTF-8
+        fileName = Buffer.from(fileName, 'latin1').toString('utf-8');
+        console.log('修复后的文件名:', fileName);
+      } catch (e) {
+        console.warn('修复文件名编码失败:', e);
+      }
+
+      const fileUrl = `/uploads/chats/${conversationId}/${req.file.filename}`;
+      const fileSize = req.file.size;
+      const fileTypeVal = req.file.mimetype;
+      
+      let messageType = 'file';
+      if (fileTypeVal.startsWith('image/')) {
+        messageType = 'image';
+      }
+      
+      let messageText = `[文件] ${fileName}`;
+      if (fileType === 'resume') {
+        messageText = `[简历] ${fileName}`;
+      }
+
+      console.log('简历上传 - 准备插入数据库:', { conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal });
+
+      const result = await pool.query(`
+        INSERT INTO messages (
+          conversation_id, sender_id, receiver_id, text, type, 
+          file_url, file_name, file_size, file_type, 
+          status, time, is_deleted
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sent', CURRENT_TIMESTAMP, false)
+        RETURNING *
+      `, [conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal]);
+
+      console.log('简历上传 - 数据库插入成功:', result.rows[0].id);
+
+      const unreadField = await getUnreadField(conversationId, senderId);
+
+      await pool.query(`
+        UPDATE conversations 
+        SET 
+          last_message = $1,
+          last_time = CURRENT_TIMESTAMP,
+          total_messages = total_messages + 1,
+          updated_at = CURRENT_TIMESTAMP,
+          ${unreadField} = ${unreadField} + 1,
+          recruiter_hidden = false,
+          candidate_hidden = false,
+          recruiter_deleted_at = NULL,
+          candidate_deleted_at = NULL
+        WHERE id = $2
+      `, [messageText, conversationId]);
+
+      const conversationInfo = await pool.query(`
+        SELECT
+          c.candidate_id, c.recruiter_id,
+          u1.name as candidate_name, u1.avatar as candidate_avatar, cd.user_id as candidate_user_id,
+          u2.name as recruiter_name, u2.avatar as recruiter_avatar, r.user_id as recruiter_user_id
+        FROM conversations c
+        LEFT JOIN candidates cd ON c.candidate_id = cd.id
+        LEFT JOIN recruiters r ON c.recruiter_id = r.id
+        LEFT JOIN users u1 ON cd.user_id = u1.id
+        LEFT JOIN users u2 ON r.user_id = u2.id
+        WHERE c.id = $1
+      `, [conversationId]);
+
+      if (conversationInfo.rows.length > 0) {
+        const info = conversationInfo.rows[0];
+        const senderIdNum = parseInt(senderId);
+        const candidateUserIdNum = parseInt(info.candidate_user_id);
+
+        notifyConversation(conversationId, 'new_message', {
+          ...result.rows[0],
+          sender_name: senderIdNum === candidateUserIdNum ? (info.candidate_name || '求职者') : (info.recruiter_name || '招聘者'),
+          sender_avatar: senderIdNum === candidateUserIdNum ? (info.candidate_avatar || '') : (info.recruiter_avatar || '')
+        });
+      }
+
+      res.json({
+        status: 'success',
+        data: result.rows[0],
+        message: '文件发送成功'
+      });
+    } catch (error) {
+      console.error('简历上传 - 错误:', error.message);
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ status: 'error', message: error.message });
+    }
+  });
+});

@@ -10,6 +10,9 @@ export const resumeAPI = {
   // 获取单个简历详情
   getResumeById: (id: string | number) => request.get(`/resumes/${id}`),
 
+  // 下载简历文件
+  downloadResumeFile: (resumeId: string | number) => request.get(`/resumes/file/${resumeId}`, { responseType: 'blob' }),
+
   // 上传简历文件
   uploadResume: (userId: string | number, file: File, onUploadProgress?: (progress: number) => void) => {
     const formData = new FormData();

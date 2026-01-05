@@ -22,12 +22,14 @@ const authenticate = asyncHandler(async (req, res, next) => {
   try {
     // 验证JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
 
-    // 将用户信息添加到请求对象
-    req.user = decoded;
+    // 查询用户信息
+    const userResult = await query(
+      'SELECT id, name, email, phone, avatar, status FROM users WHERE id = $1',
+      [userId]
+    );
 
-    // 可选：检查用户是否仍然存在于数据库中
-    const userResult = await query('SELECT id, status FROM users WHERE id = $1', [decoded.id]);
     if (userResult.rows.length === 0) {
       const error = new Error('用户不存在');
       error.statusCode = 401;
@@ -35,48 +37,39 @@ const authenticate = asyncHandler(async (req, res, next) => {
       throw error;
     }
 
-    if (userResult.rows[0].status === 'inactive') {
+    const user = userResult.rows[0];
+
+    if (user.status === 'inactive') {
       const error = new Error('账户已禁用');
       error.statusCode = 403;
       error.errorCode = 'ACCOUNT_DISABLED';
       throw error;
     }
 
+    // 获取用户角色
+    const rolesResult = await query(
+      'SELECT role FROM user_roles WHERE user_id = $1',
+      [userId]
+    );
+
+    const roles = rolesResult.rows.map(row => row.role);
+
+    // 将用户信息附加到请求对象
+    req.user = {
+      ...user,
+      roles,
+      // 保留原始decoded信息（包含过期时间等）
+      ...decoded
+    };
+
     next();
   } catch (err) {
+    const error = new Error('无效的认证token');
     error.statusCode = 401;
     error.errorCode = 'INVALID_TOKEN';
+    error.originalError = err.message;
     throw error;
   }
-
-  // 查询用户信息
-  const userResult = await query(
-    'SELECT id, name, email, phone, avatar FROM users WHERE id = $1',
-    [userId]
-  );
-
-  if (userResult.rows.length === 0) {
-    const error = new Error('用户不存在');
-    error.statusCode = 401;
-    error.errorCode = 'USER_NOT_FOUND';
-    throw error;
-  }
-
-  // 获取用户角色
-  const rolesResult = await query(
-    'SELECT role FROM user_roles WHERE user_id = $1',
-    [userId]
-  );
-
-  const roles = rolesResult.rows.map(row => row.role);
-
-  // 将用户信息附加到请求对象
-  req.user = {
-    ...userResult.rows[0],
-    roles,
-  };
-
-  next();
 });
 
 /**

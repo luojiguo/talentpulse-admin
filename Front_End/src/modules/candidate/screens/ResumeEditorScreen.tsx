@@ -175,23 +175,29 @@ const ResumeEditorScreen: React.FC<ResumeEditorScreenProps> = ({ currentUser }) 
   // 通用的输入变化处理函数
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>, section: string, index: number, field: string) => {
     const { value } = e.target;
-    setResumeData(prev => ({
-      ...prev,
-      [section]: prev[section as keyof ResumeData].map((item, i) =>
-        i === index ? { ...(item as any), [field]: value } : item
-      )
-    }));
+    setResumeData(prev => {
+      const sectionData = prev[section as keyof ResumeData];
+      return {
+        ...prev,
+        [section]: Array.isArray(sectionData) ? sectionData.map((item, i) =>
+          i === index ? { ...(item as any), [field]: value } : item
+        ) : sectionData
+      };
+    });
   };
 
   // 处理技能和语言等数组字段的变化
   const handleArrayFieldChange = (e: React.ChangeEvent<HTMLInputElement>, section: string, index: number) => {
     const { value } = e.target;
-    setResumeData(prev => ({
-      ...prev,
-      [section]: prev[section as keyof ResumeData].map((item, i) =>
-        i === index ? value : item
-      )
-    }));
+    setResumeData(prev => {
+      const sectionData = prev[section as keyof ResumeData];
+      return {
+        ...prev,
+        [section]: Array.isArray(sectionData) ? sectionData.map((item, i) =>
+          i === index ? value : item
+        ) : sectionData
+      };
+    });
   };
 
   // 添加新的教育经历

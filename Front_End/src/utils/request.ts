@@ -43,6 +43,11 @@ service.interceptors.request.use(
     // 这里可以根据后端返回的状态码进行统一处理
     // 后端实际返回格式：{ status: 'success', data: ... } 或 { status: 'error', message: ... }
     
+    // 如果是二进制响应（如Blob），直接返回原始响应，不进行处理
+    if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
+      return response;
+    }
+    
     const res = response.data;
     
     // 转换为前端期望的ApiResponse格式

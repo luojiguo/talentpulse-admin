@@ -208,7 +208,7 @@ const App: React.FC = () => {
     try {
       // 调用后端角色切换验证接口
       const data = await userAPI.switchRole({
-        userId: currentUser.id,
+        userId: Number(currentUser.id),
         newRole: switchingRole,
         companyName: companyNameInput.trim()
       });
@@ -257,7 +257,7 @@ const App: React.FC = () => {
             try {
               // 直接调用后端角色切换验证接口
               const data = await userAPI.switchRole({
-                userId: currentUser.id,
+                userId: Number(currentUser.id),
                 newRole: newRole,
                 companyName: '' // 已认证企业，无需企业名称
               });
@@ -302,7 +302,7 @@ const App: React.FC = () => {
       try {
         // 直接调用后端角色切换验证接口
         const data = await userAPI.switchRole({
-          userId: currentUser.id,
+          userId: Number(currentUser.id),
           newRole: newRole,
           companyName: ''
         });

@@ -133,16 +133,21 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
         const newUserMsg = { role: 'user', text: prompt };
         
         // 生成新标题（如果当前是默认标题）
-        let newTitle = currentSession.title;
+        let newTitle = '新对话';
+        if ('title' in currentSession) {
+            newTitle = currentSession.title;
+        }
         if (newTitle === '新对话') {
             newTitle = generateSessionTitle(prompt);
         }
         
         // Optimistic UI Update
-        const updatedSession = {
-            ...currentSession,
+        const updatedSession: AIChatSession = {
+            ...currentSession as AIChatSession,
+            id: currentSessionId,
             title: newTitle,
-            messages: [...currentSession.messages, newUserMsg]
+            messages: [...currentSession.messages, newUserMsg],
+            timestamp: (currentSession as AIChatSession).timestamp || Date.now()
         };
         
         setSessions(prev => prev.map(s => s.id === currentSessionId ? updatedSession : s));
@@ -172,7 +177,12 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
             await aiSessionAPI.updateAISession(currentSessionId, finalSession.messages, finalSession.title);
             
             // Update state with final session
-            setSessions(prev => prev.map(s => s.id === currentSessionId ? finalSession : s));
+            const completeFinalSession: AIChatSession = {
+                ...finalSession,
+                id: currentSessionId,
+                timestamp: finalSession.timestamp || Date.now()
+            };
+            setSessions(prev => prev.map(s => s.id === currentSessionId ? completeFinalSession : s));
         } catch (error) {
             console.error("Failed to get AI response:", error);
         } finally {

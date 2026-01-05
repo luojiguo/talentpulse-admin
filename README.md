@@ -72,6 +72,12 @@ npm run dev:both
 
 ## ⚙️ 环境配置 (.env Example)
 
+导出数据库
+
+"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -d Talent -h localhost -f "C:\Users\28349\Desktop\temp\talentpulse-admin\Talent.sql"
+
+
+
 在 `backend` 目录下创建 `.env` 文件：
 
 ```env
@@ -147,8 +153,13 @@ backend/src/
 └── server.js          # 服务入口文件
 ```
 
+
+
 ## � License
+
 MIT
+
+
 
 ## 📄 License
 MIT

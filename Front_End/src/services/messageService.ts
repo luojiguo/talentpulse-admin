@@ -25,7 +25,7 @@ export const messageAPI = {
   },
 
   // 发送消息
-  sendMessage: (data: { conversationId: string | number, senderId: string | number, receiverId?: string | number, text: string, type?: string }) => {
+  sendMessage: (data: { conversationId: string | number, senderId: string | number, receiverId?: string | number, text: string, type?: string, quoted_message?: { id: string | number, text: string, sender_name: string, type?: string } }) => {
     return request.post('/messages', data);
   },
 
@@ -45,13 +45,45 @@ export const messageAPI = {
   },
 
   // 上传聊天图片
-  uploadChatImage: (conversationId: string | number, senderId: string | number, receiverId: string | number, file: File) => {
+  uploadChatImage: (conversationId: string | number, senderId: string | number, receiverId: string | number, file: File, quotedMessage?: any) => {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('senderId', senderId.toString());
     formData.append('receiverId', receiverId.toString());
+    if (quotedMessage) formData.append('quoted_message', JSON.stringify(quotedMessage));
 
     return request.post(`/messages/upload-image/${conversationId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 上传简历文件
+  uploadResumeFile: (conversationId: string | number, senderId: string | number, receiverId: string | number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('senderId', senderId.toString());
+    formData.append('receiverId', receiverId.toString());
+    formData.append('fileType', 'resume');
+
+    return request.post(`/messages/upload-file/${conversationId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  // 通用文件上传
+  uploadFile: (conversationId: string | number, senderId: string | number, receiverId: string | number, file: File, fileType?: string, quotedMessage?: any) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('senderId', senderId.toString());
+    formData.append('receiverId', receiverId.toString());
+    if (fileType) formData.append('fileType', fileType);
+    if (quotedMessage) formData.append('quoted_message', JSON.stringify(quotedMessage));
+
+    return request.post(`/messages/upload-file/${conversationId}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -71,5 +103,10 @@ export const messageAPI = {
   // 更新对话状态（置顶/隐藏）
   updateConversationStatus: (conversationId: string | number, data: { role: 'recruiter' | 'candidate', action: 'pin' | 'unpin' | 'hide' | 'unhide' }) => {
     return request.patch(`/messages/conversations/${conversationId}/status`, data);
+  },
+
+  // Update WeChat exchange status
+  updateExchangeStatus: (messageId: string | number, action: 'accept' | 'reject', userId: string | number, extraData?: any) => {
+    return request.put(`/messages/exchange/${messageId}`, { action, userId, ...extraData });
   },
 };

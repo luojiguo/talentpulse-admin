@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Modal, message } from 'antd';
-import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation } from '@/types/types';
+import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation, Message } from '@/types/types';
 import { userAPI, jobAPI, companyAPI, messageAPI, candidateAPI } from '@/services/apiService';
 import { useApi } from '@/hooks/useApi';
 import { socketService } from '@/services/socketService';
@@ -231,7 +231,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                 const existingMessages = conv.messages || [];
                 // Avoid duplicates by ID
                 if (existingMessages.some(m => m.id === message.id)) {
-                  return conv;
+                  // If it exists, it might be an update (like exchange accepted)
+                  return {
+                    ...conv,
+                    messages: existingMessages.map(m => m.id === message.id ? { ...m, ...message } : m)
+                  };
                 }
 
                 // Fuzzy Match Deduplication for Optimistic Updates
@@ -251,7 +255,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                     return {
                       ...conv,
                       messages: updatedMessages,
-                      lastMessage: message.type === 'text' ? message.text : '[图片]',
+                      lastMessage: message.type === 'image' ? '[图片]' : (message.type === 'file' ? '[文件]' : message.text),
                       lastTime: message.time
                     };
                   }
@@ -259,11 +263,13 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
                 return {
                   ...conv,
-                  lastMessage: message.type === 'text' ? message.text : '[图片]',
+                  lastMessage: message.type === 'image' ? '[图片]' : (message.type === 'file' ? '[文件]' : message.text),
                   lastTime: message.time || new Date().toISOString(),
                   updated_at: message.time || new Date().toISOString(),
                   totalMessages: (conv.totalMessages || 0) + 1,
-                  unreadCount: isCurrentConversation ? 0 : (conv.unreadCount || 0) + 1,
+
+                  candidateUnread: isCurrentConversation ? 0 : (conv.candidateUnread || 0) + 1, // Candidate unread logic
+                  unreadCount: isCurrentConversation ? 0 : (conv.unreadCount || 0) + 1, // Fallback
                   messages: [...existingMessages, {
                     ...message,
                     sender_name: message.sender_name || '对方',
@@ -274,11 +280,32 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               return conv;
             });
           } else {
-            // New conversation handling (optional: fetch full list or add incomplete stub)
+            // New conversation? Fetch everything
+            // For now, simpler to just fetch all conversations again to ensure sync
+            fetchConversations();
             return prevConversations;
           }
         });
       });
+
+      // Listen for message updates (e.g. exchange status change)
+      (socketService as any).socket?.on('message_updated', (updatedMessage: any) => {
+        console.log('Received message update:', updatedMessage);
+        setConversations(prevConversations => {
+          return prevConversations.map(conv => {
+            if (conv.id.toString() === updatedMessage.conversation_id.toString()) {
+              return {
+                ...conv,
+                messages: (conv.messages || []).map(m =>
+                  m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m
+                )
+              };
+            }
+            return conv;
+          });
+        });
+      });
+
     }
 
     return () => {
@@ -485,23 +512,34 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   }, []);
 
   // Handle Send Message
-  const handleSendMessage = useCallback(async (text: string, type: any = 'text') => {
+  const handleSendMessage = useCallback(async (text: string, type: any = 'text', quotedMessage?: { id: string | number | null, text: string, senderName: string | null, type?: string }) => {
     if (!activeConversationId) return;
+    // 对于exchange_request类型的消息，允许text为空
+    if (!text && type !== 'exchange_request') return;
 
     try {
       // 找到当前对话
       const conversation = conversations.find(c => c.id.toString() === activeConversationId.toString());
       if (!conversation) {
-        console.error('发送消息失败: 找不到当前对话');
-        return;
+        console.warn('本地未找到当前对话信息，尝试直接发送...');
+        // 不拦截，继续尝试发送，依赖后端处理接收者
       }
+
+      // 构建quoted_message对象
+      const quoted_message = quotedMessage && quotedMessage.id ? {
+        id: quotedMessage.id,
+        text: quotedMessage.text,
+        sender_name: quotedMessage.senderName,
+        type: quotedMessage.type || 'text'
+      } : undefined;
 
       console.log('准备发送消息:', {
         conversationId: activeConversationId,
         senderId: localCurrentUser.id,
         receiverId: undefined,
         text,
-        type
+        type,
+        quoted_message
       });
 
       // 优化：发送消息的同时本地更新，提升响应速度
@@ -510,8 +548,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         senderId: localCurrentUser.id,
         receiverId: undefined, // 后端会自动根据conversationId查找接收者
         text,
-        type
-      } as any);
+        type,
+        quoted_message
+      });
 
       console.log('发送消息响应:', response);
 
@@ -523,37 +562,49 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
       if (isSuccess) {
         // 更新本地对话列表
-        const updatedConversations = conversations.map(c => {
+        // 如果之前没找到 conversation (activeConversationId存在但列表里没有)，则需要立即刷新列表
+        if (!conversation) {
+          console.log('本地无对话信息，发送成功后立即刷新详情');
+          handleSelectConversation(activeConversationId);
+          fetchConversations();
+          return;
+        }
+
+        const updatedConversations: Conversation[] = conversations.map((c: Conversation) => {
           if (c.id.toString() === activeConversationId.toString()) {
-            // 创建新消息对象
-            const newMessage = {
+            // 创建新消息对象，确保符合Message接口
+            const newMessage: Message = {
               id: responseData.data?.id || Date.now(),
-              conversation_id: activeConversationId,
-              sender_id: localCurrentUser.id,
-              receiver_id: conversation.recruiterUserId || conversation.recruiter_user_id || conversation.recruiterId || conversation.recruiter_id || conversation.RecruiterId,
               text,
-              type,
-              status: 'sent',
+              type: type as any,
+              role: 'user',
               time: new Date().toISOString(),
-              created_at: new Date().toISOString(),
+              sender_id: localCurrentUser.id,
+              receiver_id: conversation.recruiterUserId || conversation.recruiterId,
               sender_name: localCurrentUser.name || '我',
-              sender_avatar: localCurrentUser.avatar
+              sender_avatar: localCurrentUser.avatar,
+              status: 'sent',
+              quoted_message: quoted_message as any
             };
 
             // Deduplication: Check if message (from socket) already exists
-            const msgExists = (c.messages || []).some((m: any) => m.id.toString() === newMessage.id.toString());
+            const msgExists = (c.messages || []).some(m => m.id.toString() === newMessage.id.toString());
             if (msgExists) {
               return c;
             }
 
+            // 更新messages数组，确保类型安全
+            const updatedMessages: Message[] = [...(c.messages || []), newMessage];
+
+            // 创建完整的Conversation对象
             return {
               ...c,
               lastMessage: text,
               lastTime: new Date().toISOString(),
-              total_messages: (c.total_messages || 0) + 1,
-              recruiter_unread: (c.recruiter_unread || 0) + 1,
-              updated_at: new Date().toISOString(),
-              messages: [...(c.messages || []), newMessage]
+              totalMessages: (c.totalMessages || 0) + 1,
+              recruiterUnread: (c.recruiterUnread || 0) + 1,
+              updatedAt: new Date().toISOString(),
+              messages: updatedMessages
             };
           }
           return c;
@@ -700,19 +751,20 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // Handle Upload Image Message
 
   // Handle Upload Image Message
-  const handleUploadImage = useCallback(async (conversationId: string | number, file: File) => {
+  const handleUploadImage = useCallback(async (conversationId: string | number, file: File, quotedMessage?: any) => {
     try {
       // 找到当前对话
       const conversation = conversations.find(c => c.id.toString() === conversationId.toString());
       if (!conversation) return;
 
-      const receiverId = conversation.recruiterUserId || conversation.recruiter_user_id || conversation.recruiterId || conversation.recruiter_id || conversation.RecruiterId;
+      const receiverId = conversation.recruiterUserId || conversation.recruiterId;
 
       const response = await messageAPI.uploadChatImage(
         conversationId,
         localCurrentUser.id,
         receiverId,
-        file
+        file,
+        quotedMessage
       );
 
       if ((response as any).status === 'success') {
@@ -721,6 +773,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           if (c.id.toString() === conversationId.toString()) {
             const newMessage = {
               ...response.data,
+              role: 'user' as const, // 明确指定role类型为'user'
               sender_name: localCurrentUser.name || '我',
               sender_avatar: localCurrentUser.avatar
             };
@@ -729,8 +782,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               ...c,
               lastMessage: '[图片]',
               lastTime: new Date().toISOString(),
-              total_messages: (c.total_messages || 0) + 1,
-              recruiter_unread: (c.recruiter_unread || 0) + 1,
+              totalMessages: (c.totalMessages || 0) + 1,
+              recruiterUnread: (c.recruiterUnread || 0) + 1,
               updated_at: new Date().toISOString(),
               messages: [...(c.messages || []), newMessage]
             };
@@ -771,6 +824,21 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     return () => clearInterval(interval); // 清理定时器
   }, [fetchConversations]);
 
+  // 监听刷新对话事件（当发送简历等操作后触发）
+  useEffect(() => {
+    const handleRefreshConversation = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.conversationId) {
+        handleSelectConversation(customEvent.detail.conversationId);
+      }
+    };
+
+    window.addEventListener('refreshConversation', handleRefreshConversation);
+    return () => {
+      window.removeEventListener('refreshConversation', handleRefreshConversation);
+    };
+  }, [handleSelectConversation]);
+
 
   // 处理用户资料数据
   const userProfile: Profile = userProfileData?.status === 'success' ? {
@@ -783,7 +851,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     jobStatus: userProfileData.data.jobStatus || '',
     bio: userProfileData.data.bio || '',
     experience: userProfileData.data.experience || '',
-    avatar: userProfileData.data.avatar || localCurrentUser.avatar
+    avatar: userProfileData.data.avatar || localCurrentUser.avatar,
+    wechat: userProfileData.data.wechat || localCurrentUser.wechat || ''
   } : {
     id: localCurrentUser.id,
     name: localCurrentUser.name,
@@ -794,8 +863,19 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     jobStatus: '',
     bio: '',
     experience: '',
-    avatar: localCurrentUser.avatar
+    avatar: localCurrentUser.avatar,
+    wechat: localCurrentUser.wechat || ''
   };
+
+  // 更新localCurrentUser，确保包含wechat信息
+  useEffect(() => {
+    if (userProfile.wechat && !localCurrentUser.wechat) {
+      setLocalCurrentUser(prev => ({
+        ...prev,
+        wechat: userProfile.wechat
+      }));
+    }
+  }, [userProfile.wechat, localCurrentUser.wechat]);
 
   // Handle Chat Redirect - 立即沟通功能
   const handleChatRedirect = async (jobId: string | number, recruiterId: string | number) => {
@@ -835,7 +915,12 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       });
 
       if ((response as any).status === 'success') {
-        const { conversationId, message: sentMessage } = response.data;
+        let { conversationId, message: sentMessage } = response.data;
+        // 确保sentMessage包含role字段
+        sentMessage = {
+          ...sentMessage,
+          role: 'user' as const
+        };
 
         // 创建新的对话对象，包含完整的招聘者信息，实现双向绑定
         const newConversation = {
@@ -843,6 +928,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           jobId,
           candidateId: localCurrentUser.id,
           recruiterId,
+          recruiterUserId: recruiterId, // 添加必填属性
           lastMessage: defaultMessage,
           lastTime: new Date().toISOString(),
           unreadCount: 0,
@@ -855,6 +941,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           updatedAt: new Date().toISOString(),
           job_title: jobTitle,
           company_name: companyName,
+          candidate_name: localCurrentUser.name || '我', // 添加必填属性
+          candidate_avatar: localCurrentUser.avatar || '', // 添加必填属性
           recruiter_name: recruiterName, // 直接从job对象获取，实现双向绑定
           recruiter_avatar: recruiterAvatar, // 直接从job对象获取，实现双向绑定
           recruiter_position: recruiterPosition, // 直接从job对象获取，实现双向绑定
@@ -877,7 +965,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               updatedAt: new Date().toISOString(),
               recruiter_name: recruiterName, // 更新招聘者信息，实现双向绑定
               recruiter_avatar: recruiterAvatar, // 更新招聘者信息，实现双向绑定
-              recruiter_position: recruiterPosition, // 更新招聘者信息，实现双向绑定
               messages: [...(updatedConversations[existingConversationIndex].messages || []), sentMessage]
             };
             return updatedConversations;

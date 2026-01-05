@@ -392,7 +392,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
                                                 <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
                                             </button>
                                             <button
-                                                onClick={() => onChat(job.id, job.recruiter_id || 0)}
+                                                onClick={() => onChat(Number(job.id), Number(job.recruiter_id) || 0)}
                                                 className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-md shadow-indigo-200 flex items-center"
                                             >
                                                 <MessageSquare className="w-4 h-4 mr-2" /> 立即沟通

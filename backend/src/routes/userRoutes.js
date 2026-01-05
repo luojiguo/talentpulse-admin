@@ -499,18 +499,37 @@ router.put('/:id', asyncHandler(async (req, res) => {
   const { name, email, phone, position, education, major, school, desired_position, skills, languages, emergency_contact, emergency_phone, address, wechat, linkedin, github, personal_website, company } = req.body;
   let { graduation_year, work_experience_years, birth_date, gender } = req.body;
 
-  // 处理整数类型的空字符串问题
-  if (graduation_year === '') graduation_year = null;
-  if (work_experience_years === '') work_experience_years = null;
-  if (birth_date === '') birth_date = null;
-  if (gender === '') gender = null;
-
   // 检查用户是否存在
   const userResult = await query('SELECT * FROM users WHERE id = $1', [id]);
   if (userResult.rows.length === 0) {
     throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
   }
   const currentUserRecord = userResult.rows[0];
+
+  // 使用当前用户记录的值作为默认值，只更新前端发送的字段
+  const updateData = {
+    name: name !== undefined ? name : currentUserRecord.name,
+    email: email !== undefined ? email : currentUserRecord.email,
+    phone: phone !== undefined ? phone : currentUserRecord.phone,
+    position: position !== undefined ? position : currentUserRecord.position,
+    education: education !== undefined ? education : currentUserRecord.education,
+    major: major !== undefined ? major : currentUserRecord.major,
+    school: school !== undefined ? school : currentUserRecord.school,
+    desired_position: desired_position !== undefined ? desired_position : currentUserRecord.desired_position,
+    skills: skills !== undefined ? skills : currentUserRecord.skills,
+    languages: languages !== undefined ? languages : currentUserRecord.languages,
+    emergency_contact: emergency_contact !== undefined ? emergency_contact : currentUserRecord.emergency_contact,
+    emergency_phone: emergency_phone !== undefined ? emergency_phone : currentUserRecord.emergency_phone,
+    address: address !== undefined ? address : currentUserRecord.address,
+    wechat: wechat !== undefined ? wechat : currentUserRecord.wechat,
+    linkedin: linkedin !== undefined ? linkedin : currentUserRecord.linkedin,
+    github: github !== undefined ? github : currentUserRecord.github,
+    personal_website: personal_website !== undefined ? personal_website : currentUserRecord.personal_website,
+    graduation_year: graduation_year !== undefined && graduation_year !== '' ? graduation_year : currentUserRecord.graduation_year,
+    work_experience_years: work_experience_years !== undefined && work_experience_years !== '' ? work_experience_years : currentUserRecord.work_experience_years,
+    birth_date: birth_date !== undefined && birth_date !== '' ? birth_date : currentUserRecord.birth_date,
+    gender: gender !== undefined && gender !== '' ? gender : currentUserRecord.gender
+  };
 
   // 检查邮箱冲突（如果更改了邮箱）
   if (email && email !== currentUserRecord.email) {
@@ -534,7 +553,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
     }
   }
 
-
   // 更新用户信息
   const updateResult = await query(
     `UPDATE users 
@@ -545,7 +563,14 @@ router.put('/:id', asyncHandler(async (req, res) => {
            address = $17, wechat = $18, linkedin = $19, github = $20, 
            personal_website = $21, updated_at = CURRENT_TIMESTAMP 
        WHERE id = $22 RETURNING *`,
-    [name, email, phone, position, gender, birth_date, education, major, school, graduation_year, work_experience_years, desired_position, skills, languages, emergency_contact, emergency_phone, address, wechat, linkedin, github, personal_website, id]
+    [
+      updateData.name, updateData.email, updateData.phone, updateData.position, updateData.gender, updateData.birth_date, 
+      updateData.education, updateData.major, updateData.school, updateData.graduation_year, 
+      updateData.work_experience_years, updateData.desired_position, updateData.skills, 
+      updateData.languages, updateData.emergency_contact, updateData.emergency_phone, 
+      updateData.address, updateData.wechat, updateData.linkedin, updateData.github, 
+      updateData.personal_website, id
+    ]
   );
 
   // 如果提供了公司信息，更新公司信息

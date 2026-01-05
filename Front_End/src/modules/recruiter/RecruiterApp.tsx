@@ -365,11 +365,30 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     }
                 });
             });
+
+            // Listen for message updates (e.g. exchange status change)
+            (socketService as any).socket?.on('message_updated', (updatedMessage: any) => {
+                console.log('Received message update (Recruiter):', updatedMessage);
+                setConversations(prevConversations => {
+                    return prevConversations.map(conv => {
+                        if (conv.id.toString() === updatedMessage.conversation_id.toString()) {
+                            return {
+                                ...conv,
+                                messages: (conv.messages || []).map(m =>
+                                    m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m
+                                )
+                            };
+                        }
+                        return conv;
+                    });
+                });
+            });
         }
 
         return () => {
             socketService.disconnect();
             socketService.offNewMessage();
+            (socketService as any).socket?.off('message_updated');
         };
     }, [currentUser.id]);
 
@@ -558,7 +577,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     const handleGenerateJD = async () => {
         if (!newJob.title || !newJob.skills) return;
         setIsGeneratingJD(true);
-        const description = await generateJobDescription(newJob.title, newJob.skills);
+        const description = await generateJobDescription(newJob.title, newJob.skills.join(','));
         setNewJob(prev => ({ ...prev, description }));
         setIsGeneratingJD(false);
     };
@@ -643,7 +662,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     recruiter_id: newJobFromDB.recruiter_id,
                     recruiter_name: currentUser.name,
                     recruiter_avatar: processAvatarUrl(currentUser.avatar),
-                    recruiter_position: profile.company.position || '未知职位',
+                    recruiter_position: profile.position || '未知职位',
                     applicants: newJobFromDB.applications_count || 0,
                     status: newJobFromDB.status === 'active' || newJobFromDB.status === 'Active' ? 'active' : 'closed',
                     postedDate: new Date(newJobFromDB.publish_date || newJobFromDB.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
@@ -998,8 +1017,10 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
         setViewingJobId(jobId);
     };
 
-    const handleSendMessage = async (text: string, type: any = 'text') => {
-        if (!activeConversationId || !text) return;
+    const handleSendMessage = async (text: string, type: any = 'text', quotedMessage?: { id: string | number | null, text: string, senderName: string | null, type?: string }) => {
+        if (!activeConversationId) return;
+        // 对于exchange_request类型的消息，允许text为空
+        if (!text && type !== 'exchange_request') return;
 
         try {
             // 获取当前对话
@@ -1015,12 +1036,21 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                 return;
             }
 
+            // 构建quoted_message对象
+            const quoted_message = quotedMessage && quotedMessage.id ? {
+                id: quotedMessage.id,
+                text: quotedMessage.text,
+                sender_name: quotedMessage.senderName,
+                type: quotedMessage.type || 'text'
+            } : undefined;
+
             const response = await messageAPI.sendMessage({
                 conversationId: activeConversationId,
                 senderId: currentUser.id,
                 receiverId,
                 text,
-                type
+                type,
+                quoted_message
             });
 
             // 更新本地状态
@@ -1034,7 +1064,8 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     role: 'ai', // 'ai' represents recruiter self
                     time: new Date().toISOString(),
                     type: type || 'text',
-                    status: 'sent'
+                    status: 'sent',
+                    quoted_message
                 };
 
                 // 如果对话有messages数组，直接添加新消息
@@ -1286,28 +1317,29 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     <Route
                         path="/candidates"
                         element={
-                            <CandidatesView candidates={candidates} />
+                            <CandidatesView candidates={candidates} currentUserId={currentUser.id} />
                         }
                     />
                     <Route
                         path="/messages"
                         element={
                             <RecruiterMessageScreen
-                                    conversations={conversations}
-                                    candidates={candidates}
-                                    jobs={jobs}
-                                    activeConversationId={activeConversationId}
-                                    onSelectConversation={setActiveConversationId}
-                                    onSendMessage={handleSendMessage}
-                                    onDeleteMessage={handleDeleteMessage}
-                                    onDeleteConversation={handleDeleteConversation}
-                                    onLoadMoreMessages={handleLoadMoreMessages}
-                                    currentUser={currentUser}
-                                    isMessagesLoading={messagesLoading}
-                                    onPinConversation={handlePinConversation}
-                                    onHideConversation={handleHideConversation}
-                                    companyAddress={profile.company.address}
-                                />
+                                conversations={conversations}
+                                candidates={candidates}
+                                jobs={jobs}
+                                activeConversationId={activeConversationId}
+                                onSelectConversation={setActiveConversationId}
+                                onSendMessage={handleSendMessage}
+                                onDeleteMessage={handleDeleteMessage}
+                                onDeleteConversation={handleDeleteConversation}
+                                onLoadMoreMessages={handleLoadMoreMessages}
+                                currentUser={{ ...currentUser, ...profile }}
+                                isMessagesLoading={messagesLoading}
+                                onPinConversation={handlePinConversation}
+                                onHideConversation={handleHideConversation}
+                                currentUserId={Number(currentUser?.id || 0)}
+                                companyAddress={profile.company.address}
+                            />
                         }
                     />
                     <Route
@@ -1323,10 +1355,12 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                                 onDeleteMessage={handleDeleteMessage}
                                 onDeleteConversation={handleDeleteConversation}
                                 onLoadMoreMessages={handleLoadMoreMessages}
-                                currentUser={currentUser}
+                                currentUser={{ ...currentUser, ...profile }}
                                 isMessagesLoading={messagesLoading}
                                 onPinConversation={handlePinConversation}
                                 onHideConversation={handleHideConversation}
+                                currentUserId={Number(currentUser?.id || 0)}
+                                companyAddress={profile.company.address}
                             />
                         }
                     />
@@ -1390,7 +1424,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                                     } else {
                                         setIsPostModalOpen(false);
                                     }
-                                    setNewJob({ title: '', location: '深圳', salary: '', description: '', skills: [''], preferredSkills: [''], benefits: [''] });
+                                    setNewJob({ title: '', location: '深圳', salary: '', description: '', skills: [''], preferredSkills: [''], experience: '1-3年', degree: '本科', type: '全职', workMode: '现场', jobLevel: '初级', hiringCount: 1, urgency: '普通', department: '', benefits: [''], expireDate: '' });
                                 }}
                                 className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
                             >

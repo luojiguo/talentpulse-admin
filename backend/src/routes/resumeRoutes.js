@@ -790,33 +790,89 @@ router.get('/file/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { view } = req.query;
 
-    // 1. 获取简历信息
-    const resumeResult = await query('SELECT * FROM resumes WHERE id = $1', [id]);
+    try {
+        console.log('=== 简历文件下载请求开始 ===');
+        console.log('请求ID:', id);
+        console.log('请求参数:', req.query);
 
-    if (resumeResult.rows.length === 0) {
-        const error = new Error('简历不存在');
-        error.statusCode = 404;
+        // 1. 获取简历信息
+        const resumeResult = await query('SELECT * FROM resumes WHERE id = $1', [id]);
+
+        console.log('数据库查询结果:', resumeResult);
+        console.log('结果行数:', resumeResult.rows.length);
+
+        if (resumeResult.rows.length === 0) {
+            const error = new Error('简历不存在');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const resume = resumeResult.rows[0];
+        console.log('简历信息:', resume);
+        console.log('resume_file_url:', resume.resume_file_url);
+
+        // 2. 构建文件路径
+        let filePath;
+        if (resume.resume_file_url) {
+            // 替换 /User_Resume/ 前缀，得到相对路径
+            const relativePath = resume.resume_file_url.replace('/User_Resume/', '');
+            console.log('相对路径:', relativePath);
+            
+            // 构建完整文件路径
+            filePath = path.join(resumesRootDir, relativePath);
+            console.log('完整文件路径:', filePath);
+        } else {
+            throw new Error('简历文件URL不存在');
+        }
+
+        if (!fs.existsSync(filePath)) {
+            console.error('文件不存在:', filePath);
+            const error = new Error('文件不存在');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        // 获取原始文件名，处理编码问题
+        let originalFilename = resume.resume_file_name || 'resume';
+        if (originalFilename) {
+            try {
+                if (/%[0-9A-Fa-f]{2}/.test(originalFilename)) {
+                    originalFilename = decodeURIComponent(originalFilename);
+                }
+            } catch (e) {
+                console.warn('简历文件名解码失败:', e.message);
+            }
+        }
+
+        // 获取文件扩展名
+        const ext = path.extname(originalFilename) || '.pdf';
+        const baseName = path.basename(originalFilename, ext);
+        const safeFilename = `${baseName}${ext}`;
+
+        // 3. 根据view参数决定是查看还是下载
+        if (view === 'true') {
+            // 在线查看 - 设置正确的Content-Type
+            res.setHeader('Content-Type', resume.resume_file_type || 'application/octet-stream');
+            res.sendFile(filePath);
+        } else {
+            // 下载 - 修复中文文件名编码问题
+            // 只使用 RFC 5987 编码格式，不使用原始文件名，避免 HTTP 头字符错误
+            const encodedFilename = encodeURIComponent(safeFilename).replace(/['()]/g, escape);
+            
+            // 只设置 filename* 格式，不使用 filename="${safeFilename}" 格式，避免无效字符
+            res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
+            res.setHeader('Content-Type', resume.resume_file_type || 'application/octet-stream');
+            
+            res.download(filePath, safeFilename);
+        }
+
+        console.log('=== 简历文件下载请求结束 ===');
+    } catch (error) {
+        console.error('=== 简历文件下载错误 ===');
+        console.error('错误类型:', error.name);
+        console.error('错误信息:', error.message);
+        console.error('错误堆栈:', error.stack);
         throw error;
-    }
-
-    const resume = resumeResult.rows[0];
-
-    // 2. 构建文件路径
-    const filePath = path.join(resumesRootDir, resume.resume_file_url.replace('/User_Resume/', ''));
-
-    if (!fs.existsSync(filePath)) {
-        const error = new Error('文件不存在');
-        error.statusCode = 404;
-        throw error;
-    }
-
-    // 3. 根据view参数决定是查看还是下载
-    if (view === 'true') {
-        // 在线查看
-        res.sendFile(filePath);
-    } else {
-        // 下载
-        res.download(filePath, resume.resume_file_name);
     }
 }));
 

@@ -1,4 +1,4 @@
-// 消息相关路由
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
@@ -401,10 +401,10 @@ router.post('/', async (req, res) => {
     // 发送消息
     const newMessage = await pool.query(`
       INSERT INTO messages (
-        conversation_id, sender_id, receiver_id, text, type, status, time, is_deleted
-      ) VALUES ($1, $2, $3, $4, $5, 'sent', CURRENT_TIMESTAMP, false)
+        conversation_id, sender_id, receiver_id, text, type, status, time, is_deleted, quoted_message
+      ) VALUES ($1, $2, $3, $4, $5, 'sent', CURRENT_TIMESTAMP, false, $6)
       RETURNING *
-    `, [conversationId, senderId, actualReceiverId, text, type]);
+    `, [conversationId, senderId, actualReceiverId, text, type, req.body.quoted_message || null]);
 
     // 确定要更新的未读字段：如果发送者是候选人，则招聘者有未读消息，反之亦然
     const unreadField = senderIdNum === candidateUserIdNum ? 'recruiter_unread' : 'candidate_unread';
@@ -829,10 +829,10 @@ router.post('/upload-image/:conversationId', (req, res) => {
         INSERT INTO messages (
           conversation_id, sender_id, receiver_id, text, type, 
           file_url, file_name, file_size, file_type, 
-          status, time, is_deleted
-        ) VALUES ($1, $2, $3, $4, 'image', $5, $6, $7, $8, 'sent', CURRENT_TIMESTAMP, false)
+          status, time, is_deleted, quoted_message
+        ) VALUES ($1, $2, $3, $4, 'image', $5, $6, $7, $8, 'sent', CURRENT_TIMESTAMP, false, $9)
         RETURNING *
-      `, [conversationId, senderId, receiverId, '[图片]', fileUrl, fileName, fileSize, fileType]);
+      `, [conversationId, senderId, receiverId, '[图片]', fileUrl, fileName, fileSize, fileType, req.body.quoted_message ? JSON.parse(req.body.quoted_message) : null]);
 
       // 更新对话的最后一条消息
       const unreadField = await getUnreadField(conversationId, senderId);
@@ -908,5 +908,294 @@ async function getUnreadField(conversationId, senderId) {
   const { candidate_user_id } = conversation.rows[0];
   return senderId === candidate_user_id ? 'recruiter_unread' : 'candidate_unread';
 }
+
+// 配置通用的文件存储（支持简历等文件）
+const fileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const { conversationId } = req.params;
+    const conversationDir = path.join(baseUploadDir, conversationId.toString());
+    if (!fs.existsSync(conversationDir)) {
+      fs.mkdirSync(conversationDir, { recursive: true });
+    }
+    cb(null, conversationDir);
+  },
+  filename: (req, file, cb) => {
+    // 确保文件名使用正确的 UTF-8 编码
+    let originalName = file.originalname;
+
+    // 修复文件名编码问题
+    try {
+      // 检测并修复 UTF-8 编码
+      originalName = Buffer.from(originalName, 'binary').toString('utf-8');
+    } catch (e) {
+      console.warn('文件名编码修复失败:', e);
+    }
+
+    const ext = path.extname(originalName);
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    // 只替换特殊字符，保留中文和常见字符
+    const baseName = path.basename(originalName, ext).replace(/[^a-zA-Z0-9\u4e00-\u9fa5\s\-_]/g, '_');
+    cb(null, `${baseName}_${timestamp}_${random}${ext}`);
+  }
+});
+
+const fileUpload = multer({
+  storage: fileStorage,
+  limits: {
+    fileSize: 20 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'text/plain'
+    ];
+    const extname = /\.(pdf|doc|docx|xls|xlsx|png|jpg|jpeg|gif|txt)$/i.test(file.originalname);
+    if (allowedTypes.includes(file.mimetype) || extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('不支持的文件类型，请上传 PDF、Word、Excel、图片等文件'));
+    }
+  }
+});
+
+// 上传聊天文件（支持简历等）
+router.post('/upload-file/:conversationId', (req, res) => {
+  const { conversationId } = req.params;
+
+  fileUpload.single('file')(req, res, async (err) => {
+    if (err) {
+      console.error('简历上传 - Multer错误:', err.message);
+      return res.status(400).json({ status: 'error', message: err.message });
+    }
+
+    if (!req.file) {
+      console.error('简历上传 - 没有文件');
+      return res.status(400).json({ status: 'error', message: '未选择文件' });
+    }
+
+    console.log('简历上传 - 接收到文件:', {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      conversationId,
+      body: req.body
+    });
+
+    try {
+      const { senderId, receiverId, fileType } = req.body;
+
+      console.log('简历上传 - 参数:', { senderId, receiverId, fileType });
+
+      if (!senderId || !receiverId) {
+        if (req.file) {
+          fs.unlinkSync(req.file.path);
+        }
+        console.error('简历上传 - 缺少必要参数');
+        return res.status(400).json({ status: 'error', message: 'senderId 和 receiverId 是必填项' });
+      }
+
+      const fileUrl = `/uploads/chats/${conversationId}/${req.file.filename}`;
+      // 修复文件名编码问题 - 将 latin1 转换为 UTF-8
+      let fileName = req.file.originalname;
+      try {
+        fileName = Buffer.from(fileName, 'latin1').toString('utf-8');
+        console.log('修复后的文件名:', fileName);
+      } catch (e) {
+        console.warn('修复文件名编码失败:', e);
+      }
+      const fileSize = req.file.size;
+      const fileTypeVal = req.file.mimetype;
+
+      let messageType = 'file';
+      if (fileTypeVal.startsWith('image/')) {
+        messageType = 'image';
+      }
+
+      let messageText = `[文件] ${fileName}`;
+      if (fileType === 'resume') {
+        messageText = `[简历] ${fileName}`;
+      }
+
+      // 尝试解析 quoted_message
+      let quotedMessageObj = null;
+      try {
+        if (req.body.quoted_message) {
+          quotedMessageObj = typeof req.body.quoted_message === 'string'
+            ? JSON.parse(req.body.quoted_message)
+            : req.body.quoted_message;
+        }
+      } catch (e) {
+        console.warn('解析 quoted_message 失败:', e);
+      }
+
+      console.log('简历上传 - 准备插入数据库:', { conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal, quotedMessageObj });
+
+      const result = await pool.query(`
+        INSERT INTO messages (
+          conversation_id, sender_id, receiver_id, text, type, 
+          file_url, file_name, file_size, file_type, 
+          status, time, is_deleted, quoted_message
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sent', CURRENT_TIMESTAMP, false, $10)
+        RETURNING *
+      `, [conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal, quotedMessageObj]);
+
+      console.log('简历上传 - 数据库插入成功:', result.rows[0].id);
+
+      const unreadField = await getUnreadField(conversationId, senderId);
+
+      await pool.query(`
+        UPDATE conversations 
+        SET 
+          last_message = $1,
+          last_time = CURRENT_TIMESTAMP,
+          total_messages = total_messages + 1,
+          updated_at = CURRENT_TIMESTAMP,
+          ${unreadField} = ${unreadField} + 1,
+          recruiter_hidden = false,
+          candidate_hidden = false,
+          recruiter_deleted_at = NULL,
+          candidate_deleted_at = NULL
+        WHERE id = $2
+      `, [messageText, conversationId]);
+
+      const conversationInfo = await pool.query(`
+        SELECT
+          c.candidate_id, c.recruiter_id,
+          u1.name as candidate_name, u1.avatar as candidate_avatar, cd.user_id as candidate_user_id,
+          u2.name as recruiter_name, u2.avatar as recruiter_avatar, r.user_id as recruiter_user_id
+        FROM conversations c
+        LEFT JOIN candidates cd ON c.candidate_id = cd.id
+        LEFT JOIN recruiters r ON c.recruiter_id = r.id
+        LEFT JOIN users u1 ON cd.user_id = u1.id
+        LEFT JOIN users u2 ON r.user_id = u2.id
+        WHERE c.id = $1
+      `, [conversationId]);
+
+      if (conversationInfo.rows.length > 0) {
+        const info = conversationInfo.rows[0];
+        const senderIdNum = parseInt(senderId);
+        const candidateUserIdNum = parseInt(info.candidate_user_id);
+
+        notifyConversation(conversationId, 'new_message', {
+          ...result.rows[0],
+          sender_name: senderIdNum === candidateUserIdNum ? (info.candidate_name || '求职者') : (info.recruiter_name || '招聘者'),
+          sender_avatar: senderIdNum === candidateUserIdNum ? (info.candidate_avatar || '') : (info.recruiter_avatar || '')
+        });
+      }
+
+      res.json({
+        status: 'success',
+        data: result.rows[0],
+        message: '文件发送成功'
+      });
+    } catch (error) {
+      console.error('简历上传 - 错误:', error.message);
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ status: 'error', message: error.message });
+    }
+  });
+});
+
+// Update WeChat exchange status
+router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const { action, userId } = req.body; // userId helps verify identity
+
+  // Get message
+  const msgResult = await pool.query('SELECT * FROM messages WHERE id = $1', [messageId]);
+  if (msgResult.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+  const msg = msgResult.rows[0];
+
+  // Verify permission: User must be a participant of the conversation and NOT the sender
+  // This is more robust than checking msg.receiver_id which might be inconsistent in legacy data
+  const msgSenderId = msg.sender_id.toString();
+  const requestUserId = userId ? userId.toString() : '';
+
+  // 1. Check if user is the sender (Senders cannot accept their own request)
+  if (msgSenderId === requestUserId) {
+    return res.status(403).json({
+      error: 'Unauthorized operation',
+      message: 'You cannot accept your own request'
+    });
+  }
+
+  // 2. Check if user is a participant of the conversation
+  const convResult = await pool.query(`
+    SELECT 
+      cd.user_id as candidate_user_id,
+      r.user_id as recruiter_user_id
+    FROM conversations c
+    LEFT JOIN candidates cd ON c.candidate_id = cd.id
+    LEFT JOIN recruiters r ON c.recruiter_id = r.id
+    WHERE c.id = $1
+  `, [msg.conversation_id]);
+
+  if (convResult.rows.length === 0) {
+    return res.status(404).json({ error: 'Conversation not found' });
+  }
+
+  const { candidate_user_id, recruiter_user_id } = convResult.rows[0];
+  const isParticipant = (candidate_user_id && candidate_user_id.toString() === requestUserId) ||
+    (recruiter_user_id && recruiter_user_id.toString() === requestUserId);
+
+  if (!isParticipant) {
+    console.log(`[Exchange Debug] Permission Denied. User ${requestUserId} is not in conversation ${msg.conversation_id}`);
+    return res.status(403).json({
+      error: 'Unauthorized operation',
+      message: 'You are not a participant of this conversation'
+    });
+  }
+
+  // If we are here, the user is a participant and not the sender. 
+  // We can safely assume they are the intended receiver.
+
+  if (action === 'accept') {
+    // 1. Fetch Initiator's WeChat (Sender)
+    const senderRes = await pool.query('SELECT wechat FROM users WHERE id = $1', [msg.sender_id]);
+    const initiatorWechat = senderRes.rows[0]?.wechat || '';
+
+    // 2. Fetch Receiver's WeChat (Current User)
+    const receiverRes = await pool.query('SELECT wechat FROM users WHERE id = $1', [userId]);
+    const receiverWechat = receiverRes.rows[0]?.wechat || '';
+
+    // 3. Update Message to include BOTH
+    const newContent = JSON.stringify({
+      status: 'accepted',
+      initiator_wechat: initiatorWechat,
+      receiver_wechat: receiverWechat
+    });
+
+    const updateRes = await pool.query(
+      'UPDATE messages SET text = $1 WHERE id = $2 RETURNING *',
+      [newContent, messageId]
+    );
+
+    // Notify
+    notifyConversation(msg.conversation_id, 'message_updated', updateRes.rows[0]);
+    return res.json({ status: 'success', data: updateRes.rows[0] });
+
+  } else if (action === 'reject') {
+    const newContent = JSON.stringify({ status: 'rejected' });
+    const updateRes = await pool.query(
+      'UPDATE messages SET text = $1 WHERE id = $2 RETURNING *',
+      [newContent, messageId]
+    );
+    notifyConversation(msg.conversation_id, 'message_updated', updateRes.rows[0]);
+    return res.json({ status: 'success', data: updateRes.rows[0] });
+  }
+
+  return res.status(400).json({ error: 'Invalid action' });
+}));
 
 module.exports = router;
