@@ -1,910 +1,298 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Modal, message } from 'antd';
-import { userAPI, candidateAPI, resumeAPI } from '../../../services/apiService';
-import { processAvatarUrl } from '@/components/AvatarUploadComponent';
-import UserAvatar from '@/components/UserAvatar';
 
+import React, { useState, useEffect } from 'react';
+import { Layout, message, Button, Upload, Avatar, Modal, Affix } from 'antd';
+import { UserOutlined, UploadOutlined } from '@ant-design/icons';
+import { resumeAPI, userAPI, configAPI, candidateAPI } from '../../../services/apiService';
+import ProfileSidebar from '../components/Profile/ProfileSidebar';
+import PersonalInfoSection from '../components/Profile/PersonalInfoSection';
+import WorkExperienceSection from '../components/Profile/WorkExperienceSection';
+import ProjectExperienceSection from '../components/Profile/ProjectExperienceSection';
+import EducationSection from '../components/Profile/EducationSection';
+import ExpectedJobSection from '../components/Profile/ExpectedJobSection';
+import PersonalAdvantageSection from '../components/Profile/PersonalAdvantageSection';
+import SkillsSection from '../components/Profile/SkillsSection';
+import ResumeManageSection from '../components/Profile/ResumeManageSection';
 
-// 修复文件名编码问题的函数
-const fixFilenameEncoding = (filename: string): string => {
-    try {
-        if (!filename) return '';
-        
-        // 尝试多种方式修复中文文件名编码
-        let fixedFilename = filename;
-        
-        // 1. 检查是否需要URL解码（包含%符号）
-        if (filename.includes('%')) {
-            try {
-                fixedFilename = decodeURIComponent(filename);
-            } catch (decodeErr) {
-                console.warn('URL解码失败，使用原始文件名:', filename);
-            }
-        }
-        
-        return fixedFilename;
-    } catch (err) {
-        console.warn('Filename encoding fix failed, using original:', filename);
-        return filename;
-    }
-};
+import ResumePreviewModal from '../components/Profile/ResumePreviewModal';
 
-// 用户数据接口定义
-interface UserData {
-    id: number;
-    name: string;
-    email: string;
-    phone: string;
-    gender: string;
-    birth_date: string | Date;
-    education: string;
-    major: string;
-    school: string;
-    graduation_year: string;
-    work_experience_years: string;
-    desired_position: string;
-    skills: string;
-    languages: string;
-    avatar: string;
-    wechat?: string;
-}
+const { Content } = Layout;
 
-// 求职者数据接口定义
-interface CandidateData {
-    summary?: string;
-    expected_salary_min?: number;
-    expected_salary_max?: number;
-    availability_status?: string;
-    preferred_locations?: string;
-}
-
+// 定义组件属性接口
 interface ProfileScreenProps {
     currentUser?: { id: number | string };
     onUpdateUser?: (user: any) => void;
 }
 
-const ProfileScreen: React.FC<ProfileScreenProps> = ({ currentUser, onUpdateUser }) => {
-    // Debug logging
-    console.log('ProfileScreen rendering', { currentUser });
+/**
+ * 候选人个人资料页面组件
+ * 
+ * 此组件作为候选人的主要个人资料页面，包含以下功能：
+ * 1. 展示和编辑个人信息、工作经历、项目经历、教育经历等。
+ * 2. 侧边栏导航，支持滚动定位。
+ * 3. 简历管理（上传、查看附件简历）。
+ * 4. 简历预览和导出功能。
+ * 5. 响应式布局，适配桌面、平板和移动设备。
+ */
+const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
+    // ---- 状态定义 ----
+    const [user, setUser] = useState<any>(null); // 存储用户详细信息
+    const [loading, setLoading] = useState(true); // 页面加载状态
+    const [activeSection, setActiveSection] = useState('personal-info'); // 当前高亮的侧边栏菜单项
+    const [dictionaries, setDictionaries] = useState<any>({}); // 字典数据（如行业、职位等）
+    const [showPreview, setShowPreview] = useState(false); // 控制简历预览模态框的显示
 
-    const [user, setUser] = useState<UserData | null>(null);
-    const [candidateProfile, setCandidateProfile] = useState<CandidateData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 简历相关状态
-    const [resumes, setResumes] = useState<any[]>([]);
-    const [resumeLoading, setResumeLoading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const resumeFileInputRef = useRef<HTMLInputElement>(null);
 
-    // 表单状态
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        phone: '',
-        gender: '',
-        birth_date: '',
-        education: '',
-        major: '',
-        school: '',
-        graduation_year: '',
-        work_experience_years: '',
-        desired_position: '',
-        languages: '',
-        wechat: '',
-        // 求职者特定字段
-        summary: '',
-        expected_salary_min: '',
-        expected_salary_max: '',
-        availability_status: 'available', // available, employed, open_to_offers
-        preferred_locations: '',
-    });
+    // 计算资料完整度 (模拟或简单逻辑)
+    // 这里的逻辑基于关键字段是否填写来计算百分比
+    const completionPercentage = user ? Math.min(100, (
+        (user.name ? 10 : 0) +
+        (user.gender ? 5 : 0) +
+        (user.phone ? 10 : 0) +
+        (user.email ? 10 : 0) +
+        (user.major ? 10 : 0) +
+        (user.summary ? 20 : 0) +
+        (user.education ? 15 : 0) +
+        (user.work_experience_years ? 10 : 0) +
+        (user.skills ? 10 : 0)
+    )) : 0;
 
-    const [genderOptions, setGenderOptions] = useState<string[]>([]);
+    // 获取当前用户ID，优先使用props传入的，否则从本地存储获取
+    const userId = props.currentUser?.id || (JSON.parse(localStorage.getItem('user') || '{}').id);
 
-    useEffect(() => {
-        // 优先使用传入的 currentUser.id，如果不存在则回退到 localStorage
-        const userId = currentUser?.id || localStorage.getItem('userId');
-        console.log('ProfileScreen effect triggered', { userId, currentUser });
+    // ---- 事件处理函数 ----
 
-        if (userId) {
-            fetchData();
-            fetchGenderOptions();
-            fetchResumes();
-        } else {
-            console.error('ProfileScreen: No user ID found');
-            setError('未找到用户信息，请重新登录');
-            setLoading(false);
-        }
-        // fix: 仅当ID变化时重新加载，避免name变化导致的死循环刷新
-    }, [currentUser?.id]);
 
-    const fetchGenderOptions = async () => {
-        try {
-            const res = await userAPI.getGenderOptions();
-            if (res.data && Array.isArray(res.data)) {
-                setGenderOptions(res.data);
-            }
-        } catch (e) {
-            console.error('获取性别选项失败', e);
-            // Fallback
-            setGenderOptions(['男', '女', '其他']);
-        }
-    };
-
-    const fetchData = async () => {
-        try {
-            // 不设置 loading 为 true，避免页面空白
-            setError(null);
-            // 优先使用传入的 currentUser.id，如果不存在则回退到 localStorage
-            const userId = currentUser?.id || localStorage.getItem('userId');
-            if (!userId) {
-                throw new Error('未找到用户ID');
-            }
-            console.log('Fetching data for user:', userId);
-
-            // 获取用户基本信息
-            const userRes = await userAPI.getUserById(userId);
-            console.log('ProfileScreen: user API response:', userRes);
-            const userData: UserData = userRes.data;
-
-            if (!userData) {
-                throw new Error('获取用户数据为空');
-            }
-
-            // 获取求职者档案信息 (如果存在)
-            let candidateData: CandidateData = {};
-            try {
-                const candidateRes = await candidateAPI.getCandidateProfile(userId);
-                console.log('Candidate profile response:', candidateRes);
-                if (candidateRes.data) {
-                    candidateData = candidateRes.data;
+    /**
+     * 获取用户数据和候选人资料
+     * 并行请求用户基本信息和候选人详细档案，合并后更新状态
+     * @param updatedData 可选参数：如果提供，则直接用于更新本地状态，避免重新请求
+     */
+    const fetchUserData = async (updatedData?: any) => {
+        // 🚀 优化：如果提供了更新数据，直接合并到当前状态，避免刷新
+        if (updatedData) {
+            setUser((prevUser: any) => {
+                const newUser = { ...prevUser, ...updatedData, id: userId };
+                if (props.onUpdateUser) {
+                    setTimeout(() => props.onUpdateUser!(newUser), 0);
                 }
-            } catch (e) {
-                console.warn('Failed to fetch candidate profile (may not exist yet):', e);
-            }
-
-            // 日期格式化辅助函数
-            const formatDate = (date: string | Date | null | undefined) => {
-                if (!date) return '';
-                if (date instanceof Date) return date.toISOString().split('T')[0];
-                if (typeof date === 'string') return date.split('T')[0];
-                return '';
-            };
-
-            // 初始化表单数据
-            const newFormData = {
-                name: userData.name || '',
-                email: userData.email || '',
-                phone: userData.phone || '',
-                gender: userData.gender || '',
-                birth_date: formatDate(userData.birth_date),
-                education: userData.education || '',
-                major: userData.major || '',
-                school: userData.school || '',
-                graduation_year: userData.graduation_year || '',
-                work_experience_years: userData.work_experience_years || '',
-                desired_position: userData.desired_position || '',
-                languages: userData.languages || '',
-                wechat: userData.wechat || '',
-
-                // 求职者字段
-                summary: candidateData.summary || '',
-                expected_salary_min: candidateData.expected_salary_min ? String(candidateData.expected_salary_min) : '',
-                expected_salary_max: candidateData.expected_salary_max ? String(candidateData.expected_salary_max) : '',
-                availability_status: candidateData.availability_status || 'available',
-                preferred_locations: candidateData.preferred_locations || '',
-            };
-
-            // 同时更新所有状态，确保页面不会出现空白
-            setUser(userData);
-            setCandidateProfile(candidateData);
-            setFormData(newFormData);
-
-            // 安全修复：仅当 fetched data 与 currentUser prop 不一致时才更新父组件
-            // 这打破了无限循环：fetch -> update parent -> prop change -> useEffect -> fetch -> NO update -> LOOP ENDS
-            if (onUpdateUser && currentUser) {
-                // 比较多个关键字段，确保任何用户信息更新都会触发导航栏同步
-                const shouldUpdate = 
-                    userData.name !== (currentUser as any).name ||
-                    userData.avatar !== (currentUser as any).avatar ||
-                    userData.email !== (currentUser as any).email;
-                
-                if (shouldUpdate) {
-                    console.log('Syncing user data to navbar:', userData.name);
-                    onUpdateUser(userData);
-                    
-                    // 更新 localStorage 中的用户信息，确保刷新页面后显示最新数据
-                    const currentUserFromStorage = localStorage.getItem('currentUser');
-                    if (currentUserFromStorage) {
-                        const updatedUser = {
-                            ...JSON.parse(currentUserFromStorage),
-                            name: userData.name,
-                            avatar: userData.avatar,
-                            email: userData.email
-                        };
-                        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-                    }
-                }
-            }
-
-        } catch (error: any) {
-            console.error('加载个人资料失败:', error);
-            setError(error.message || '加载个人资料失败');
-            message.error(error.message || '加载个人资料失败');
-        } finally {
-            // 始终设置 loading 为 false，确保页面可以正常显示
-            setLoading(false);
-        }
-    };
-
-    // 获取简历列表
-    const fetchResumes = async () => {
-        try {
-            setResumeLoading(true);
-            const userId = currentUser?.id || localStorage.getItem('userId');
-            if (!userId) {
-                // throw new Error('未找到用户ID'); // Already handled in main fetch
-                return;
-            }
-
-            const res = await resumeAPI.getUserResumes(userId);
-            if ((res as any).status === 'success') {
-                setResumes(res.data || []);
-            }
-        } catch (error: any) {
-            console.error('获取简历列表失败:', error);
-        } finally {
-            setResumeLoading(false);
-        }
-    };
-
-    // 上传简历
-    const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        // 文件大小验证：不超过10MB
-        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-        if (file.size > MAX_FILE_SIZE) {
-            message.error('文件大小不能超过10MB');
+                return newUser;
+            });
             return;
         }
 
+        // 否则从API重新获取完整数据
+        if (!userId) return;
         try {
-            setSaving(true);
-            setUploadProgress(0);
-            const userId = currentUser?.id || localStorage.getItem('userId');
-            if (!userId) {
-                throw new Error('未找到用户ID');
-            }
+            setLoading(true);
+            // 并行请求：获取用户信息 和 获取候选人档案
+            const [userRes, candidateRes] = await Promise.all([
+                userAPI.getUserById(userId),
+                candidateAPI.getCandidateProfile(userId).catch(() => ({ data: null })) // 捕获错误，允许档案不存在的情况
+            ]);
 
-            const res = await resumeAPI.uploadResume(userId, file, (progress) => {
-                setUploadProgress(progress);
-            });
-            if ((res as any).status === 'success') {
-                message.success('简历上传成功');
-                await fetchResumes(); // 刷新简历列表
-                // 清空文件输入，允许重新选择同一文件
-                if (resumeFileInputRef.current) {
-                    resumeFileInputRef.current.value = '';
+            if (userRes.data) {
+                // 如果存在候选人档案，将其与用户基本信息合并
+                const candidateData = candidateRes.data || {};
+                const newUser = {
+                    ...userRes.data,
+                    ...candidateData,
+                    // 确保ID字段始终被保留（使用userId优先）
+                    id: userId,
+                    // 优先使用候选人档案中的个人优势，否则使用用户描述
+                    summary: candidateData.summary || userRes.data.description,
+                    skills: candidateData.skills || userRes.data.skills
+                };
+
+                setUser(newUser);
+
+                // 同步更新父组件状态，确保Header头像/名称即时更新
+                if (props.onUpdateUser) {
+                    props.onUpdateUser(newUser);
                 }
             }
-        } catch (error: any) {
-            message.error(error.message || '简历上传失败');
-            // 清空文件输入，允许重新选择文件
-            if (resumeFileInputRef.current) {
-                resumeFileInputRef.current.value = '';
+        } catch (error) {
+            console.error(error);
+            message.error('获取用户信息失败');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /**
+     * 获取字典数据
+     * 用于页面上的下拉选择等组件
+     */
+    const fetchDictionaries = async () => {
+        try {
+            const res = await configAPI.getDictionaries();
+            if (res.status === 'success') {
+                setDictionaries(res.data);
             }
-        } finally {
-            setSaving(false);
-            setUploadProgress(0);
+        } catch (error) {
+            console.error('获取字典数据失败', error);
         }
     };
 
-    // 删除简历
-    const handleResumeDelete = async (id: number) => {
-        try {
-            // 添加确认提示，防止误操作
-            Modal.confirm({
-                title: '确认删除简历',
-                content: '确定要删除这份简历吗？此操作不可恢复。',
-                okText: '确定',
-                okType: 'danger',
-                cancelText: '取消',
-                onOk: async () => {
-                    setSaving(true);
-                    const res = await resumeAPI.deleteResume(id);
-                    if ((res as any).status === 'success') {
-                        message.success('简历删除成功');
-                        await fetchResumes(); // 刷新简历列表
-                    }
-                    setSaving(false);
-                },
-                onCancel: () => {
-                    console.log('取消删除简历');
-                }
-            });
-        } catch (error: any) {
-            message.error(error.message || '简历删除失败');
-            setSaving(false);
-        }
-    };
+    // 初始化加载数据
+    useEffect(() => {
+        fetchUserData();
+        fetchDictionaries();
+    }, [userId]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
+    // ---- 滚动监听逻辑 (ScrollSpy) ----
+    // 监听窗口滚动，根据滚动位置自动高亮侧边栏对应菜单
+    useEffect(() => {
+        const handleScroll = () => {
+            const sections = ['personal-info', 'expected-job', 'work-experience', 'project-experience', 'education', 'skills', 'advantages'];
 
-    const handleAvatarClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        try {
-            setSaving(true);
-            const userId = user?.id;
-            if (!userId) return;
-
-            const res = await userAPI.uploadAvatar(String(userId), file);
-
-            setUser(prev => prev ? ({ ...prev, avatar: processAvatarUrl(res.data.avatar) }) : null);
-            // 更新全局用户状态，确保导航栏头像同步更新
-            onUpdateUser?.({ ...currentUser, avatar: processAvatarUrl(res.data.avatar) });
-            message.success('头像更新成功');
-        } catch (error: any) {
-            message.error(error.message || '头像上传失败');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            setSaving(true);
-            const userId = user?.id;
-            if (!userId) return;
-
-            // 辅助函数：清洗数据，将空字符串转换为 null
-            const sanitize = (value: any) => {
-                if (value === '') return null;
-                return value;
-            };
-
-            // 1. 更新用户基本信息
-            const userDataToUpdate = {
-                name: formData.name,
-                email: formData.email,
-                phone: formData.phone,
-                gender: sanitize(formData.gender),
-                birth_date: sanitize(formData.birth_date),
-                education: formData.education,
-                major: formData.major,
-                school: formData.school,
-                graduation_year: sanitize(formData.graduation_year),
-                work_experience_years: sanitize(formData.work_experience_years),
-                desired_position: formData.desired_position,
-                languages: formData.languages,
-                wechat: formData.wechat,
-            };
-            await userAPI.updateUser(String(userId), userDataToUpdate);
-
-            // 2. 更新/创建求职者档案信息
-            const candidateDataToUpdate = {
-                user_id: userId,
-                summary: formData.summary,
-                expected_salary_min: sanitize(formData.expected_salary_min),
-                expected_salary_max: sanitize(formData.expected_salary_max),
-                availability_status: formData.availability_status,
-                preferred_locations: formData.preferred_locations,
-            };
-            await candidateAPI.updateCandidateProfile(userId, candidateDataToUpdate);
-
-            message.success('个人资料保存成功');
-
-            // 3. 直接更新本地状态，就像更新头像一样
-            const updatedUserData = {
-                ...user,
-                ...userDataToUpdate
-            };
-            
-            // 更新user状态
-            setUser(updatedUserData);
-            
-            // 更新导航栏和localStorage
-            if (onUpdateUser && currentUser) {
-                // 比较多个关键字段，确保任何用户信息更新都会触发导航栏同步
-                const shouldUpdate = 
-                    updatedUserData.name !== (currentUser as any).name ||
-                    updatedUserData.avatar !== (currentUser as any).avatar ||
-                    updatedUserData.email !== (currentUser as any).email;
-                
-                if (shouldUpdate) {
-                    console.log('Syncing user data to navbar:', updatedUserData.name);
-                    onUpdateUser(updatedUserData);
-                    
-                    // 更新 localStorage 中的用户信息，确保刷新页面后显示最新数据
-                    const currentUserFromStorage = localStorage.getItem('currentUser');
-                    if (currentUserFromStorage) {
-                        const updatedUser = {
-                            ...JSON.parse(currentUserFromStorage),
-                            name: updatedUserData.name,
-                            avatar: updatedUserData.avatar,
-                            email: updatedUserData.email
-                        };
-                        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+            for (const section of sections) {
+                const element = document.getElementById(section);
+                if (element) {
+                    const rect = element.getBoundingClientRect();
+                    // 检测元素是否在视口上方区域，以决定高亮哪个部分
+                    if (rect.top >= 0 && rect.top <= 300) {
+                        setActiveSection(section);
+                        break;
                     }
                 }
             }
-            
-            // 仅刷新简历列表
-            await fetchResumes();
+        };
 
-        } catch (error: any) {
-            message.error(error.message || '保存失败');
-        } finally {
-            setSaving(false);
-        }
-    };
+        window.addEventListener('scroll', handleScroll);
+        // 清理函数：移除事件监听器
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
-    if (loading) return <div className="p-8 text-center">正在加载个人资料...</div>;
+    // ---- 渲染辅助函数 ----
 
-    if (error) {
+    /**
+     * 渲染主要内容区域
+     * 包含各个表单板块
+     */
+    const renderContent = () => {
         return (
-            <div className="p-8 text-center">
-                <div className="text-red-500 mb-4">加载失败: {error}</div>
-                <button
-                    onClick={() => { window.location.reload(); }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                    重试
-                </button>
+            <div className="flex flex-col gap-2">
+                {/* 个人信息板块 */}
+                <div id="personal-info">
+                    <PersonalInfoSection
+                        user={user}
+                        onUpdate={fetchUserData}
+                        // 渲染额外的头部操作按钮：预览
+                        renderExtraHeader={() => (
+                            <div className="flex gap-4 text-blue-600 text-sm cursor-pointer ml-4">
+                                <span onClick={() => setShowPreview(true)} className="hover:text-blue-800 transition-colors">预览</span>
+                            </div>
+                        )}
+                    />
+                </div>
+
+                {/* 期望职位板块 */}
+                {/* 期望职位板块 */}
+                <div id="expected-job">
+                    <ExpectedJobSection userId={userId} dictionaries={dictionaries} />
+                </div>
+
+                {/* 工作经历板块 */}
+                <div id="work-experience">
+                    <WorkExperienceSection userId={userId} dictionaries={dictionaries} />
+                </div>
+
+                {/* 项目经历板块 */}
+                <div id="project-experience">
+                    <ProjectExperienceSection userId={userId} />
+                </div>
+
+                {/* 教育经历板块 */}
+                <div id="education">
+                    <EducationSection userId={userId} dictionaries={dictionaries} />
+                </div>
+
+                {/* 专业技能板块 */}
+                <div id="skills">
+                    <SkillsSection userId={userId} skills={user.skills} onUpdate={fetchUserData} />
+                </div>
+
+                {/* 个人优势板块 */}
+                <div id="advantages">
+                    <PersonalAdvantageSection
+                        userId={userId}
+                        summary={user.summary || user.description}
+                        onUpdate={fetchUserData}
+                    />
+                </div>
             </div>
         );
+    };
+
+    /**
+     * 处理侧边栏导航点击
+     * 点击时平滑滚动到对应锚点位置
+     * @param key section id
+     */
+    const handleSectionChange = (key: string) => {
+        setActiveSection(key);
+        const element = document.getElementById(key);
+        if (element) {
+            const yOffset = -80; // 偏移量，为顶部导航或粘性头部预留空间
+            const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+    };
+
+    if (loading || !user) {
+        return <div className="p-8 text-center text-gray-500">加载中...</div>;
     }
 
     return (
-        <div className="max-w-4xl mx-auto p-6">
-            <h1 className="text-2xl font-bold mb-6 text-gray-800">个人中心</h1>
-
-
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                {/* 头部 / 头像区域 */}
-                <div className="p-8 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-center gap-6">
-                    <div className="relative group cursor-pointer" onClick={handleAvatarClick}>
-                        <UserAvatar
-                            src={user?.avatar}
-                            name={user?.name}
-                            size={96}
-                            className="w-24 h-24 rounded-full border-4 border-white shadow-md"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-full transition-all flex items-center justify-center">
-                            <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium">更换</span>
+        <div className="bg-gray-50 min-h-screen p-4 md:p-6">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-4 items-start relative">
+                {/* 左侧边栏 - 在移动端/平板 (< lg) 隐藏, 在桌面端 (lg+) 显示 */}
+                <div className="hidden lg:block w-[200px] flex-shrink-0" style={{ height: 'calc(100vh - 48px)' }}>
+                    <Affix offsetTop={24}>
+                        <div style={{ maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
+                            <ProfileSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
                         </div>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                        />
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-900">{user?.name || '用户名'}</h2>
-                        <p className="text-gray-500">{user?.email}</p>
-                    </div>
+                    </Affix>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8">
-                    {/* 第一部分：基本信息 (Users 表) */}
-                    <div className="mb-8">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">基本信息</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">姓名</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="请输入您的姓名"
-                                />
+                {/* 右侧内容区域 */}
+                <div className="flex-1 min-w-0 w-full">
+                    {/* 主要内容 + 右侧边栏包装器 */}
+                    <div className="flex flex-col xl:flex-row gap-6 items-start">
+                        {/* 核心资料内容区 */}
+                        <div className="flex-1 min-w-0 w-full">
+
+                            {renderContent()}
+                        </div>
+
+                        {/* 右侧边栏 - 附件简历管理 */}
+                        {/* 布局：小于 xl 尺寸时堆叠在下方, xl 尺寸以上固定宽度在右侧 */}
+                        <div className="w-full xl:w-[300px] flex-shrink-0">
+                            {/* 桌面端大屏幕视图 - 使用 Affix 固钉效果 */}
+                            <div className="hidden xl:block">
+                                <Affix offsetTop={24}>
+                                    <ResumeManageSection userId={userId} />
+                                </Affix>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    邮箱 <span className="text-xs text-blue-500 font-normal">（可修改）</span>
-                                </label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="请输入您的邮箱"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">手机号码</label>
-                                <input
-                                    type="tel"
-                                    name="phone"
-                                    value={formData.phone}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="请输入手机号码"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">性别</label>
-                                <select
-                                    name="gender"
-                                    value={formData.gender}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                >
-                                    <option value="">请选择性别</option>
-                                    {genderOptions.map(option => (
-                                        <option key={option} value={option}>{option}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">出生日期</label>
-                                <input
-                                    type="date"
-                                    name="birth_date"
-                                    value={formData.birth_date}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">微信号</label>
-                                <input
-                                    type="text"
-                                    name="wechat"
-                                    value={formData.wechat}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="请输入您的微信号"
-                                />
+                            {/* 移动/平板端视图 (< xl) - 无固钉，普通块级元素堆叠显示 */}
+                            <div className="block xl:hidden">
+                                <ResumeManageSection userId={userId} />
                             </div>
                         </div>
-                    </div>
-
-                    {/* 第二部分：教育与技能 (Users 表) */}
-                    <div className="mb-8">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">教育背景与技能</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">毕业院校</label>
-                                <input
-                                    type="text"
-                                    name="school"
-                                    value={formData.school}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="请输入毕业院校"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">专业</label>
-                                <input
-                                    type="text"
-                                    name="major"
-                                    value={formData.major}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="请输入专业名称"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">学历</label>
-                                <select
-                                    name="education"
-                                    value={formData.education}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                >
-                                    <option value="">请选择学历</option>
-                                    <option value="High School">高中/中专</option>
-                                    <option value="Associate">大专</option>
-                                    <option value="Bachelor">本科</option>
-                                    <option value="Master">硕士</option>
-                                    <option value="PhD">博士</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">毕业年份</label>
-                                <input
-                                    type="number"
-                                    name="graduation_year"
-                                    value={formData.graduation_year}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="例如：2023"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 第三部分：职业档案 (Candidates 表) */}
-                    <div className="mb-8">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">职业档案</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">个人优势 / 简介</label>
-                                <textarea
-                                    name="summary"
-                                    value={formData.summary}
-                                    onChange={handleInputChange}
-                                    rows={4}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
-                                    placeholder="请简要描述您的职业背景、核心优势和职业目标..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">期望职位</label>
-                                <input
-                                    type="text"
-                                    name="desired_position"
-                                    value={formData.desired_position}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="例如：前端工程师"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">工作年限 (年)</label>
-                                <input
-                                    type="number"
-                                    name="work_experience_years"
-                                    value={formData.work_experience_years}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="例如：3"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">期望薪资 (最低/月)</label>
-                                <input
-                                    type="number"
-                                    name="expected_salary_min"
-                                    value={formData.expected_salary_min}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="例如：15000"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">期望薪资 (最高/月)</label>
-                                <input
-                                    type="number"
-                                    name="expected_salary_max"
-                                    value={formData.expected_salary_max}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                    placeholder="例如：25000"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">求职状态</label>
-                                <select
-                                    name="availability_status"
-                                    value={formData.availability_status}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                >
-                                    <option value="available">随时到岗</option>
-                                    <option value="open_to_offers">在职-看机会</option>
-                                    <option value="employed">在职-暂不考虑</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">期望城市</label>
-                                <input
-                                    type="text"
-                                    name="preferred_locations"
-                                    value={formData.preferred_locations}
-                                    onChange={handleInputChange}
-                                    placeholder="例如：上海, 北京, 远程"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 第四部分：简历管理 */}
-                    <div className="mb-8">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">简历管理</h3>
-
-                        {/* 上传按钮 */}
-                                <div className="mb-6">
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => resumeFileInputRef.current?.click()}
-                                                disabled={saving}
-                                                className={`px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
-                                            >
-                                                {saving ? `${uploadProgress}% · 正在上传...` : '上传简历'}
-                                            </button>
-                                            <input
-                                                type="file"
-                                                ref={resumeFileInputRef}
-                                                className="hidden"
-                                                accept=".pdf,.doc,.docx,.txt"
-                                                onChange={handleResumeUpload}
-                                            />
-                                            <span className="text-sm text-gray-500">支持 PDF、Word 等格式，单个文件大小不超过 10MB</span>
-                                        </div>
-                                        
-                                        {/* 上传进度条 */}
-                                        {saving && (
-                                            <div className="w-full">
-                                                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                                    <span>上传进度</span>
-                                                    <span>{uploadProgress}%</span>
-                                                </div>
-                                                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                                    <div 
-                                                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                                                        style={{ width: `${uploadProgress}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                        {/* 简历列表 */}
-                        <div className="bg-gray-50 rounded-lg p-4">
-                            {resumeLoading ? (
-                                <div className="text-center py-4 text-gray-500">正在加载简历列表...</div>
-                            ) : resumes.length === 0 ? (
-                                <div className="text-center py-4 text-gray-500">暂无上传的简历</div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {resumes.map((resume) => (
-                                        <div key={resume.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                <div className="text-blue-600">
-                                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1-3a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                                                    </svg>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 truncate">{fixFilenameEncoding(resume.resume_file_name)}</p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-xs text-gray-500">
-                                                            {resume.created_at ? new Date(resume.created_at).toLocaleString() : ''}
-                                                        </span>
-                                                        <span className="text-xs text-gray-500">
-                                                            {(resume.resume_file_size / (1024 * 1024)).toFixed(2)}MB
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {/* 查看按钮 - 可下载简历 */}
-                                                <a
-                                                    href={`/api/resumes/file/${resume.id}?view=true`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
-                                                >
-                                                    查看
-                                                </a>
-                                                {/* 删除按钮 */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleResumeDelete(Number(resume.id))}
-                                                    disabled={saving}
-                                                    className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition"
-                                                >
-                                                    删除
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end pt-6 border-t border-gray-100">
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            className={`px-8 py-3 bg-blue-600 text-white rounded-lg font-medium shadow-md hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all ${saving ? 'opacity-70 cursor-wait' : ''}`}
-                        >
-                            {saving ? '正在保存...' : '保存修改'}
-                        </button>
-                    </div>
-                </form>
-
-                {/* 注销账号功能 */}
-                <div className="p-8 border-t border-gray-100 bg-gray-50">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 pb-2 border-b border-gray-100">账号管理</h3>
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <button
-                            onClick={() => {
-                                Modal.confirm({
-                                    title: '确认注销账号',
-                                    content: (
-                                        <div>
-                                            <p className="mb-4">确定要注销账号吗？</p>
-                                            <p className="text-red-500 font-medium">
-                                                此操作不可恢复，所有数据将被永久删除，包括：
-                                            </p>
-                                            <ul className="list-disc list-inside text-sm text-gray-600 mt-2">
-                                                <li>个人信息和联系方式</li>
-                                                <li>简历和投递记录</li>
-                                                <li>收藏和浏览历史</li>
-                                                <li>所有相关的职位和公司信息</li>
-                                            </ul>
-                                        </div>
-                                    ),
-                                    okText: '确定注销',
-                                    okType: 'danger',
-                                    cancelText: '取消',
-                                    onOk: async () => {
-                                        try {
-                                            setLoading(true);
-                                            const userId = user?.id;
-                                            if (!userId) return;
-
-                                            const response = await userAPI.deleteAccount(String(userId));
-                                            // 无论响应状态如何，都清除本地存储并跳转到登录页
-                                            // 因为数据库已经删除了用户，本地状态必须同步
-                                            localStorage.removeItem('currentUser');
-                                            localStorage.removeItem('token');
-                                            localStorage.removeItem('userId');
-
-                                            if (response.status === 'success') {
-                                                // 显示成功消息
-                                                message.success('账号注销成功，所有数据已清除');
-                                            } else {
-                                                // 显示错误消息
-                                                message.error('账号注销失败，请稍后重试');
-                                            }
-
-                                            // 立即跳转到登录页面
-                                            window.location.href = '/';
-
-                                            // 确保跳转执行
-                                            setTimeout(() => {
-                                                window.location.href = '/';
-                                            }, 500);
-                                        } catch (error: any) {
-                                            message.error(error.response?.data?.message || '账号注销失败，请稍后重试');
-                                            setLoading(false);
-                                        }
-                                    },
-                                });
-                            }}
-                            disabled={loading}
-                            className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium shadow-md hover:bg-red-700 focus:ring-4 focus:ring-red-200 transition-all"
-                        >
-                            {loading ? '处理中...' : '注销账号'}
-                        </button>
-                        <p className="text-sm text-gray-500 flex-1">
-                            注意：注销账号将永久删除您的所有数据，包括个人信息、简历、投递记录等，此操作不可恢复。
-                        </p>
                     </div>
                 </div>
             </div>
+
+            {/* 简历预览模态框 (普通查看模式) */}
+            <ResumePreviewModal
+                visible={showPreview}
+                onClose={() => setShowPreview(false)}
+                userId={userId}
+            />
+
+
         </div>
     );
 };

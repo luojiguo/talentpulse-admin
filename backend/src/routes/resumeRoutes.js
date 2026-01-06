@@ -16,7 +16,7 @@ function fixFilenameEncoding(filename) {
         if (typeof filename !== 'string') {
             return '';
         }
-        
+
         // 直接返回原始文件名，因为在中间件中已经处理了编码
         return filename;
     } catch (err) {
@@ -36,7 +36,7 @@ function generateSafeFilename(filename) {
         .trim()
         .replace(/[\s\/\\:*?"<>|]+/g, '_') // 将空格和特殊字符转换为下划线
         .replace(/_+/g, '_'); // 将连续的下划线合并为单个下划线
-    
+
     // 确保返回的文件名不为空
     return safeFilename || '未知用户';
 }
@@ -427,7 +427,7 @@ const fixChineseFilenameMiddleware = (req, res, next) => {
     if (req.file) {
         console.log('=== 原始文件名中间件 ===');
         console.log('原始文件名:', req.file.originalname);
-        
+
         // 修复原始文件名的中文编码
         // 使用iconv-lite直接解码，处理multer可能的编码问题
         try {
@@ -531,6 +531,49 @@ router.get('/user/:userId', asyncHandler(async (req, res) => {
     });
 }));
 
+// 解析简历 (不保存)
+router.post('/parse', upload.single('resume'), asyncHandler(async (req, res) => {
+    if (!req.file) {
+        throw new Error('请选择要上传的文件');
+    }
+
+    try {
+        const extname = path.extname(req.file.originalname).toLowerCase();
+        const fileType = extname.substring(1);
+        let parsedData = {};
+        let parsedContent = null;
+
+        if (fileType === 'pdf') {
+            try {
+                const pdfBuffer = fs.readFileSync(req.file.path);
+                const pdfData = await pdfParse(pdfBuffer);
+                parsedContent = fixChineseEncoding(pdfData.text);
+                parsedData = parseResumeContent(parsedContent);
+            } catch (err) {
+                console.error('PDF解析失败', err);
+            }
+        }
+
+        res.json({
+            status: 'success',
+            message: '解析成功',
+            data: {
+                parsed_data: parsedData,
+                parsed_content: parsedContent
+            }
+        });
+    } finally {
+        // 清理临时文件
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            try {
+                fs.unlinkSync(req.file.path);
+            } catch (e) {
+                console.error('清理临时文件失败', e);
+            }
+        }
+    }
+}));
+
 // 上传简历
 router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, asyncHandler(async (req, res) => {
     if (!req.file) {
@@ -553,7 +596,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
         console.log('=== 数据库查询调试 ===');
         console.log('查询SQL:', 'SELECT id, name, email FROM users WHERE id = $1');
         console.log('查询参数:', [user_id]);
-        
+
         const userResult = await query(
             'SELECT id, name, email FROM users WHERE id = $1',
             [user_id]
@@ -561,7 +604,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
 
         console.log('查询结果:', userResult);
         console.log('结果行数:', userResult.rows.length);
-        
+
         if (userResult.rows.length === 0) {
             const error = new Error('用户不存在');
             error.statusCode = 404;
@@ -574,7 +617,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
         console.log('name字段:', userRow.name);
         console.log('name字段类型:', typeof userRow.name);
         console.log('name字段长度:', userRow.name ? userRow.name.length : 0);
-        
+
         // 获取用户名，确保它是字符串类型
         const userName = String(userRow.name || '');
 
@@ -586,34 +629,34 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
         console.log('用户名 (类型):', typeof userName);
         console.log('用户名 (长度):', userName.length);
         console.log('resumesRootDir:', resumesRootDir);
-        
+
         // 修复用户名，确保不包含特殊字符，支持中文
         const cleanUserName = userName.trim() || '未知用户';
         console.log('用户名 (清理后):', cleanUserName);
-        
+
         // 生成安全的用户名，支持中文
         // 注意：generateSafeFilename 已经支持中文，这里不需要额外处理
         const safeUserName = generateSafeFilename(cleanUserName);
         console.log('用户名 (安全):', safeUserName);
-        
+
         // 处理安全用户名可能为空的情况
         const finalUserName = safeUserName || '未知用户';
         console.log('用户名 (最终):', finalUserName);
-        
+
         // 创建用户文件夹：用户ID_用户名，确保格式正确，支持中文
         // 确保中文用户名能正确显示
         const userFolderName = `${user_id}_${finalUserName}`;
         console.log('用户文件夹名称:', userFolderName);
-        
+
         // 调试：检查文件夹名称的编码
         console.log('用户文件夹名称 (UTF-8编码):', Buffer.from(userFolderName).toString('utf-8'));
-        
+
         const userFolderPath = path.join(resumesRootDir, userFolderName);
-        
+
         console.log('=== 文件夹创建逻辑 ===');
         console.log('用户文件夹名称:', userFolderName);
         console.log('用户文件夹路径:', userFolderPath);
-        
+
         // 确保用户文件夹存在
         if (!fs.existsSync(userFolderPath)) {
             console.log('文件夹不存在，开始创建...');
@@ -639,7 +682,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
         // 生成新文件名，使用安全名称+时间戳的格式
         const newFilename = `${safeOriginalName}_${timestamp}${extname}`;
         const newFilePath = path.join(userFolderPath, newFilename);
-        
+
         console.log('=== 文件保存逻辑 ===');
         console.log('源文件路径:', req.file.path);
         console.log('目标文件路径:', newFilePath);
@@ -650,12 +693,12 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             throw new Error('源文件不存在');
         } else {
             console.log('源文件存在，准备保存...');
-            
+
             try {
                 // 使用fs.renameSync进行文件重命名，Node.js v14+已经支持中文路径
                 fs.renameSync(req.file.path, newFilePath);
                 console.log('文件保存成功');
-                
+
                 // 检查目标文件是否存在
                 if (fs.existsSync(newFilePath)) {
                     console.log('目标文件已存在:', newFilePath);
@@ -817,7 +860,7 @@ router.get('/file/:id', asyncHandler(async (req, res) => {
             // 替换 /User_Resume/ 前缀，得到相对路径
             const relativePath = resume.resume_file_url.replace('/User_Resume/', '');
             console.log('相对路径:', relativePath);
-            
+
             // 构建完整文件路径
             filePath = path.join(resumesRootDir, relativePath);
             console.log('完整文件路径:', filePath);
@@ -858,11 +901,11 @@ router.get('/file/:id', asyncHandler(async (req, res) => {
             // 下载 - 修复中文文件名编码问题
             // 只使用 RFC 5987 编码格式，不使用原始文件名，避免 HTTP 头字符错误
             const encodedFilename = encodeURIComponent(safeFilename).replace(/['()]/g, escape);
-            
+
             // 只设置 filename* 格式，不使用 filename="${safeFilename}" 格式，避免无效字符
             res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
             res.setHeader('Content-Type', resume.resume_file_type || 'application/octet-stream');
-            
+
             res.download(filePath, safeFilename);
         }
 

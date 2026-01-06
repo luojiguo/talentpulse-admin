@@ -13,6 +13,8 @@ export const resumeAPI = {
   // 下载简历文件
   downloadResumeFile: (resumeId: string | number) => request.get(`/resumes/file/${resumeId}`, { responseType: 'blob' }),
 
+
+
   // 上传简历文件
   uploadResume: (userId: string | number, file: File, onUploadProgress?: (progress: number) => void) => {
     const formData = new FormData();
@@ -29,6 +31,17 @@ export const resumeAPI = {
           onUploadProgress(progress);
         }
       },
+    });
+  },
+
+  // 解析简历文件 (不保存到服务器)
+  parseResumeFile: (file: File) => {
+    const formData = new FormData();
+    formData.append('resume', file);
+    return request.post('/resumes/parse', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      }
     });
   },
 

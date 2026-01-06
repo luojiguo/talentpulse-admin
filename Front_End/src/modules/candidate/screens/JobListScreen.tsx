@@ -167,37 +167,64 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
     });
   }, [jobs, searchText]);
 
+  const [columns, setColumns] = useState<JobPosting[][]>([]);
+
+  // Calculate columns for Masonry layout
+  useEffect(() => {
+    const calculateColumns = () => {
+      const width = window.innerWidth;
+      let colCount = 1;
+      if (width >= 1280) colCount = 4; // Extra large screens
+      else if (width >= 1024) colCount = 3; // Desktop
+      else if (width >= 768) colCount = 2; // Tablet
+
+      // Initialize columns
+      const newCols: JobPosting[][] = Array.from({ length: colCount }, () => []);
+
+      // Distribute jobs
+      filteredJobs.forEach((job, index) => {
+        newCols[index % colCount].push(job);
+      });
+
+      setColumns(newCols);
+    };
+
+    calculateColumns();
+    window.addEventListener('resize', calculateColumns);
+    return () => window.removeEventListener('resize', calculateColumns);
+  }, [filteredJobs]);
+
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <h3 className="text-2xl font-bold text-slate-900">所有岗位</h3>
-          <div className="relative w-full md:w-96">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
-              placeholder="搜索职位、公司、地点或描述..."
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-            {searchText && (
-              <button
-                onClick={() => setSearchText('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
-                title="清除搜索"
-              >
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </button>
-            )}
+        <h3 className="text-2xl font-bold text-slate-900">所有岗位</h3>
+        <div className="relative w-full md:w-96">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+            </svg>
           </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
+            placeholder="搜索职位、公司、地点或描述..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          {searchText && (
+            <button
+              onClick={() => setSearchText('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+              title="清除搜索"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
         </div>
+      </div>
 
       <div>
 
@@ -225,13 +252,15 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
               </button>
             </div>
           ) : filteredJobs.length > 0 ? (
-            <>
-              {/* Show jobs with infinite scroll */}
-              {filteredJobs.map(job => (
-                <JobCard key={job.id} job={job} onChat={onChat} />
+            <div className="flex gap-4 items-start">
+              {columns.map((col, index) => (
+                <div key={index} className="flex-1 space-y-4">
+                  {col.map(job => (
+                    <JobCard key={job.id} job={job} onChat={onChat} />
+                  ))}
+                </div>
               ))}
-
-            </>
+            </div>
           ) : (
             <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-gray-300">
               <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">

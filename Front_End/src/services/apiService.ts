@@ -63,12 +63,12 @@ api.interceptors.response.use(
     if (shouldRetry) {
       // 增加重试次数
       config.retry += 1;
-      
+
       // 计算重试延迟（指数退避）
       const delay = Math.pow(2, config.retry) * retryDelay + Math.random() * 500;
-      
+
       console.log(`请求失败，${delay}ms后重试 (${config.retry}/${maxRetries})`, error.message);
-      
+
       // 延迟后重试请求
       return new Promise((resolve) => {
         setTimeout(() => {
@@ -135,7 +135,7 @@ export * from './candidateService';
 export * from './messageService';
 export * from './applicationService';
 export * from './resumeService';
-export * from './aiService';
+// export * from './aiService'; // AI功能已移除
 export * from './recruiterService';
 export * from './interviewService';
 export * from './analyticsService';
@@ -156,6 +156,12 @@ import { analyticsAPI } from './analyticsService';
 import { activityAPI } from './activityService';
 import { aiSessionAPI } from './aiSessionService';
 
+// Config Service
+// Config Service
+const configAPI = {
+  getDictionaries: () => api.get('/config/dictionaries').then(res => res.data),
+};
+
 export {
   userAPI,
   jobAPI,
@@ -168,5 +174,7 @@ export {
   interviewAPI,
   analyticsAPI,
   activityAPI,
-  aiSessionAPI
+  aiSessionAPI,
+  configAPI
 };
+

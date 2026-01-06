@@ -121,7 +121,8 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
         COALESCE(cd.city, '地点未知') AS candidate_location,
         COALESCE(u2.name, '未知招聘者') AS recruiter_name,
         COALESCE(u2.avatar, '') AS recruiter_avatar,
-        COALESCE(u2.id, r.user_id) AS "recruiterUserId"
+        COALESCE(u2.id, r.user_id) AS "recruiterUserId",
+        COALESCE(app.id, 0) AS "applicationId"
       FROM (
         ${subQuery}
       ) AS sub
@@ -133,6 +134,7 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
       LEFT JOIN users u2 ON r.user_id = u2.id
       LEFT JOIN jobs j ON c.job_id = j.id
       LEFT JOIN companies co ON j.company_id = co.id
+      LEFT JOIN applications app ON c.job_id = app.job_id AND c.candidate_id = app.candidate_id
       WHERE 
         (CASE WHEN $2 = 'recruiter' THEN (c.recruiter_hidden IS FALSE OR c.recruiter_hidden IS NULL) ELSE TRUE END) AND
         (CASE WHEN $2 = 'candidate' THEN (c.candidate_hidden IS FALSE OR c.candidate_hidden IS NULL) ELSE TRUE END)
@@ -178,6 +180,13 @@ router.get('/conversations/:conversationId/messages', asyncHandler(async (req, r
       ORDER BY m.time ${orderBy}, m.id ${orderBy}
       LIMIT $2 OFFSET $3
     `, [conversationIdNum, limitNum, offsetNum], 15000);
+
+  console.log(`[DEBUG] Get Messages for Conv ${conversationIdNum}: Found ${result.rows.length} messages. Limit: ${limitNum}, Offset: ${offsetNum}`);
+  if (result.rows.length === 0) {
+    // Debug check: do any messages exist?
+    const check = await pool.query('SELECT count(*) FROM messages WHERE conversation_id = $1', [conversationIdNum]);
+    console.log(`[DEBUG] Raw message count in DB for Conv ${conversationIdNum}: ${check.rows[0].count}`);
+  }
 
   // 查询总消息数
   const countResult = await query(`
@@ -370,6 +379,10 @@ router.post('/', async (req, res) => {
       recruiter_id
     });
 
+    if (!candidate_user_id || !recruiter_user_id) {
+      console.error('[DEBUG] CRITICAL: Missing user_id for candidate or recruiter in conversation!', { conversationId });
+    }
+
     // 使用严格比较，并确保类型一致
     const senderIdNum = parseInt(senderId);
     // user_id 可能是字符串或数字，统一转换
@@ -539,7 +552,8 @@ router.get('/conversation/:conversationId', asyncHandler(async (req, res) => {
         COALESCE(u1.id, 0) AS candidateId,
         COALESCE(u2.name, '未知招聘者') AS recruiter_name,
         COALESCE(u2.avatar, '') AS recruiter_avatar,
-        COALESCE(u2.id, 0) AS recruiterId
+        COALESCE(u2.id, 0) AS recruiterId,
+        COALESCE(app.id, 0) AS "applicationId"
       FROM conversations c
       -- 改进JOIN顺序，先JOIN较小的表
       LEFT JOIN recruiters r ON c.recruiter_id = r.id
@@ -548,6 +562,7 @@ router.get('/conversation/:conversationId', asyncHandler(async (req, res) => {
       LEFT JOIN users u2 ON r.user_id = u2.id
       LEFT JOIN jobs j ON c.job_id = j.id
       LEFT JOIN companies co ON j.company_id = co.id
+      LEFT JOIN applications app ON c.job_id = app.job_id AND c.candidate_id = app.candidate_id
       WHERE c.id = $1 AND c.deleted_at IS NULL
     `, [conversationIdNum], 15000);
 
@@ -1173,7 +1188,8 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
     const newContent = JSON.stringify({
       status: 'accepted',
       initiator_wechat: initiatorWechat,
-      receiver_wechat: receiverWechat
+      receiver_wechat: receiverWechat,
+      wechat: initiatorWechat // 保持兼容性，前端Receiver视角的wechat字段
     });
 
     const updateRes = await pool.query(

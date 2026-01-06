@@ -1,5 +1,3 @@
-
-
 export type Language = 'zh' | 'en';
 export type UserRole = 'admin' | 'recruiter' | 'candidate';
 
@@ -57,6 +55,10 @@ export interface SystemUser {
   createdAt: string;
   created_at?: string; // Backend snake_case support
   updated_at?: string; // Backend snake_case support
+  // 个人推荐信息 - New fields for recommendation bar
+  city?: string;
+  jobStatus?: string;
+  expectedSalary?: string;
   // 个人基本信息
   phone?: string;
   gender?: string;
@@ -89,10 +91,15 @@ export interface Candidate {
   name: string;
   role: string;
   experience: string;
-  status: 'Available' | 'Hired' | 'Interviewing';
+  status: 'Available' | 'Hired' | 'Interviewing' | string; // Allow string for flexibility
   location: string;
   skills: string[];
   avatar: string;
+  // Added fields
+  work_experience_years?: number;
+  job_status?: string;
+  availability_status?: string;
+  salary_negotiable?: boolean;
 }
 
 // Recruiter Pipeline Type
@@ -135,6 +142,10 @@ export interface JobPosting {
   recruiter_avatar?: string;
   recruiter_position?: string;
   recruiter_id?: number;
+
+  // Company Info
+  company_logo?: string;
+  company_industry?: string;
   is_own_job?: boolean;
   // Additional fields used in recruiter module
   hiring_count?: number;
@@ -167,7 +178,7 @@ export interface Recruiter {
 export interface Message {
   id: number | string;
   role: 'user' | 'ai' | 'system';
-  type: 'text' | 'image' | 'location' | 'system' | 'file' | 'exchange_request' | 'exchange_accept' | 'exchange_reject';
+  type: 'text' | 'image' | 'location' | 'system' | 'file' | 'interview_invitation' | 'exchange_request' | 'exchange_accept' | 'exchange_reject';
   text: string;
   time: string;
   sender_id?: number | string;
@@ -247,7 +258,10 @@ export interface UserProfile {
   phone: string;
   email: string;
   city: string;
+  preferredLocations?: string;
   expectedSalary: string;
+  expectedSalaryMin?: number;
+  expectedSalaryMax?: number;
   jobStatus: string;
   bio: string;
   experience?: string;
@@ -261,6 +275,7 @@ export interface UserProfile {
   graduation_year?: string;
   work_experience_years?: number;
   desired_position?: string;
+  desiredPosition?: string;
   skills?: string[];
   languages?: string[];
   wechat?: string;

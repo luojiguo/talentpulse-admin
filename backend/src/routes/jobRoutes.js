@@ -194,7 +194,7 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
 
   // 1. 获取用户信息
   const userResult = await query(`
-        SELECT u.major, u.desired_position, u.skills, u.education, u.work_experience_years, c.preferred_locations
+        SELECT c.major, c.desired_position, c.skills, c.education, c.work_experience_years, c.preferred_locations
         FROM users u LEFT JOIN candidates c ON u.id = c.user_id WHERE u.id = $1
     `, [userId]);
 
@@ -224,28 +224,66 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
     triggerAIRecommendation(userId, userInfo, allJobs).catch(err => console.error("Error in detached AI recommendation:", err));
   }
 
-  // 4. 立即返回基于关键词的匹配结果作为基线
-  let matchedJobs;
+  // 4. 智能排序：为所有岗位计算匹配分数，而不是过滤
   const { major, desired_position, skills } = userInfo;
-  if (!major && !desired_position) {
-    matchedJobs = allJobs.slice(0, 20);
-  } else {
-    const keywords = [major, desired_position, ...(Array.isArray(skills) ? skills : [])].filter(Boolean);
-    matchedJobs = allJobs.filter(job => {
-      const jobText = `${job.title} ${job.description} ${Array.isArray(job.required_skills) ? job.required_skills.join(' ') : ''}`.toLowerCase();
-      return keywords.some(keyword => jobText.includes(keyword.toLowerCase()));
+
+  // 如果用户没有填写任何信息，直接返回最新的岗位
+  if (!major && !desired_position && (!skills || (Array.isArray(skills) && skills.length === 0))) {
+    return res.json({
+      status: 'success',
+      message: useAI ? '初步推荐结果已返回，AI正在处理更精准的匹配...' : '推荐结果已生成',
+      data: allJobs.slice(0, 20),
+      count: Math.min(allJobs.length, 20),
+      method: 'default'
     });
-    if (matchedJobs.length === 0) {
-      matchedJobs = allJobs.slice(0, 20);
-    }
   }
+
+  // 构建关键词列表
+  const keywords = [major, desired_position, ...(Array.isArray(skills) ? skills : [])].filter(Boolean);
+
+  // 为每个岗位计算匹配分数
+  const jobsWithScores = allJobs.map(job => {
+    let score = 10; // 基础分
+    const jobTitle = (job.title || '').toLowerCase();
+    const jobDescription = (job.description || '').toLowerCase();
+    const jobSkills = Array.isArray(job.required_skills) ? job.required_skills.map(s => s.toLowerCase()) : [];
+
+    keywords.forEach(keyword => {
+      if (!keyword) return;
+      const lowerKeyword = keyword.toLowerCase();
+
+      // 职位标题完全匹配
+      if (jobTitle === lowerKeyword) {
+        score += 50;
+      }
+      // 职位标题包含关键词
+      else if (jobTitle.includes(lowerKeyword)) {
+        score += 30;
+      }
+
+      // 职位描述包含关键词
+      if (jobDescription.includes(lowerKeyword)) {
+        score += 20;
+      }
+
+      // 技能要求匹配
+      if (jobSkills.some(skill => skill.includes(lowerKeyword) || lowerKeyword.includes(skill))) {
+        score += 10;
+      }
+    });
+
+    return { ...job, matchScore: score };
+  });
+
+  // 按匹配分数降序排序
+  const sortedJobs = jobsWithScores.sort((a, b) => b.matchScore - a.matchScore);
 
   res.json({
     status: 'success',
     message: useAI ? '初步推荐结果已返回，AI正在处理更精准的匹配...' : '推荐结果已生成',
-    data: matchedJobs.slice(0, 20),
-    count: Math.min(matchedJobs.length, 20),
-    method: 'keyword'
+    data: sortedJobs.slice(0, 20),
+    count: Math.min(sortedJobs.length, 20),
+    method: 'smart_sort'
   });
 }));
 

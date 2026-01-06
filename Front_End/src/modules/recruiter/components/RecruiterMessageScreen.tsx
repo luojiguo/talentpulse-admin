@@ -18,6 +18,7 @@ import {
 import UserAvatar from '@/components/UserAvatar';
 import { interviewAPI, applicationAPI, api } from '@/services/apiService';
 import { messageAPI } from '@/services/messageService';
+import InterviewCard from '@/components/InterviewCard';
 
 interface RecruiterMessageScreenProps {
     conversations: any[];
@@ -938,6 +939,12 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                 <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} ${msg.type === 'system' ? 'justify-center !my-4' : ''} items-end gap-2`}>
                                                     {msg.type === 'system' ? (
                                                         <span className="text-xs text-gray-500 bg-gray-200/80 px-3 py-1 rounded-full">{msg.text}</span>
+                                                    ) : (msg.type === 'interview_invitation' || (msg.type === 'text' && msg.text?.includes('"type":"interview_invitation"'))) ? (
+                                                        <InterviewCard
+                                                            msg={msg}
+                                                            isCurrentUser={isCurrentUser}
+                                                            isRecruiter={true}
+                                                        />
                                                     ) : (
                                                         <>
                                                             {!isCurrentUser && (
@@ -1032,7 +1039,10 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                                 </span>
                                                                             </div>
                                                                         )}
-                                                                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                                        {/* 不显示面试邀请的原始JSON文本 */}
+                                                                        {msg.type !== 'interview_invitation' && (
+                                                                            <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>

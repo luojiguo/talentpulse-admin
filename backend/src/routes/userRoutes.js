@@ -471,11 +471,16 @@ router.get('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const result = await query(
-    `SELECT id, name, email, phone, avatar, gender, birth_date, 
-              education, major, school, graduation_year, work_experience_years, 
-              desired_position, skills, languages, address, wechat, linkedin, 
-              github, personal_website, created_at, updated_at 
-       FROM users WHERE id = $1`,
+    `SELECT u.id, u.name, u.email, u.phone, u.avatar, u.gender, u.birth_date, 
+              c.education, c.major, c.school, c.graduation_year, c.work_experience_years, 
+              c.desired_position as "desiredPosition", c.skills, c.languages, u.address, 
+              c.city, c.job_status as "jobStatus", c.availability_status, -- Include availability_status explicitly
+              c.expected_salary_min as "expectedSalaryMin", c.expected_salary_max as "expectedSalaryMax", c.expected_salary as "expectedSalary",
+              c.preferred_locations as "preferredLocations",
+              u.wechat, u.linkedin, u.github, u.personal_website, u.created_at, u.updated_at   
+       FROM users u
+       LEFT JOIN candidates c ON u.id = c.user_id
+       WHERE u.id = $1`,
     [id],
     30000
   );
@@ -496,7 +501,17 @@ router.get('/:id', asyncHandler(async (req, res) => {
 // 更新用户信息
 router.put('/:id', asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, email, phone, position, education, major, school, desired_position, skills, languages, emergency_contact, emergency_phone, address, wechat, linkedin, github, personal_website, company } = req.body;
+  const {
+    name, email, phone, position, education, major, school, desired_position, skills, languages, emergency_contact, emergency_phone, address, city, jobStatus, expectedSalary,
+    wechat, linkedin, github, personal_website, company, desiredPosition, preferredLocations, availability_status
+  } = req.body;
+
+  // Debug log (Added back for troubleshooting)
+  console.log('Update User Payload (Retry):', JSON.stringify(req.body, null, 2));
+  console.log('Updating user with ID:', id);
+
+  // Manual extract for Min/Max if passed directly (or calculate if not)
+  let { expectedSalaryMin, expectedSalaryMax } = req.body;
   let { graduation_year, work_experience_years, birth_date, gender } = req.body;
 
   // 检查用户是否存在
@@ -512,12 +527,6 @@ router.put('/:id', asyncHandler(async (req, res) => {
     email: email !== undefined ? email : currentUserRecord.email,
     phone: phone !== undefined ? phone : currentUserRecord.phone,
     position: position !== undefined ? position : currentUserRecord.position,
-    education: education !== undefined ? education : currentUserRecord.education,
-    major: major !== undefined ? major : currentUserRecord.major,
-    school: school !== undefined ? school : currentUserRecord.school,
-    desired_position: desired_position !== undefined ? desired_position : currentUserRecord.desired_position,
-    skills: skills !== undefined ? skills : currentUserRecord.skills,
-    languages: languages !== undefined ? languages : currentUserRecord.languages,
     emergency_contact: emergency_contact !== undefined ? emergency_contact : currentUserRecord.emergency_contact,
     emergency_phone: emergency_phone !== undefined ? emergency_phone : currentUserRecord.emergency_phone,
     address: address !== undefined ? address : currentUserRecord.address,
@@ -525,53 +534,211 @@ router.put('/:id', asyncHandler(async (req, res) => {
     linkedin: linkedin !== undefined ? linkedin : currentUserRecord.linkedin,
     github: github !== undefined ? github : currentUserRecord.github,
     personal_website: personal_website !== undefined ? personal_website : currentUserRecord.personal_website,
-    graduation_year: graduation_year !== undefined && graduation_year !== '' ? graduation_year : currentUserRecord.graduation_year,
-    work_experience_years: work_experience_years !== undefined && work_experience_years !== '' ? work_experience_years : currentUserRecord.work_experience_years,
-    birth_date: birth_date !== undefined && birth_date !== '' ? birth_date : currentUserRecord.birth_date,
-    gender: gender !== undefined && gender !== '' ? gender : currentUserRecord.gender
+    birth_date: birth_date !== undefined ? (birth_date === '' ? null : birth_date) : currentUserRecord.birth_date, // Allow clearing birth_date
+    gender: gender !== undefined ? (gender === '' ? null : gender) : currentUserRecord.gender // Allow clearing gender
   };
 
   // 检查邮箱冲突（如果更改了邮箱）
-  if (email && email !== currentUserRecord.email) {
-    const emailCheck = await query(
-      'SELECT id FROM users WHERE email = $1 AND id != $2',
-      [email, id]
-    );
-    if (emailCheck.rows.length > 0) {
-      throw new AppError('该邮箱已被其他账号占用', 400, 'EMAIL_EXISTS');
+  // 只有当前端明确发送了email字段，且与当前值不同时，才检查冲突
+  if (email !== undefined) {
+    // 规范化邮箱值：转换为小写并去除空格，null/undefined 转为空字符串
+    const normalizeEmail = (val) => {
+      if (val === null || val === undefined) return '';
+      return String(val).trim().toLowerCase();
+    };
+
+    const newEmail = normalizeEmail(email);
+    const currentEmail = normalizeEmail(currentUserRecord.email);
+
+    // 只有当邮箱真正改变时才检查冲突
+    if (newEmail && newEmail !== currentEmail) {
+      console.log(`Checking email conflict: '${newEmail}' vs '${currentEmail}'`);
+      const emailCheck = await query(
+        'SELECT id, email FROM users WHERE LOWER(TRIM(email)) = $1 AND id != $2',
+        [newEmail, id]
+      );
+      if (emailCheck.rows.length > 0) {
+        console.log('Email conflict found. Existing owner:', JSON.stringify(emailCheck.rows));
+        throw new AppError('该邮箱已被其他账号占用', 400, 'EMAIL_EXISTS');
+      }
     }
   }
 
   // 检查手机号冲突（如果更改了手机号）
-  if (phone && phone !== currentUserRecord.phone) {
-    const phoneCheck = await query(
-      'SELECT id FROM users WHERE phone = $1 AND id != $2',
-      [phone, id]
-    );
-    if (phoneCheck.rows.length > 0) {
-      throw new AppError('该手机号已被其他账号占用', 400, 'PHONE_EXISTS');
+  // 只有当前端明确发送了phone字段，且与当前值不同时，才检查冲突
+  if (phone !== undefined) {
+    // 规范化手机号值：去除空格，null/undefined 转为空字符串
+    const normalizePhone = (val) => {
+      if (val === null || val === undefined) return '';
+      return String(val).trim();
+    };
+
+    const newPhone = normalizePhone(phone);
+    const currentPhone = normalizePhone(currentUserRecord.phone);
+
+    // 只有当手机号真正改变时才检查冲突
+    if (newPhone && newPhone !== currentPhone) {
+      console.log(`Checking phone conflict: '${newPhone}' vs '${currentPhone}'`);
+      const phoneCheck = await query(
+        'SELECT id FROM users WHERE TRIM(phone) = $1 AND id != $2',
+        [newPhone, id]
+      );
+      if (phoneCheck.rows.length > 0) {
+        console.log('Phone conflict found:', phoneCheck.rows);
+        throw new AppError('该手机号已被其他账号占用', 400, 'PHONE_EXISTS');
+      }
     }
   }
 
-  // 更新用户信息
-  const updateResult = await query(
-    `UPDATE users 
-       SET name = $1, email = $2, phone = $3, position = $4, gender = $5, birth_date = $6, 
-           education = $7, major = $8, school = $9, graduation_year = $10, 
-           work_experience_years = $11, desired_position = $12, skills = $13, 
-           languages = $14, emergency_contact = $15, emergency_phone = $16, 
-           address = $17, wechat = $18, linkedin = $19, github = $20, 
-           personal_website = $21, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $22 RETURNING *`,
-    [
-      updateData.name, updateData.email, updateData.phone, updateData.position, updateData.gender, updateData.birth_date, 
-      updateData.education, updateData.major, updateData.school, updateData.graduation_year, 
-      updateData.work_experience_years, updateData.desired_position, updateData.skills, 
-      updateData.languages, updateData.emergency_contact, updateData.emergency_phone, 
-      updateData.address, updateData.wechat, updateData.linkedin, updateData.github, 
-      updateData.personal_website, id
-    ]
-  );
+  // Parse expectedSalary string (e.g., "3-5K") to integer min/max value IF they are not provided directly
+  if (expectedSalary && (expectedSalaryMin === undefined || expectedSalaryMin === null)) {
+    // Extract numbers
+    const matches = expectedSalary.match(/(\d+)/g);
+    if (matches && matches.length > 0) {
+      let val = parseInt(matches[0], 10);
+      if (val < 100) val *= 1000;
+      expectedSalaryMin = val;
+
+      if (matches.length > 1) {
+        let maxVal = parseInt(matches[1], 10);
+        if (maxVal < 100) maxVal *= 1000;
+        expectedSalaryMax = maxVal;
+      }
+    }
+  }
+
+  // Update candidates table (Upsert)
+  // We only update if fields are provided to avoid overwriting with nulls if not present
+  // But since this is a PUT/Update profile, we might want to update what we have.
+  // Check if any candidate-specific fields need update
+  const candidateFields = [
+    'city', 'jobStatus', 'expectedSalaryMin', 'expectedSalaryMax', 'preferredLocations',
+    'education', 'major', 'school', 'graduation_year', 'work_experience_years', 'desired_position', 'skills', 'languages', 'availability_status'
+  ];
+
+  const hasCandidateUpdates = candidateFields.some(f => req.body[f] !== undefined) ||
+    expectedSalaryMin !== undefined || expectedSalaryMax !== undefined;
+
+  if (hasCandidateUpdates) {
+    console.log('Updating candidates table for user:', id);
+    // Determine values to update - prioritize new values
+    // Note: Since we are upserting, we need default values if record doesn't exist, OR use COALESCE if it does.
+    // However, if we don't have existing candidate record in memory (we only fetched User), we rely on Upsert DO UPDATE SET COALESCE.
+    // For values that ARE defined in req.body, we pass them. undefined passed as null to upsert, but COALESCE in SQL handles it.
+
+    // Logic for desired_position mapping
+    const finalDesiredPosition = desiredPosition !== undefined ? desiredPosition : (desired_position !== undefined ? desired_position : undefined);
+
+    // Sync job_status and availability_status. 
+    // If availability_status is provided, use it for job_status as well to keep them in sync if job_status is still used.
+    // Or prefer availability_status.
+    const finalAvailabilityStatus = availability_status !== undefined ? availability_status : (jobStatus !== undefined ? jobStatus : undefined);
+
+    // Map availability_status values to job_status values that match database constraints
+    // Frontend sends: 'active', 'inactive', 'open', 'intern'
+    // Database job_status constraint allows: 'active', 'inactive', 'hired'
+    const jobStatusMapping = {
+      'active': 'active',
+      'inactive': 'inactive',
+      'open': 'active', // Map 'open' to 'active'
+      'intern': 'active' // Map 'intern' to 'active'
+    };
+    const finalJobStatus = finalAvailabilityStatus ? jobStatusMapping[finalAvailabilityStatus] || 'active' : null;
+
+    console.log('Candidate update data:', {
+      work_experience_years,
+      availability_status: finalAvailabilityStatus,
+      job_status: finalJobStatus
+    });
+
+    try {
+      await query(
+        `INSERT INTO candidates (
+          user_id, city, job_status, expected_salary_min, expected_salary_max, preferred_locations,
+          education, major, school, graduation_year, work_experience_years, desired_position, skills, languages, availability_status,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id) 
+        DO UPDATE SET 
+          city = COALESCE(EXCLUDED.city, candidates.city),
+          job_status = COALESCE(EXCLUDED.job_status, candidates.job_status), -- Keep syncing or leave as is
+          expected_salary_min = COALESCE(EXCLUDED.expected_salary_min, candidates.expected_salary_min),
+          expected_salary_max = COALESCE(EXCLUDED.expected_salary_max, candidates.expected_salary_max),
+          preferred_locations = COALESCE(EXCLUDED.preferred_locations, candidates.preferred_locations),
+          education = COALESCE(EXCLUDED.education, candidates.education),
+          major = COALESCE(EXCLUDED.major, candidates.major),
+          school = COALESCE(EXCLUDED.school, candidates.school),
+          graduation_year = COALESCE(EXCLUDED.graduation_year, candidates.graduation_year),
+          work_experience_years = COALESCE(EXCLUDED.work_experience_years, candidates.work_experience_years),
+          desired_position = COALESCE(EXCLUDED.desired_position, candidates.desired_position),
+          skills = COALESCE(EXCLUDED.skills, candidates.skills),
+          languages = COALESCE(EXCLUDED.languages, candidates.languages),
+          availability_status = COALESCE(EXCLUDED.availability_status, candidates.availability_status),
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          id,
+          city !== undefined ? city : null,
+          finalJobStatus !== undefined ? finalJobStatus : null, // Use mapped job_status
+          expectedSalaryMin !== undefined ? expectedSalaryMin : null,
+          expectedSalaryMax !== undefined ? expectedSalaryMax : null,
+          preferredLocations !== undefined ? preferredLocations : null,
+          education !== undefined ? education : null,
+          major !== undefined ? major : null,
+          school !== undefined ? school : null,
+          graduation_year !== undefined ? graduation_year : null,
+          work_experience_years !== undefined ? work_experience_years : null,
+          finalDesiredPosition !== undefined ? finalDesiredPosition : null,
+          skills !== undefined ? JSON.stringify(skills) : null,
+          languages !== undefined ? JSON.stringify(languages) : null,
+          finalAvailabilityStatus !== undefined ? finalAvailabilityStatus : null
+        ]
+      );
+      console.log('Candidates table update completed successfully');
+    } catch (error) {
+      console.error('Error updating candidates table:', {
+        error: error,
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        constraint: error.constraint,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  // 更新用户信息 (Users table)
+  // Removed deprecated fields: education, major, school, graduation_year, work_experience_years, desired_position, skills, languages
+  console.log('Updating users table with data:', updateData);
+  let updateResult;
+  try {
+    updateResult = await query(
+      `UPDATE users 
+         SET name = $1, email = $2, phone = $3, position = $4, gender = $5, birth_date = $6, 
+             emergency_contact = $7, emergency_phone = $8, 
+             address = $9, wechat = $10, linkedin = $11, github = $12, 
+             personal_website = $13, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $14 RETURNING *`,
+      [
+        updateData.name, updateData.email, updateData.phone, updateData.position, updateData.gender, updateData.birth_date,
+        updateData.emergency_contact, updateData.emergency_phone,
+        updateData.address, updateData.wechat, updateData.linkedin, updateData.github,
+        updateData.personal_website, id
+      ]
+    );
+    console.log('Users table update completed, result:', updateResult.rows[0]);
+  } catch (error) {
+    console.error('Error updating users table:', {
+      error: error,
+      message: error.message,
+      code: error.code,
+      detail: error.detail,
+      constraint: error.constraint,
+      stack: error.stack
+    });
+    throw error;
+  }
 
   // 如果提供了公司信息，更新公司信息
   if (company) {
@@ -618,10 +785,23 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // 记录更新用户信息日志
   await logAction(req, res, '更新用户信息', `用户 ${updateResult.rows[0].name} 更新了个人信息`, 'update', { type: 'user', id: id });
 
+  // Re-fetch merged data to return
+  const fetchResult = await query(
+    `SELECT u.*, 
+            c.desired_position as "desiredPosition", c.education, c.major, c.school, c.graduation_year, c.work_experience_years, c.skills, c.languages,
+            c.city, c.job_status as "jobStatus", c.availability_status, -- Include in refetch
+            c.expected_salary_min as "expectedSalaryMin", c.expected_salary_max as "expectedSalaryMax", c.expected_salary as "expectedSalary",
+            c.preferred_locations as "preferredLocations"
+     FROM users u
+     LEFT JOIN candidates c ON u.id = c.user_id
+     WHERE u.id = $1`,
+    [id]
+  );
+
   res.json({
     status: 'success',
     message: 'User information updated successfully',
-    data: updateResult.rows[0]
+    data: fetchResult.rows[0]
   });
 }));
 
@@ -867,6 +1047,8 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
 
   const client = await pool.connect();
 
+  const filesToDelete = [];
+
   try {
     await client.query('BEGIN');
 
@@ -879,11 +1061,7 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
     if (user.avatar && user.avatar.startsWith('/avatars/')) {
       const avatarPath = path.join(frontendAvatarsDir, path.basename(user.avatar));
       if (fs.existsSync(avatarPath)) {
-        try {
-          fs.unlinkSync(avatarPath);
-        } catch (e) {
-          console.error('删除用户头像失败:', e);
-        }
+        filesToDelete.push(avatarPath);
       }
     }
 
@@ -914,16 +1092,13 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
       const otherRecruiters = await client.query('SELECT id FROM recruiter_user WHERE company_id = $1', [companyId]);
       if (otherRecruiters.rows.length === 0) {
         // 如果没有其他招聘者，删除公司及其相关数据
+
         // 删除公司Logo文件
         const companyLogoCheck = await client.query('SELECT logo FROM companies WHERE id = $1', [companyId]);
         if (companyLogoCheck.rows[0]?.logo) {
           const logoPath = path.join(__dirname, '../../../Front_End/public', companyLogoCheck.rows[0].logo);
           if (fs.existsSync(logoPath)) {
-            try {
-              fs.unlinkSync(logoPath);
-            } catch (e) {
-              console.error('删除公司Logo失败:', e);
-            }
+            filesToDelete.push(logoPath);
           }
         }
 
@@ -932,11 +1107,7 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
         if (companyLicenseCheck.rows[0]?.business_license) {
           const licensePath = path.join(__dirname, '../../../Front_End/public', companyLicenseCheck.rows[0].business_license);
           if (fs.existsSync(licensePath)) {
-            try {
-              fs.unlinkSync(licensePath);
-            } catch (e) {
-              console.error('删除公司营业执照失败:', e);
-            }
+            filesToDelete.push(licensePath);
           }
         }
 
@@ -952,6 +1123,15 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
     await client.query('DELETE FROM users WHERE id = $1', [id]);
 
     await client.query('COMMIT');
+
+    // 物理删除文件
+    for (const file of filesToDelete) {
+      try {
+        if (fs.existsSync(file)) fs.unlinkSync(file);
+      } catch (e) {
+        console.error('File deletion failed:', file, e);
+      }
+    }
 
     // 记录账号注销日志
     await logAction(req, res, '账号注销', `用户 ${userCheck.rows[0].email || userCheck.rows[0].phone} 成功注销账号`, 'delete', { type: 'user', id: id });

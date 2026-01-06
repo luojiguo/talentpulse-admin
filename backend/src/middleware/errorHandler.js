@@ -9,6 +9,23 @@ const errorHandler = (err, req, res, next) => {
   err.status = err.status || (err.statusCode < 500 ? 'fail' : 'error');
   err.errorCode = err.errorCode || 'INTERNAL_SERVER_ERROR';
 
+  const fs = require('fs');
+  const path = require('path');
+  const logPath = path.join(__dirname, '../../error.log');
+
+  const errorLog = {
+    statusCode: err.statusCode,
+    errorCode: err.errorCode,
+    message: err.message,
+    url: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+    stack: err.stack,
+    body: req.body // Log the request body to see inputs
+  };
+
+  fs.appendFileSync(logPath, JSON.stringify(errorLog, null, 2) + '\n---\n');
+
   // 记录所有错误日志，便于调试和监控
   console.error('ERROR DETAILS:', {
     statusCode: err.statusCode,
@@ -77,7 +94,7 @@ const sendErrorProd = (err, res) => {
   // 操作错误：发送详细信息给客户端
   if (err.isOperational) {
     res.status(err.statusCode).json(response);
-  } 
+  }
   // 编程错误或未知错误：发送通用错误信息
   else {
     // 隐藏敏感错误详情
@@ -172,7 +189,7 @@ const sendSuccessResponse = (res, data, statusCode = 200, message = '操作成�
     message: message,
     data: data
   };
-  
+
   // 如果是分页数据，添加分页信息
   if (data && typeof data === 'object' && 'rows' in data && 'count' in data) {
     response.data = data.rows;
@@ -183,7 +200,7 @@ const sendSuccessResponse = (res, data, statusCode = 200, message = '操作成�
       totalPages: data.totalPages || Math.ceil(data.count / (data.limit || 20))
     };
   }
-  
+
   res.status(statusCode).json(response);
 };
 

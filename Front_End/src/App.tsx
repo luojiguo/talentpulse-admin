@@ -1,7 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { message } from 'antd';
+import { ConfigProvider, message } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
+
+// Set dayjs locale globally
+dayjs.locale('zh-cn');
+
 import { AdminApp } from './modules/admin/AdminApp';
 import { RecruiterApp } from './modules/recruiter/RecruiterApp';
 import CandidateApp from './modules/candidate/CandidateApp';
@@ -52,15 +59,15 @@ const AuthScreen: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthS
           <p className="text-indigo-200 text-lg mb-8">下一代智能招聘与求职管理平台。</p>
           <ul className="space-y-4 text-sm text-indigo-100">
             <li className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full" /> 
+              <div className="w-2 h-2 bg-indigo-400 rounded-full" />
               AI 驱动的简历匹配
             </li>
             <li className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full" /> 
+              <div className="w-2 h-2 bg-indigo-400 rounded-full" />
               实时数据分析看板
             </li>
             <li className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full" /> 
+              <div className="w-2 h-2 bg-indigo-400 rounded-full" />
               全流程在线沟通
             </li>
           </ul>
@@ -114,10 +121,10 @@ const App: React.FC = () => {
   const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<UserRole | null>(null);
   const [companyNameInput, setCompanyNameInput] = useState('');
-  
+
   // 邮箱绑定状态
   const [needsEmailBind, setNeedsEmailBind] = useState(false);
-  
+
   // 检查用户是否需要绑定邮箱
   useEffect(() => {
     if (currentUser && !currentUser.email) {
@@ -165,7 +172,7 @@ const App: React.FC = () => {
       document.title = 'TalentPulse';
     }
   }, [currentUser]);
-  
+
   // 邮箱绑定成功处理
   const handleEmailBindSuccess = () => {
     // 更新用户信息，添加邮箱已绑定标记
@@ -343,103 +350,118 @@ const App: React.FC = () => {
     localStorage.setItem('currentUser', JSON.stringify(normalizedUser)); // 登录成功时保存到localStorage
   };
 
+  const handleUpdateUser = (updates: Partial<User> | User) => {
+    setCurrentUser(prev => {
+      if (!prev) return null;
+
+      const updated = { ...prev, ...updates };
+      // 确保id始终是数字类型
+      updated.id = typeof updated.id === 'string' ? parseInt(updated.id, 10) : updated.id;
+
+      localStorage.setItem('currentUser', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Dropdown menu state
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* 公共路由 */}
-        {!currentUser ? (
-          <Route path="/*" element={<AuthScreen onAuthSuccess={handleAuthSuccess} />} />
-        ) : (
-          // 登录后的路由
-          <>
-            {/* 求职者路由 */}
-            {currentUser.role === 'candidate' && (
-              <Route path="/*" element={<CandidateApp currentUser={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} onUpdateUser={setCurrentUser} />} />
-            )}
+    <ConfigProvider locale={zhCN}>
+      <BrowserRouter>
+        <Routes>
+          {/* 公共路由 */}
+          {!currentUser ? (
+            <Route path="/*" element={<AuthScreen onAuthSuccess={handleAuthSuccess} />} />
+          ) : (
+            // 登录后的路由
+            <>
+              {/* 求职者路由 */}
+              {currentUser.role === 'candidate' && (
+                <Route path="/*" element={<CandidateApp currentUser={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} onUpdateUser={handleUpdateUser} />} />
+              )}
 
-            {/* 招聘者路由 */}
-            {currentUser.role === 'recruiter' && (
-              <>
-                <Route path="/recruiter/*" element={<RecruiterApp onLogout={handleLogout} onSwitchRole={handleSwitchRole} currentUser={currentUser} />} />
-                <Route path="/*" element={<RecruiterApp onLogout={handleLogout} onSwitchRole={handleSwitchRole} currentUser={currentUser} />} />
-              </>
-            )}
+              {/* 招聘者路由 */}
+              {currentUser.role === 'recruiter' && (
+                <>
+                  <Route path="/recruiter/*" element={<RecruiterApp onLogout={handleLogout} onSwitchRole={handleSwitchRole} currentUser={currentUser} />} />
+                  <Route path="/*" element={<RecruiterApp onLogout={handleLogout} onSwitchRole={handleSwitchRole} currentUser={currentUser} />} />
+                </>
+              )}
 
-            {/* 管理员路由 */}
-            {currentUser.role === 'admin' && (
-              <>
-                <Route path="/admin/*" element={<AdminApp userRole={currentUser.role} onLogout={handleLogout} />} />
-                <Route path="/*" element={<AdminApp userRole={currentUser.role} onLogout={handleLogout} />} />
-              </>
-            )}
-          </>
-        )}
-      </Routes>
+              {/* 管理员路由 */}
+              {currentUser.role === 'admin' && (
+                <>
+                  <Route path="/admin/*" element={<AdminApp userRole={currentUser.role} onLogout={handleLogout} />} />
+                  <Route path="/*" element={<AdminApp userRole={currentUser.role} onLogout={handleLogout} />} />
+                </>
+              )}
+            </>
+          )}
+        </Routes>
 
-      {/* 角色切换模态框 */}
-      {isSwitchModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">切换角色</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  您正在切换到 {switchingRole === 'recruiter' ? '招聘方' : '求职者'} 身份
-                </p>
-              </div>
-              <button onClick={closeSwitchModal} className="text-gray-400 hover:text-gray-600">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {switchingRole === 'recruiter' && (
-              <div className="space-y-4">
+        {/* 角色切换模态框 */}
+        {isSwitchModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl animate-in fade-in zoom-in-95">
+              <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    企业名称（认证用）
-                  </label>
-                  <input
-                    type="text"
-                    value={companyNameInput}
-                    onChange={(e) => setCompanyNameInput(e.target.value)}
-                    placeholder="请输入您所在的企业名称"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    请确保输入的企业名称与您的账号关联的企业一致
+                  <h2 className="text-2xl font-bold text-gray-900">切换角色</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    您正在切换到 {switchingRole === 'recruiter' ? '招聘方' : '求职者'} 身份
                   </p>
                 </div>
+                <button onClick={closeSwitchModal} className="text-gray-400 hover:text-gray-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            )}
 
-            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
-              <button
-                onClick={closeSwitchModal}
-                className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-bold hover:bg-gray-50 transition"
-              >
-                取消
-              </button>
-              <button
-                onClick={confirmSwitchRole}
-                className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200"
-              >
-                确认切换
-              </button>
+              {switchingRole === 'recruiter' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      企业名称（认证用）
+                    </label>
+                    <input
+                      type="text"
+                      value={companyNameInput}
+                      onChange={(e) => setCompanyNameInput(e.target.value)}
+                      placeholder="请输入您所在的企业名称"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      请确保输入的企业名称与您的账号关联的企业一致
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  onClick={closeSwitchModal}
+                  className="px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-bold hover:bg-gray-50 transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmSwitchRole}
+                  className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200"
+                >
+                  确认切换
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      
-      {/* 邮箱绑定模态框 */}
-      {needsEmailBind && (
-        <EmailBindForm onBindSuccess={handleEmailBindSuccess} />
-      )}
-    </BrowserRouter>
+        )}
+
+        {/* 邮箱绑定模态框 */}
+        {needsEmailBind && (
+          <EmailBindForm onBindSuccess={handleEmailBindSuccess} />
+        )}
+      </BrowserRouter>
+    </ConfigProvider>
   );
 };
 

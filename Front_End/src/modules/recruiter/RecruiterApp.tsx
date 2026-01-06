@@ -937,7 +937,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                             recruiter_name: job.recruiter_name || '未知发布人',
                             recruiter_avatar: processAvatarUrl(job.recruiter_avatar),
                             recruiter_position: job.recruiter_position || '未知职位',
-                            applicants: job.applications_count || 0,
+                            applicants: job.applicants || job.applications_count || 0,
                             status: job.status === 'active' || job.status === 'Active' ? 'active' : 'closed',
                             postedDate: new Date(job.publish_date || job.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
                             required_skills: job.required_skills || [],
@@ -1237,6 +1237,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                 }}
                 companyAddress={profile.company.address}
                 jobs={jobs}
+                onEditJob={handleEditJob}
             />
         );
     };

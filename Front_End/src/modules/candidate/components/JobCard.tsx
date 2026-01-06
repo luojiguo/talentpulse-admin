@@ -1,102 +1,81 @@
-import React, { useState } from 'react';
-import { MessageSquare, Building2, MapPin, Briefcase, ChevronDown, ChevronUp, User } from 'lucide-react';
-import { JobPosting } from '@/types/types';
+import React from 'react';
+import { Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { JobPosting } from '@/types/types';
 
-// Fix: Explicitly type JobCard as React.FC to allow 'key' prop in JSX
 const JobCard: React.FC<{ job: JobPosting; onChat?: (jobId: number, recruiterId: number) => void }> = ({ job, onChat }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
     const navigate = useNavigate();
-    
+
     const handleSelect = () => {
         navigate(`/job/${job.id}`);
     };
-    
-    const toggleExpand = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setIsExpanded(!isExpanded);
-    };
-    
+
+    // Ensure data safety
+    const title = job.title || '未知职位';
+    const salary = job.salary || '面议';
+    const companyName = job.company_name || '未知公司';
+    const location = job.location || '未知地点';
+    const experience = job.experience || '经验不限';
+    const degree = job.degree || '学历不限';
+
+    // Filter out empty tags
+    const tags = [experience, degree].filter(t => t && t !== '不限' && t !== '经验不限' && t !== '学历不限');
+    if (tags.length === 0) {
+        if (experience) tags.push(experience);
+        if (degree) tags.push(degree);
+    }
+    // Optional: Add job.type/level if needed, but keeping it minimal as per reference image
+
     return (
-        <div 
-            className="bg-white p-5 sm:p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-indigo-100 transition-all duration-300 cursor-pointer"
+        <div
+            className="group bg-white p-4 rounded-xl shadow-sm border border-slate-100 hover:shadow-lg hover:border-indigo-50 transition-all duration-300 cursor-pointer flex flex-col h-full relative overflow-hidden"
             onClick={handleSelect}
         >
-            <div className="flex flex-col sm:flex-row sm:justify-between items-start gap-3 mb-3">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                    {job.title !== undefined && job.title !== null ? job.title : '未知职位'}
+            {/* Hover Decorator line */}
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+            {/* Header: Title & Salary */}
+            <div className="flex justify-between items-center gap-2 mb-3">
+                <h3 className="text-[16px] font-bold text-slate-800 line-clamp-1 flex-1 group-hover:text-indigo-600 transition-colors" title={title}>
+                    {title}
                 </h3>
-                <span className="text-base sm:text-lg font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg">
-                    {job.salary !== undefined && job.salary !== null ? job.salary : '面议'}
+                <span className="text-[#fe574a] font-bold text-[15px] whitespace-nowrap">
+                    {salary}
                 </span>
             </div>
-            <div className="flex flex-wrap items-center text-sm text-gray-500 mb-3 gap-2">
-                <span className="flex items-center whitespace-nowrap"><Building2 className="w-4 h-4 mr-1"/>
-                    {job.company_name !== undefined && job.company_name !== null ? job.company_name : '未知公司'}
-                </span>
-                <span className="text-gray-300">•</span>
-                <span className="flex items-center whitespace-nowrap"><MapPin className="w-4 h-4 mr-1"/>
-                    {job.location !== undefined && job.location !== null ? job.location : '未知地点'}
-                </span>
-                <span className="text-gray-300">•</span>
-                <span className="flex items-center whitespace-nowrap"><Briefcase className="w-4 h-4 mr-1"/>
-                    {job.experience !== undefined && job.experience !== null ? job.experience : '经验不限'}
-                </span>
-                <span className="text-gray-300">•</span>
-                <span className="flex items-center whitespace-nowrap"><Briefcase className="w-4 h-4 mr-1"/>
-                    {job.degree !== undefined && job.degree !== null ? job.degree : '学历不限'}
-                </span>
+
+            {/* Tags Row */}
+            <div className="flex flex-wrap gap-2 mb-4">
+                {tags.map((tag, index) => (
+                    <span key={index} className="px-2 py-[2px] bg-slate-50 text-slate-500 text-[12px] rounded border border-slate-100">
+                        {tag}
+                    </span>
+                ))}
             </div>
-            
-            {/* HR招聘人信息 - 添加在公司和岗位中间 */}
-            <div className="flex items-center gap-3 mb-3 text-sm">
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium">
-                    {job.recruiter_name?.charAt(0) || 'HR'}
-                </div>
-                <div>
-                    <div className="font-medium text-gray-900">{job.recruiter_name || '招聘负责人'}</div>
-                    <div className="text-gray-500">{job.recruiter_position || '招聘职位'}</div>
-                </div>
-            </div>
-            
-            <p className="text-gray-600 line-clamp-2 mb-4 text-sm leading-relaxed">{job.description || '暂无描述'}</p>
-            <div className="flex justify-between items-center relative pt-4 border-t border-gray-50">
-                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${job.type === '全职' ? 'bg-blue-50 text-blue-700 border border-blue-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>{job.type}</span>
-                <div className="relative" onClick={toggleExpand}>
-                    <span className="text-sm font-medium text-gray-400 group-hover:text-indigo-600 transition-colors flex items-center">
-                        {isExpanded ? (
-                            <>
-                                收起详情 <ChevronUp className="w-4 h-4 ml-1" />
-                            </>
-                        ) : (
-                            <>
-                                查看详情 <ChevronDown className="w-4 h-4 ml-1" />
-                            </>
-                        )}
+
+            {/* Footer: Company & Location */}
+            <div className="mt-auto flex items-center justify-between pt-3">
+                <div className="flex items-center gap-2 min-w-0">
+                    {job.company_logo ? (
+                        <img src={job.company_logo} alt={companyName} className="w-8 h-8 rounded-lg object-cover border border-slate-50 bg-slate-50" />
+                    ) : (
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-400 border border-indigo-50">
+                            <Building2 className="w-4 h-4" />
+                        </div>
+                    )}
+                    <span className="text-[13px] text-slate-600 truncate max-w-[120px] hover:text-indigo-600 transition-colors" title={companyName}>
+                        {companyName}
                     </span>
                 </div>
-            </div>
-            
-            {/* Expanded Detail Section */}
-            {isExpanded && (
-                <div className="mt-6 pt-6 border-t border-gray-100 animate-in fade-in slide-in-from-top-1 duration-300">
-                    <div className="mb-2">
-                        <h4 className="font-bold text-lg text-gray-900">职位详情</h4>
-                    </div>
-                    <div className="w-full h-px bg-gray-100 my-3"></div>
-                    <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line mb-6">{job.description}</p>
-                    <button onClick={(e) => {
-                        e.stopPropagation();
-                        if (onChat && job.id && job.recruiter_id) {
-                            onChat(Number(job.id), Number(job.recruiter_id));
-                        } else {
-                            handleSelect();
-                        }
-                    }} className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium flex items-center justify-center">
-                        <MessageSquare className="w-4 h-4 mr-2"/> 立即沟通
-                    </button>
+                <div className="flex items-center text-slate-400 text-[13px] whitespace-nowrap ml-2">
+                    {location}
                 </div>
-            )}
+            </div>
+
+            {/* HR Info - Optional, simplified */}
+            {/* <div className="absolute bottom-4 right-4 text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
+                {job.recruiter_name}
+            </div> */}
         </div>
     );
 };

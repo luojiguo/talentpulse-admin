@@ -64,4 +64,38 @@ export const candidateAPI = {
       applicationMethod: applicationData.applicationMethod
     });
   },
+
+  // ==========================================
+  // Work Experience
+  // ==========================================
+  getWorkExperiences: (userId: string | number) => request.get(`/candidates/${userId}/work-experiences`),
+  addWorkExperience: (userId: string | number, data: any) => request.post(`/candidates/${userId}/work-experiences`, data),
+  updateWorkExperience: (userId: string | number, id: string | number, data: any) => request.put(`/candidates/${userId}/work-experiences/${id}`, data),
+  deleteWorkExperience: (userId: string | number, id: string | number) => request.delete(`/candidates/${userId}/work-experiences/${id}`),
+
+  // ==========================================
+  // Project Experience
+  // ==========================================
+  getProjectExperiences: (userId: string | number) => request.get(`/candidates/${userId}/project-experiences`),
+  addProjectExperience: (userId: string | number, data: any) => request.post(`/candidates/${userId}/project-experiences`, data),
+  updateProjectExperience: (userId: string | number, id: string | number, data: any) => request.put(`/candidates/${userId}/project-experiences/${id}`, data),
+  deleteProjectExperience: (userId: string | number, id: string | number) => request.delete(`/candidates/${userId}/project-experiences/${id}`),
+
+  // ==========================================
+  // Education Experience
+  // ==========================================
+  getEducationExperiences: (userId: string | number) => request.get(`/candidates/${userId}/education-experiences`),
+  addEducationExperience: (userId: string | number, data: any) => request.post(`/candidates/${userId}/education-experiences`, data),
+  updateEducationExperience: (userId: string | number, id: string | number, data: any) => request.put(`/candidates/${userId}/education-experiences/${id}`, data),
+  deleteEducationExperience: (userId: string | number, id: string | number) => request.delete(`/candidates/${userId}/education-experiences/${id}`),
+
+  // ==========================================
+  // Expected Positions
+  // ==========================================
+  getExpectedPositions: (userId: string | number) => request.get(`/candidates/${userId}/expected-positions`),
+  addExpectedPosition: (userId: string | number, data: any) => request.post(`/candidates/${userId}/expected-positions`, data),
+  updateExpectedPosition: (userId: string | number, id: string | number, data: any) => request.put(`/candidates/${userId}/expected-positions/${id}`, data),
+  deleteExpectedPosition: (userId: string | number, id: string | number) => request.delete(`/candidates/${userId}/expected-positions/${id}`),
 };
+
+

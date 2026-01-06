@@ -147,8 +147,13 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const recruiterRoutes = require('./routes/recruiterRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const interviewRoutes = require('./routes/interviewRoutes');
+// const aiRoutes = require('./routes/aiRoutes'); // AI诊断功能已移除
+
+const configRoutes = require('./routes/configRoutes');
 
 // 使用路由
+app.use('/api/config', configRoutes);
+// app.use('/api/ai', aiRoutes); // AI诊断功能已移除
 app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/companies', companyRoutes);

@@ -48,6 +48,7 @@ import {
     getChatWindowWidth
 } from '@/utils/layoutUtils';
 import UserAvatar from '@/components/UserAvatar';
+import InterviewCard from '@/components/InterviewCard';
 
 interface MessageCenterScreenProps {
     conversations: Conversation[];
@@ -1306,6 +1307,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                     ) : activeConv.messages.map((msg: Message, i: number) => {
                                         const isMe = Number(msg.sender_id) === Number(currentUser?.id);
                                         const isSystem = msg.type === 'system';
+                                        const isInterviewInvitation = msg.type === 'interview_invitation';
 
                                         // --- 时间分割线逻辑 ---
                                         const prevMsg = activeConv.messages?.[i - 1];
@@ -1328,6 +1330,35 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 )}
                                                 <div className="flex justify-center my-4">
                                                     <span className="text-xs bg-gray-200 text-gray-500 px-3 py-1 rounded-full">{msg.text}</span>
+                                                </div>
+                                            </div>
+                                        );
+
+                                        if (isInterviewInvitation) return (
+                                            <div key={i}>
+                                                {showTimeDivider && (
+                                                    <div className="flex justify-center my-4">
+                                                        <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-center my-4">
+                                                    <InterviewCard
+                                                        msg={msg}
+                                                        isCurrentUser={isMe}
+                                                        isRecruiter={false}
+                                                        onAccept={async (interviewId, messageId) => {
+                                                            // Handle accept interview
+                                                            // 消息提示已在 InterviewCard 组件中显示，这里不需要重复
+                                                            // Refresh conversation
+                                                            window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
+                                                        }}
+                                                        onReject={async (interviewId, messageId) => {
+                                                            // Handle reject interview
+                                                            // 消息提示已在 InterviewCard 组件中显示，这里不需要重复
+                                                            // Refresh conversation
+                                                            window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
+                                                        }}
+                                                    />
                                                 </div>
                                             </div>
                                         );
@@ -1757,11 +1788,10 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                     <button
                                                         onClick={() => {
                                                             setShowResumeModal(false);
-                                                            navigate('/resume-editor');
                                                         }}
                                                         className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
                                                     >
-                                                        去上传简历
+                                                        关闭
                                                     </button>
                                                 </div>
                                             ) : (

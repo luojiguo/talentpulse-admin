@@ -22,6 +22,11 @@ export const applicationAPI = {
     return request.get(`/applications/candidate/${candidateId}`);
   },
 
+  // Create new application
+  createApplication: (data: any) => {
+    return request.post('/applications', data);
+  },
+
   // Get all applications (Admin)
   getAllApplications: () => {
     return request.get('/applications');

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { JobPosting, Company } from '@/types/types';
-import { jobAPI, companyAPI } from '@/services/apiService';
-import { Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { JobPosting, Company, SystemUser } from '@/types/types';
+import { jobAPI, companyAPI, userAPI } from '@/services/apiService';
+import { Search, ChevronUp, ChevronDown, MapPin, Briefcase, Filter, CheckCircle, XCircle, AlertCircle, Edit3 } from 'lucide-react';
+import { Modal, Input, Select, message } from 'antd';
 import CompanyCard from '../components/CompanyCard';
 import JobCard from '../components/JobCard';
 import CityPickerModal from '../components/CityPickerModal';
@@ -14,10 +16,22 @@ interface HomeScreenProps {
   followedCompanies: (string | number)[];
   setFollowedCompanies: React.Dispatch<React.SetStateAction<(string | number)[]>>;
   currentUser: { id: number | string; name: string; email: string; avatar?: string };
+  userProfile?: {
+    city?: string;
+    jobStatus?: string;
+    expectedSalary?: string;
+    expectedSalaryMin?: number;
+    expectedSalaryMax?: number;
+    avatar?: string;
+    name?: string;
+    desiredPosition?: string;
+    preferredLocations?: string;
+  };
+  onRefreshProfile?: () => void;
   onChat: (jobId: string | number, recruiterId: string | number) => void;
 }
 
-const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: propsLoadingJobs, jobsError: propsJobsError, followedCompanies, setFollowedCompanies, currentUser, onChat }) => {
+const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: propsLoadingJobs, jobsError: propsJobsError, followedCompanies, setFollowedCompanies, currentUser, userProfile, onRefreshProfile, onChat }) => {
   // State for jobs and companies
   // 如果父组件传递了jobs数据，使用父组件的数据，否则自己获取
   const [localJobs, setLocalJobs] = useState<JobPosting[]>([]);
@@ -41,6 +55,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   const [filterJobType, setFilterJobType] = useState('全部');
   const [visibleJobsCount, setVisibleJobsCount] = useState(10);
 
+  // State for editing user profile
+  const [editingField, setEditingField] = useState<'preferredLocations' | 'jobStatus' | 'expectedSalary' | 'desiredPosition' | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const [salaryMin, setSalaryMin] = useState<number | undefined>(undefined);
+  const [salaryMax, setSalaryMax] = useState<number | undefined>(undefined);
+  const [savingProfile, setSavingProfile] = useState(false);
+
   // 使用固定的筛选选项，确保选项完整且一致
   // 同时从数据库中获取实际存在的值，用于验证和显示
   const filterOptions = useMemo(() => {
@@ -48,7 +69,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     const existingExperiences = new Set<string>();
     const existingDegrees = new Set<string>();
     const existingJobTypes = new Set<string>();
-    
+
     jobs.forEach(job => {
       if (job.experience && job.experience.trim()) {
         existingExperiences.add(job.experience);
@@ -63,32 +84,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
         existingJobTypes.add('远程');
       }
     });
-    
+
     // 使用固定的选项列表，确保选项完整
     // 如果数据库中有不在固定列表中的值，也会包含进来（向后兼容）
     const experiences = [...EXPERIENCE_OPTIONS];
     const degrees = [...DEGREE_OPTIONS];
     const jobTypes = [...JOB_TYPE_OPTIONS];
-    
+
     // 添加数据库中存在的但不在固定列表中的值（向后兼容）
     existingExperiences.forEach(exp => {
       if (!experiences.includes(exp)) {
         experiences.push(exp);
       }
     });
-    
+
     existingDegrees.forEach(deg => {
       if (!degrees.includes(deg)) {
         degrees.push(deg);
       }
     });
-    
+
     existingJobTypes.forEach(type => {
       if (!jobTypes.includes(type)) {
         jobTypes.push(type);
       }
     });
-    
+
     return {
       experiences,
       degrees,
@@ -139,18 +160,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       const matchesExperience = filterExperience === '全部'
         ? true
         : (() => {
-            // 处理 undefined、null、空字符串的情况
-            if (job.experience === undefined || job.experience === null) {
-              return true; // undefined/null 表示接受任何经验
-            }
-            if (typeof job.experience === 'string' && job.experience.trim() === '') {
-              return true; // 空字符串表示接受任何经验
-            }
-            if (job.experience === '不限') {
-              return true; // "不限"表示接受任何经验
-            }
-            return job.experience === filterExperience; // 精确匹配
-          })();
+          // 处理 undefined、null、空字符串的情况
+          if (job.experience === undefined || job.experience === null) {
+            return true; // undefined/null 表示接受任何经验
+          }
+          if (typeof job.experience === 'string' && job.experience.trim() === '') {
+            return true; // 空字符串表示接受任何经验
+          }
+          if (job.experience === '不限') {
+            return true; // "不限"表示接受任何经验
+          }
+          return job.experience === filterExperience; // 精确匹配
+        })();
 
       // 4. 学历筛选
       // - 如果筛选条件是"全部"，显示所有职位
@@ -160,18 +181,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       const matchesDegree = filterDegree === '全部'
         ? true
         : (() => {
-            // 处理 undefined、null、空字符串的情况
-            if (job.degree === undefined || job.degree === null) {
-              return true; // undefined/null 表示接受任何学历
-            }
-            if (typeof job.degree === 'string' && job.degree.trim() === '') {
-              return true; // 空字符串表示接受任何学历
-            }
-            if (job.degree === '不限') {
-              return true; // "不限"表示接受任何学历
-            }
-            return job.degree === filterDegree; // 精确匹配
-          })();
+          // 处理 undefined、null、空字符串的情况
+          if (job.degree === undefined || job.degree === null) {
+            return true; // undefined/null 表示接受任何学历
+          }
+          if (typeof job.degree === 'string' && job.degree.trim() === '') {
+            return true; // 空字符串表示接受任何学历
+          }
+          if (job.degree === '不限') {
+            return true; // "不限"表示接受任何学历
+          }
+          return job.degree === filterDegree; // 精确匹配
+        })();
 
       // 5. 职位类型筛选
       // - 如果选择"全部"，显示所有职位
@@ -183,12 +204,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
         : filterJobType === '远程'
           ? (job.type === '远程' || job.work_mode === '远程')
           : (() => {
-              // 处理 undefined/null 的情况
-              if (job.type === undefined || job.type === null) {
-                return true; // undefined/null 表示接受任何类型
-              }
-              return job.type === filterJobType; // 精确匹配
-            })();
+            // 处理 undefined/null 的情况
+            if (job.type === undefined || job.type === null) {
+              return true; // undefined/null 表示接受任何类型
+            }
+            return job.type === filterJobType; // 精确匹配
+          })();
 
       // 所有筛选条件必须同时满足（AND逻辑）
       return matchesSearch && matchesLocation && matchesExperience && matchesDegree && matchesJobType;
@@ -233,7 +254,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
           : await jobAPI.getAllJobs();
 
         console.log('API响应:', response);
-        
+
         if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
           console.log('原始API数据:', response.data.slice(0, 5));
           const formattedJobs = formatJobData(response.data);
@@ -269,9 +290,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
 
     // 检查是否有筛选条件
     const hasFilters = filterLocation !== '全部' ||
-                       filterExperience !== '全部' ||
-                       filterDegree !== '全部' ||
-                       filterJobType !== '全部';
+      filterExperience !== '全部' ||
+      filterDegree !== '全部' ||
+      filterJobType !== '全部';
 
     if (!hasFilters) {
       // 没有筛选条件，使用初始数据
@@ -392,19 +413,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       console.warn('formatJobData: 数据格式不正确', data);
       return [];
     }
-    
+
     return data.map((job: any) => {
       // 打印单个职位数据，查看具体字段
       console.log('单个职位原始数据:', job);
-      
+
       // 直接使用数据库值，如果是 undefined 或 null 才使用默认值
       // 确保处理所有可能的字段名差异
       const title = job.title !== undefined && job.title !== null ? job.title : '未知职位';
-      
+
       // 处理公司名称，可能来自job.company_name或job.company
-      const companyName = job.company_name !== undefined && job.company_name !== null ? job.company_name : 
-                         job.company !== undefined && job.company !== null ? job.company : '未知公司';
-      
+      const companyName = job.company_name !== undefined && job.company_name !== null ? job.company_name :
+        job.company !== undefined && job.company !== null ? job.company : '未知公司';
+
       const department = job.department !== undefined && job.department !== null ? job.department : '';
       const location = job.location !== undefined && job.location !== null ? job.location : '未知地点';
       const salary = job.salary !== undefined && job.salary !== null ? job.salary : '面议';
@@ -416,30 +437,30 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       const urgency = job.urgency !== undefined && job.urgency !== null ? job.urgency : '普通';
       const views_count = job.views_count !== undefined && job.views_count !== null ? job.views_count : 0;
       const match_rate = job.match_rate !== undefined && job.match_rate !== null ? job.match_rate : 0;
-      
+
       // 对于经验和学历，保持 trim 处理，但只有在字段不是 undefined 或 null 时才 trim
-      const experience = job.experience !== undefined && job.experience !== null 
-        ? (typeof job.experience === 'string' ? job.experience.trim() : job.experience) 
+      const experience = job.experience !== undefined && job.experience !== null
+        ? (typeof job.experience === 'string' ? job.experience.trim() : job.experience)
         : '经验不限';
-      
-      const degree = job.degree !== undefined && job.degree !== null 
-        ? (typeof job.degree === 'string' ? job.degree.trim() : job.degree) 
+
+      const degree = job.degree !== undefined && job.degree !== null
+        ? (typeof job.degree === 'string' ? job.degree.trim() : job.degree)
         : '学历不限';
-      
+
       const recruiter_name = job.recruiter_name !== undefined && job.recruiter_name !== null ? job.recruiter_name : '招聘负责人';
       const recruiter_position = job.recruiter_position !== undefined && job.recruiter_position !== null ? job.recruiter_position : '招聘专员';
       const recruiter_id = job.recruiter_id !== undefined && job.recruiter_id !== null ? job.recruiter_id : job.posterId !== undefined && job.posterId !== null ? job.posterId : 0;
-      
-      const applicants = job.applications_count !== undefined && job.applications_count !== null ? job.applications_count : 
-                        job.applicants !== undefined && job.applicants !== null ? job.applicants : 0;
-      
-      const status = (job.status === 'active' || job.status === 'Active') ? 'Active' as const : 
-                     (job.status === 'draft' || job.status === 'Draft') ? 'Draft' as const : 
-                     (job.status === 'closed' || job.status === 'Closed') ? 'Closed' as const : 
-                     'Active' as const;
-      
+
+      const applicants = job.applications_count !== undefined && job.applications_count !== null ? job.applications_count :
+        job.applicants !== undefined && job.applicants !== null ? job.applicants : 0;
+
+      const status = (job.status === 'active' || job.status === 'Active') ? 'Active' as const :
+        (job.status === 'draft' || job.status === 'Draft') ? 'Draft' as const :
+          (job.status === 'closed' || job.status === 'Closed') ? 'Closed' as const :
+            'Active' as const;
+
       const postedDate = job.publish_date ? new Date(job.publish_date).toLocaleDateString() : new Date().toLocaleDateString();
-      
+
       const formatted = {
         id: job.id,
         title: title,
@@ -475,7 +496,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
         company_logo: job.company_logo,
         company_website: job.company_website
       };
-      
+
       console.log('单个职位格式化后:', formatted);
       return formatted;
     });
@@ -603,6 +624,87 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     return () => window.removeEventListener('scroll', handleScroll);
   }, [visibleJobsCount, filteredJobs.length]);
 
+
+  // Optimize salary options generation
+  const salaryOptions = useMemo(() => {
+    const options = [];
+    // 1k - 30k: 1k steps
+    for (let i = 1; i <= 30; i++) {
+      options.push({ value: i * 1000, label: `${i}k` });
+    }
+    // 31k - 100k: 1k steps
+    for (let i = 31; i <= 100; i++) {
+      options.push({ value: i * 1000, label: `${i}k` });
+    }
+    // 105k - 200k: 5k steps
+    for (let i = 105; i <= 200; i += 5) {
+      options.push({ value: i * 1000, label: `${i}k` });
+    }
+    // 210k - 500k: 10k steps
+    for (let i = 210; i <= 500; i += 10) {
+      options.push({ value: i * 1000, label: `${i}k` });
+    }
+    return options;
+  }, []);
+
+  const handleEditClick = (field: 'preferredLocations' | 'desiredPosition' | 'expectedSalary' | 'jobStatus', currentValue: string, minSal?: number, maxSal?: number) => {
+    setEditingField(field);
+    // If editing preferredLocations, use preferredLocations if available
+    if (field === 'preferredLocations') {
+      setEditValue(userProfile?.preferredLocations || '');
+    } else {
+      setEditValue(currentValue);
+    }
+    if (field === 'expectedSalary') {
+      setSalaryMin(minSal);
+      setSalaryMax(maxSal);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!currentUser?.id || !editingField) return;
+
+    setSavingProfile(true);
+    try {
+      const updateData: Partial<SystemUser> & {
+        expectedSalaryMin?: number;
+        expectedSalaryMax?: number;
+        preferredLocations?: string;
+      } = {};
+      if (editingField === 'preferredLocations') {
+        updateData.preferredLocations = editValue;
+      } else if (editingField === 'desiredPosition') {
+        updateData.desiredPosition = editValue;
+      } else if (editingField === 'expectedSalary') {
+        // Construct salary string and min/max
+        if (salaryMin !== undefined && salaryMax !== undefined) {
+          updateData.expectedSalaryMin = salaryMin;
+          updateData.expectedSalaryMax = salaryMax;
+        }
+      }
+
+      const response = await userAPI.updateUser(String(currentUser.id), updateData);
+
+      if (response.status === 'success') {
+        message.success('个人信息更新成功！');
+        if (onRefreshProfile) {
+          onRefreshProfile(); // Refresh parent component's userProfile state
+        }
+        setEditingField(null);
+        setEditValue('');
+        setSalaryMin(undefined);
+        setSalaryMax(undefined);
+      } else {
+        message.error(response.message || '更新失败，请重试。');
+      }
+    } catch (error) {
+      console.error('Failed to update user profile:', error);
+      message.error('更新失败，请检查网络或稍后重试。');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       {/* Filter Section - Now at the top of job list */}
@@ -675,7 +777,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
               </div>
-              
+
               {/* Clear Filters Button */}
               <button
                 onClick={() => {
@@ -748,36 +850,131 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       </div>
 
       <div>
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="mb-4 flex items-end justify-between border-b border-transparent pb-2">
           <div className="flex items-center gap-4">
-            <h3 className="text-xl font-bold text-slate-900">最新职位</h3>
+            <h3 className="text-2xl font-bold text-slate-800">最新职位</h3>
             {isAIPending && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                <span>AI 推荐中...</span>
+              <div className="flex items-center gap-2 text-sm text-indigo-500 bg-indigo-50 px-2 py-1 rounded-full">
+                <div className="w-3 h-3 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                <span>AI 智能推荐中...</span>
               </div>
             )}
             {aiJobsError && (
               <div className="text-sm text-red-500">{aiJobsError}</div>
             )}
           </div>
-          {/* 显示筛选结果数量 */}
-          {!loadingJobs && !jobsError && (
-            <div className="text-sm text-gray-600">
-              {filteredJobs.length > 0 ? (
-                <span>
-                  找到 <span className="font-semibold text-indigo-600">{filteredJobs.length}</span> 个符合条件的职位
-                  {filteredJobs.length !== jobs.length && (
-                    <span className="text-gray-400 ml-1">（共 {jobs.length} 个职位）</span>
+
+          {/* Dynamic Recommendation Info - Replacing the count */}
+          {userProfile && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-200 overflow-hidden">
+                  {userProfile.avatar ? (
+                    <img src={userProfile.avatar} alt="User" className="w-full h-full object-cover" />
+                  ) : (
+                    '求'
                   )}
-                </span>
-              ) : (
-                <span className="text-gray-500">未找到符合条件的职位</span>
-              )}
+                </div>
+                <span className="text-sm font-bold text-slate-700">根据求职期望匹配：</span>
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-900 font-medium">
+                      {userProfile?.preferredLocations || '地点未填'}
+                    </span>
+                    <button
+                      onClick={() => handleEditClick('preferredLocations', userProfile?.preferredLocations || '')}
+                      className="text-gray-400 hover:text-blue-600 transition-colors"
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                  </div>
+                  <span className="text-indigo-200">|</span>
+                  <span
+                    onClick={() => handleEditClick('desiredPosition', userProfile.desiredPosition || '')}
+                    className="bg-white px-1.5 py-0.5 rounded border border-indigo-100 text-indigo-600 cursor-pointer hover:bg-indigo-50 transition-colors hover:underline"
+                    title="点击修改期望岗位"
+                  >
+                    {userProfile.desiredPosition || '岗位未填'}
+                  </span>
+                  <span className="text-indigo-200">|</span>
+                  <span
+                    onClick={() => handleEditClick('expectedSalary', '', userProfile.expectedSalaryMin, userProfile.expectedSalaryMax)}
+                    className="bg-white px-1.5 py-0.5 rounded border border-indigo-100 text-indigo-600 cursor-pointer hover:bg-indigo-50 transition-colors hover:underline"
+                    title="点击修改期望薪资"
+                  >
+                    {(() => {
+                      if (userProfile.expectedSalaryMin !== undefined && userProfile.expectedSalaryMax !== undefined && userProfile.expectedSalaryMin !== null && userProfile.expectedSalaryMax !== null) {
+                        const min = userProfile.expectedSalaryMin >= 1000 ? `${Math.round(userProfile.expectedSalaryMin / 1000)}k` : userProfile.expectedSalaryMin;
+                        const max = userProfile.expectedSalaryMax >= 1000 ? `${Math.round(userProfile.expectedSalaryMax / 1000)}k` : userProfile.expectedSalaryMax;
+                        return `${min}-${max}`;
+                      }
+                      return '薪资未填';
+                    })()}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
         </div>
-        <div className="space-y-4">
+
+        {/* Edit Profile Modal */}
+        <Modal
+          title={`修改${editingField === 'preferredLocations' ? '期望地点' :
+            editingField === 'desiredPosition' ? '期望岗位' :
+              editingField === 'expectedSalary' ? '期望薪资' : ''
+            } `}
+          open={!!editingField}
+          onOk={handleSaveProfile}
+          onCancel={() => {
+            setEditingField(null);
+            setEditValue('');
+          }}
+          okText="保存"
+          cancelText="取消"
+          confirmLoading={savingProfile}
+        >
+          {editingField === 'expectedSalary' ? (
+            <div className="flex items-center gap-2">
+              <Select
+                placeholder="最低薪资"
+                value={salaryMin}
+                onChange={val => {
+                  setSalaryMin(val);
+                  // Reset max if it becomes invalid (< min)
+                  if (salaryMax && val && salaryMax <= val) {
+                    setSalaryMax(undefined);
+                  }
+                }}
+                options={salaryOptions}
+                style={{ width: '100%' }}
+                showSearch
+                optionFilterProp="label"
+              />
+              <span className="text-gray-400">至</span>
+              <Select
+                placeholder="最高薪资"
+                value={salaryMax}
+                onChange={val => setSalaryMax(val)}
+                options={salaryOptions.filter(opt => !salaryMin || opt.value > salaryMin)}
+                style={{ width: '100%' }}
+                showSearch
+                optionFilterProp="label"
+                disabled={!salaryMin}
+              />
+            </div>
+          ) : (
+            <Input
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              placeholder={
+                editingField === 'preferredLocations' ? "请输入期望地点，如：北京,上海" :
+                  editingField === 'desiredPosition' ? "请输入期望岗位，如：前端开发" :
+                    "请输入内容"
+              }
+            />
+          )}
+        </Modal>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {loadingJobs ? (
             <div className="text-center py-12">
               <div className="inline-block animate-pulse">

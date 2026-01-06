@@ -7,7 +7,10 @@ const { asyncHandler } = require('../middleware/errorHandler');
 router.get('/jobs', asyncHandler(async (req, res) => {
     const { recruiterId } = req.query;
 
+    console.log('[DEBUG] GET /recruiter/jobs - recruiterId:', recruiterId);
+
     if (!recruiterId) {
+        console.error('[ERROR] GET /recruiter/jobs - Missing recruiterId parameter');
         const error = new Error('Recruiter ID is required');
         error.statusCode = 400;
         error.errorCode = 'MISSING_RECRUITER_ID';
@@ -16,12 +19,16 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 
     // 首先获取招聘者的公司ID和用户ID
     // 支持通过招聘者ID或用户ID查询
+    console.log('[DEBUG] Querying recruiter info for ID:', recruiterId);
     const recruiterResult = await query(
         'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE id = $1 OR user_id = $1',
         [recruiterId]
     );
 
+    console.log('[DEBUG] Recruiter query result:', recruiterResult.rows.length, 'rows');
+
     if (recruiterResult.rows.length === 0) {
+        console.error('[ERROR] Recruiter not found for ID:', recruiterId);
         const error = new Error('Recruiter not found');
         error.statusCode = 404;
         error.errorCode = 'RECRUITER_NOT_FOUND';
@@ -30,8 +37,20 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 
     const { company_id, user_id, recruiter_id } = recruiterResult.rows[0];
 
+    console.log('[DEBUG] Recruiter info - company_id:', company_id, 'user_id:', user_id, 'recruiter_id:', recruiter_id);
+
+    if (!company_id) {
+        console.warn('[WARN] Recruiter has no company_id, will return empty jobs list');
+        return res.json({
+            status: 'success',
+            data: [],
+            count: 0
+        });
+    }
+
     // 获取公司所有职位，包括发布者信息，并确保返回前端期望的字段名
     // 增加查询超时时间到30秒，因为涉及多个JOIN
+    console.log('[DEBUG] Fetching jobs for company_id:', company_id);
     const result = await query(`
             SELECT 
                 j.id,
@@ -48,7 +67,7 @@ router.get('/jobs', asyncHandler(async (req, res) => {
                 u.name AS recruiter_name,
                 u.avatar AS recruiter_avatar,
                 r.position AS recruiter_position,
-                COALESCE(j.applications_count, 0) AS applicants,
+                COUNT(a.id) AS applicants,
                 j.status,
                 j.publish_date AS posted_date,
                 j.expire_date,
@@ -68,7 +87,9 @@ router.get('/jobs', asyncHandler(async (req, res) => {
             LEFT JOIN companies c ON j.company_id = c.id
             LEFT JOIN recruiters r ON j.recruiter_id = r.id
             LEFT JOIN users u ON r.user_id = u.id
+            LEFT JOIN applications a ON j.id = a.job_id
             WHERE j.company_id = $2
+            GROUP BY j.id, c.name, u.name, u.avatar, r.position, r.id
             ORDER BY j.publish_date DESC
         `, [recruiter_id, company_id], 30000);
 
@@ -106,6 +127,8 @@ router.get('/jobs', asyncHandler(async (req, res) => {
         urgency: job.urgency
     }));
 
+    console.log('[DEBUG] Jobs query returned', result.rows.length, 'rows');
+
     res.json({
         status: 'success',
         data: formattedJobs,
@@ -117,7 +140,10 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 router.get('/candidates', asyncHandler(async (req, res) => {
     const { recruiterId } = req.query;
 
+    console.log('[DEBUG] GET /recruiter/candidates - recruiterId:', recruiterId);
+
     if (!recruiterId) {
+        console.error('[ERROR] GET /recruiter/candidates - Missing recruiterId parameter');
         const error = new Error('Recruiter ID is required');
         error.statusCode = 400;
         error.errorCode = 'MISSING_RECRUITER_ID';
@@ -125,29 +151,32 @@ router.get('/candidates', asyncHandler(async (req, res) => {
     }
 
     // 增加查询超时时间到30秒，因为涉及多个JOIN
+    console.log('[DEBUG] Fetching candidates for recruiterId:', recruiterId);
     const result = await query(`
             SELECT DISTINCT
                 c.id,
-                u.name,
+                COALESCE(u.name, '未知候选人') AS name,
                 u.email,
                 u.phone,
                 u.avatar,
-                u.desired_position AS current_position,
-                u.work_experience_years AS years_of_experience,
-                u.education,
-                u.skills,
+                COALESCE(c.desired_position, '') AS current_position,
+                COALESCE(c.work_experience_years, 0) AS years_of_experience,
+                COALESCE(c.education, '') AS education,
+                c.skills,
                 a.id AS application_id,
                 a.job_id,
-                j.title AS job_title,
-                a.status AS stage,
+                COALESCE(j.title, '未知职位') AS job_title,
+                COALESCE(a.status, 'pending') AS stage,
                 a.created_at AS applied_date
             FROM applications a
-            JOIN jobs j ON a.job_id = j.id
-            JOIN candidates c ON a.candidate_id = c.id
-            JOIN users u ON c.user_id = u.id
+            LEFT JOIN jobs j ON a.job_id = j.id
+            LEFT JOIN candidates c ON a.candidate_id = c.id
+            LEFT JOIN users u ON c.user_id = u.id
             WHERE j.recruiter_id = $1
             ORDER BY a.created_at DESC
         `, [recruiterId], 30000);
+
+    console.log('[DEBUG] Candidates query returned', result.rows.length, 'rows');
 
     res.json({
         status: 'success',

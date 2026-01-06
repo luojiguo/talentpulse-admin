@@ -14,7 +14,6 @@ import MessageCenterScreen from './screens/MessageCenterScreen';
 import MockInterviewScreen from './screens/MockInterviewScreen';
 import AIChatScreen from './screens/AIChatScreen';
 import ProfileScreen from './screens/ProfileScreen';
-import ResumeEditorScreen from './screens/ResumeEditorScreen';
 import ApplicationsScreen from './screens/ApplicationsScreen';
 import InterviewsScreen from './screens/InterviewsScreen';
 import SavedItemsScreen from './screens/SavedItemsScreen';
@@ -52,6 +51,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const [searchText, setSearchText] = useState('');
   const [filterUnread, setFilterUnread] = useState(false);
   const [userResume, setUserResume] = useState({});
+  
+  // 记录已发送过立即沟通消息的招聘者ID，用于防止重复发送
+  const [sentRecruiterIds, setSentRecruiterIds] = useState<Set<string | number>>(new Set());
 
   // 消息相关状态
   const [conversationError, setConversationError] = useState<string | null>(null);
@@ -99,7 +101,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   } = useApi<{ status: string; data: Profile }>(
     () => localCurrentUser?.id ? userAPI.getUserById(localCurrentUser.id) as any : Promise.resolve({ data: {} }),
     [localCurrentUser?.id],
-    { autoFetch: !!localCurrentUser?.id, cache: true } // 启用缓存
+    { autoFetch: !!localCurrentUser?.id, cache: false } // 禁用缓存，确保获取最新数据
   );
 
   // 使用 useApi Hook 获取关注的公司（并行加载）
@@ -847,7 +849,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     phone: userProfileData.data.phone || '',
     email: userProfileData.data.email || localCurrentUser.email,
     city: userProfileData.data.city || '',
+    preferredLocations: userProfileData.data.preferredLocations || '',
     expectedSalary: userProfileData.data.expectedSalary || '',
+    expectedSalaryMin: userProfileData.data.expectedSalaryMin,
+    expectedSalaryMax: userProfileData.data.expectedSalaryMax,
+    desiredPosition: userProfileData.data.desired_position || userProfileData.data.desiredPosition || '',
     jobStatus: userProfileData.data.jobStatus || '',
     bio: userProfileData.data.bio || '',
     experience: userProfileData.data.experience || '',
@@ -859,7 +865,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     phone: '',
     email: localCurrentUser.email,
     city: '',
+    preferredLocations: '',
     expectedSalary: '',
+    expectedSalaryMin: undefined,
+    expectedSalaryMax: undefined,
+    desiredPosition: '',
     jobStatus: '',
     bio: '',
     experience: '',
@@ -879,6 +889,12 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
   // Handle Chat Redirect - 立即沟通功能
   const handleChatRedirect = async (jobId: string | number, recruiterId: string | number) => {
+    // 检查是否已经发送过消息给该招聘者，如果是则提示用户
+    if (sentRecruiterIds.has(recruiterId)) {
+      message.info('您已经发送过消息给该招聘者，短时间内只能发送一次默认消息');
+      return;
+    }
+
     // Find the job title and recruiter info
     const job = jobs.find(j => j.id.toString() === jobId.toString());
     const jobTitle = job?.title || '该职位';
@@ -977,6 +993,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         // 设置新创建的对话为活跃对话
         setActiveConversationId(conversationId);
 
+        // 更新已发送招聘者ID集合，防止重复发送
+        setSentRecruiterIds(prev => new Set(prev).add(recruiterId));
+
         // 立即重新获取对话列表，确保与后端数据同步
         setTimeout(async () => {
           await fetchConversations();
@@ -1032,7 +1051,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         <LoadingSpinner fullScreen text="加载中..." />
       )}
       <Routes>
-        <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
+        <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} userProfile={userProfile} onRefreshProfile={refetchProfile} onChat={handleChatRedirect} /></CandidateLayout>} />
         <Route path="/job" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobListScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
         <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} /></CandidateLayout>} />
         <Route path="/company/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><CompanyDetailScreen /></CandidateLayout>} />
@@ -1093,7 +1112,6 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         <Route path="/interviews" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><InterviewsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
         <Route path="/enterprise-verification" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><EnterpriseVerificationScreen currentUser={localCurrentUser} profile={userProfile} onSwitchRole={onSwitchRole} /></CandidateLayout>} />
         <Route path="/profile" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ProfileScreen currentUser={localCurrentUser} onUpdateUser={handleSetCurrentUser} /></CandidateLayout>} />
-        <Route path="/resume-editor" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ResumeEditorScreen currentUser={localCurrentUser} /></CandidateLayout>} />
       </Routes>
     </>
   );

@@ -44,16 +44,20 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
 
     try {
       setLoading(true);
-      if (activeTab === 'jobs') {
-        const response = await candidateAPI.getCandidateSavedJobs(currentUser.id);
-        if ((response as any).status === 'success') {
-          setSavedJobs(response.data || []);
-        }
-      } else {
-        const response = await candidateAPI.getCandidateSavedCompanies(currentUser.id);
-        if ((response as any).status === 'success') {
-          setSavedCompanies(response.data || []);
-        }
+      // 同时获取收藏的职位和公司，而不仅仅是当前标签的数据
+      const [jobsResponse, companiesResponse] = await Promise.all([
+        candidateAPI.getCandidateSavedJobs(currentUser.id),
+        candidateAPI.getCandidateSavedCompanies(currentUser.id)
+      ]);
+      
+      // 更新职位数据
+      if (jobsResponse?.success) {
+        setSavedJobs(jobsResponse.data || []);
+      }
+      
+      // 更新公司数据
+      if (companiesResponse?.success) {
+        setSavedCompanies(companiesResponse.data || []);
       }
     } catch (error: any) {
       console.error('获取收藏失败:', error);
@@ -66,7 +70,7 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
     e.stopPropagation();
     try {
       const response = await candidateAPI.removeSavedJob(currentUser.id, jobId);
-      if ((response as any).status === 'success') {
+      if (response?.success) {
         setSavedJobs(prev => prev.filter(job => job.id !== jobId));
       }
     } catch (error: any) {
@@ -79,7 +83,7 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
     e.stopPropagation();
     try {
       const response = await candidateAPI.removeSavedCompany(currentUser.id, companyId);
-      if ((response as any).status === 'success') {
+      if (response?.success) {
         setSavedCompanies(prev => prev.filter(company => company.id !== companyId));
       }
     } catch (error: any) {

@@ -43,19 +43,19 @@ const parseUserAgent = (userAgent) => {
     result.os = 'Linux';
   } else if (userAgent.includes('Android')) {
     result.os = 'Android';
-    result.device_type = 'Mobile';
+    result.device_type = 'mobile';
   } else if (userAgent.includes('iOS') || userAgent.includes('iPhone') || userAgent.includes('iPad')) {
     result.os = 'iOS';
-    result.device_type = 'Mobile';
+    result.device_type = 'mobile';
   }
 
   // 设备类型检测
   if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iOS')) {
-    result.device_type = 'Mobile';
+    result.device_type = 'mobile';
   } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
-    result.device_type = 'Tablet';
+    result.device_type = 'tablet';
   } else {
-    result.device_type = 'Desktop';
+    result.device_type = 'desktop';
   }
 
   return result;

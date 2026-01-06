@@ -1,4 +1,3 @@
-
 import { StatMetric, ApplicationTrendData, JobCategoryData, Language } from "../types/types";
 
 // 使用 Vite 的环境变量访问方式
@@ -414,9 +413,9 @@ export const generateFullJobInfo = async (
       type: '全职',
       workMode: '现场',
       jobLevel: '初级',
-      hiringCount: 1,
       urgency: '普通',
       department: '相关部门',
+      hiringCount: 1,
       benefits: ['五险一金', '带薪年假', '年终奖金']
     };
   }
@@ -429,14 +428,14 @@ export const generateJobDescription = async (
   try {
     const prompt = `请以资深HR的口吻，用中文撰写职位JD：\n职位：${title}\n关键技能/要求：${skills}\n结构：\n1) 职位描述（3-5条）\n2) 任职要求（3-5条）\n3) 加分项（1-2条）\n请简洁且有吸引力。`;
     const text = await callQianwen([
-      { role: 'system', content: 'You are an expert HR recruiter writing professional Chinese JD.' },
+      { role: 'system', content: 'You are an expert HR recruiter writing professional Chinese JD. CRITICAL: Always preserve the COMPLETE job title EXACTLY as provided, without any truncation or omission.' },
       { role: 'user', content: prompt }
     ]);
     // Fallback if AI service returns an error message or exception
     if (text && (text.startsWith('AI服务请求失败') || text.startsWith('AI服务配置错误') || text.startsWith('AI服务返回') || text.startsWith('AI服务请求异常'))) {
       const skillList = skills.split(',').map(s => s.trim()).filter(Boolean);
       const skillStr = skillList.length ? skillList.join('、') : '无特定技能要求';
-      return `职位：${title}\n\n岗位职责：\n- 负责${title}相关工作，完成团队分配的任务。\n- 与团队协作，推动项目进展。\n\n任职要求：\n- 具备${skillStr}等技能。\n- 具备良好的沟通能力和团队合作精神。\n\n公司福利：提供有竞争力的薪酬福利。`;
+      return `职位名称: ${title}\n\n职位描述:\n- 负责${title}相关工作，完成团队分配的任务。\n- 与团队协作，推动项目进展。\n\n任职要求:\n- 具备${skillStr}等技能。\n- 具备良好的沟通能力和团队合作精神。\n\n公司福利: 提供有竞争力的薪酬福利。`;
     }
     // 清理AI生成内容中的占位符号
     const cleanedText = cleanAIGeneratedContent(text);
@@ -447,7 +446,7 @@ export const generateJobDescription = async (
     const skillList = skills.split(',').map(s => s.trim()).filter(Boolean);
     const skillStr = skillList.length ? skillList.join('、') : '无特定技能要求';
     // 确保fallback生成的内容也不包含*符号
-    return `职位：${title}\n\n岗位职责：\n- 负责${title}相关工作，完成团队分配的任务。\n- 与团队协作，推动项目进展。\n\n任职要求：\n- 具备${skillStr}等技能。\n- 具备良好的沟通能力和团队合作精神。\n\n公司福利：提供有竞争力的薪酬福利。`;
+    return `职位名称: ${title}\n\n职位描述:\n- 负责${title}相关工作，完成团队分配的任务。\n- 与团队协作，推动项目进展。\n\n任职要求:\n- 具备${skillStr}等技能。\n- 具备良好的沟通能力和团队合作精神。\n\n公司福利: 提供有竞争力的薪酬福利。`;
   }
 };
 

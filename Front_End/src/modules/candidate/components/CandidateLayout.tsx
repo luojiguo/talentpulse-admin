@@ -200,12 +200,6 @@ const CandidateLayout: React.FC<CandidateLayoutProps> = ({ children, currentUser
                 个人中心
               </button>
               <button
-                onClick={() => { navigate('/resume-editor'); setIsDropdownOpen(false); }}
-                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-              >
-                在线简历
-              </button>
-              <button
                 onClick={() => { navigate('/applications'); setIsDropdownOpen(false); }}
                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
               >

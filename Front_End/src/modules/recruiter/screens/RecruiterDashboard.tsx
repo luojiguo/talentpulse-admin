@@ -51,6 +51,9 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
         return '晚上好';
     };
 
+    // 折叠状态管理
+    const [isSuggestionsExpanded, setIsSuggestionsExpanded] = useState(true);
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             {/* Header with Welcome */}
@@ -96,8 +99,8 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                                     AI智能招聘建议
                                 </li>
                             </ul>
-                            <a 
-                                href="/recruiter/profile" 
+                            <a
+                                href="/recruiter/profile"
                                 className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition shadow-sm text-sm"
                             >
                                 立即认证
@@ -117,7 +120,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                         </div>
                     </div>
                     <div className="flex items-baseline">
-                        <span className="text-3xl font-bold text-gray-900">{jobs.filter(j => j.status === 'Active').length}</span>
+                        <span className="text-3xl font-bold text-gray-900">{jobs.filter(j => j.status === 'active').length}</span>
                         <span className="ml-2 text-sm text-green-600 flex items-center">
                             <TrendingUp className="w-4 h-4 mr-1" />
                             12%
@@ -187,21 +190,35 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                     <div className="flex-1">
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-lg font-bold text-emerald-800">AI 招聘建议</h3>
-                            <button 
-                                onClick={onHandleGetAiSuggestions}
-                                disabled={isLoadingSuggestions}
-                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium"
-                            >
-                                {isLoadingSuggestions ? '生成中...' : '获取建议'}
-                            </button>
-                        </div>
-                        {aiSuggestions ? (
-                            <div className="text-sm text-emerald-700 leading-relaxed whitespace-pre-line">
-                                {aiSuggestions}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={onHandleGetAiSuggestions}
+                                    disabled={isLoadingSuggestions}
+                                    className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium"
+                                >
+                                    {isLoadingSuggestions ? '生成中...' : '获取建议'}
+                                </button>
+                                <button
+                                    onClick={() => setIsSuggestionsExpanded(!isSuggestionsExpanded)}
+                                    className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition flex items-center justify-center"
+                                >
+                                    <ChevronDown 
+                                        className={`w-4 h-4 transition-transform duration-300 ${isSuggestionsExpanded ? 'rotate-180' : ''}`} 
+                                    />
+                                </button>
                             </div>
-                        ) : (
-                            <p className="text-sm text-emerald-600">点击"获取建议"查看AI为您提供的招聘优化方案</p>
-                        )}
+                        </div>
+                        <div 
+                            className={`transition-all duration-300 ease-in-out overflow-hidden ${isSuggestionsExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
+                        >
+                            {aiSuggestions ? (
+                                <div className="text-sm text-emerald-700 leading-relaxed whitespace-pre-line">
+                                    {aiSuggestions}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-emerald-600">点击"获取建议"查看AI为您提供的招聘优化方案</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -210,7 +227,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
             <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
                     <h3 className="text-lg font-bold text-gray-900">最近发布的职位</h3>
-                    <button 
+                    <button
                         onClick={() => onSetIsPostModalOpen(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium"
                     >
@@ -244,12 +261,12 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                                     <td className="py-3 px-4 text-gray-600 hidden lg:table-cell">{job.applicants}</td>
                                     <td className="py-3 px-4 text-gray-600 hidden xl:table-cell">{job.postedDate}</td>
                                     <td className="py-3 px-4">
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${job.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {job.status === 'Active' ? '招聘中' : '已关闭'}
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${job.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {job.status === 'active' ? '发布中' : '已关闭'}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4 text-right">
-                                        <a 
+                                        <a
                                             href={`/recruiter/jobs/${job.id}`}
                                             className="text-emerald-600 hover:text-emerald-800 text-sm font-medium"
                                         >
@@ -266,7 +283,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                     <div className="text-center py-8 text-gray-500">
                         <Briefcase className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p className="text-sm">暂无发布的职位</p>
-                        <button 
+                        <button
                             onClick={() => onSetIsPostModalOpen(true)}
                             className="mt-3 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium"
                         >

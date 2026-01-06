@@ -6,20 +6,19 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 // 获取所有面试
 router.get('/', asyncHandler(async (req, res) => {
+    console.log('[DEBUG] GET /interviews - Fetching all interviews');
     const result = await query(`
       SELECT 
         i.id,
         i.application_id AS "applicationId",
         i.interview_date AS "interviewDate",
         i.interview_time AS "interviewTime",
+        i.interview_time_end AS "interviewTimeEnd",
         i.location,
         i.interviewer_id AS "interviewerId",
         i.status,
         i.notes,
         i.interview_round AS "interviewRound",
-        i.interview_type AS "interviewType",
-        i.interview_topic AS "interviewTopic",
-        i.interview_duration AS "interviewDuration",
         i.interviewer_name AS "interviewerName",
         i.interviewer_position AS "interviewerPosition",
         i.interview_result AS "interviewResult",
@@ -38,17 +37,20 @@ router.get('/', asyncHandler(async (req, res) => {
       LEFT JOIN companies co ON j.company_id = co.id
       ORDER BY i.interview_date DESC, i.interview_time DESC
     `);
-    
+
+    console.log('[DEBUG] Interviews query returned', result.rows.length, 'rows');
+
     res.json({
-      status: 'success',
-      data: result.rows,
-      count: result.rows.length
+        status: 'success',
+        data: result.rows,
+        count: result.rows.length
     });
 }));
 
 // 获取单个面试
 router.get('/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
+    console.log('[DEBUG] GET /interviews/:id - id:', id);
     const result = await query(`
       SELECT 
         i.id,
@@ -60,9 +62,6 @@ router.get('/:id', asyncHandler(async (req, res) => {
         i.status,
         i.notes,
         i.interview_round AS "interviewRound",
-        i.interview_type AS "interviewType",
-        i.interview_topic AS "interviewTopic",
-        i.interview_duration AS "interviewDuration",
         i.interviewer_name AS "interviewerName",
         i.interviewer_position AS "interviewerPosition",
         i.interview_result AS "interviewResult",
@@ -81,17 +80,20 @@ router.get('/:id', asyncHandler(async (req, res) => {
       LEFT JOIN companies co ON j.company_id = co.id
       WHERE i.id = $1
     `, [id]);
-    
+
+    console.log('[DEBUG] Interview query returned', result.rows.length, 'rows');
+
     if (result.rows.length === 0) {
-      const error = new Error('Interview not found');
-      error.statusCode = 404;
-      error.errorCode = 'INTERVIEW_NOT_FOUND';
-      throw error;
+        console.error('[ERROR] Interview not found for id:', id);
+        const error = new Error('Interview not found');
+        error.statusCode = 404;
+        error.errorCode = 'INTERVIEW_NOT_FOUND';
+        throw error;
     }
-    
+
     res.json({
-      status: 'success',
-      data: result.rows[0]
+        status: 'success',
+        data: result.rows[0]
     });
 }));
 
@@ -109,9 +111,6 @@ router.get('/application/:applicationId', asyncHandler(async (req, res) => {
         i.status,
         i.notes,
         i.interview_round AS "interviewRound",
-        i.interview_type AS "interviewType",
-        i.interview_topic AS "interviewTopic",
-        i.interview_duration AS "interviewDuration",
         i.interviewer_name AS "interviewerName",
         i.interviewer_position AS "interviewerPosition",
         i.interview_result AS "interviewResult",
@@ -120,100 +119,126 @@ router.get('/application/:applicationId', asyncHandler(async (req, res) => {
       WHERE i.application_id = $1
       ORDER BY i.interview_round ASC, i.interview_date ASC, i.interview_time ASC
     `, [applicationId]);
-    
+
     res.json({
-      status: 'success',
-      data: result.rows,
-      count: result.rows.length
+        status: 'success',
+        data: result.rows,
+        count: result.rows.length
     });
 }));
 
 // 创建面试
 router.post('/', asyncHandler(async (req, res) => {
-    const {
-        applicationId,
-        interviewDate,
-        interviewTime,
-        location,
-        interviewerId,
-        status = 'scheduled',
-        notes,
-        interviewRound = 1,
-        interviewType,
-        interviewTopic,
-        interviewDuration = 60,
-        interviewerName,
-        interviewerPosition
-    } = req.body;
-
-    // 验证必填字段
-    if (!applicationId || !interviewDate || !interviewTime || !interviewType) {
-        const error = new Error('缺少必填字段');
-        error.statusCode = 400;
-        error.errorCode = 'MISSING_REQUIRED_FIELDS';
-        throw error;
-    }
-
-    // 检查申请是否存在
-    const applicationCheck = await query('SELECT * FROM applications WHERE id = $1', [applicationId]);
-    if (applicationCheck.rows.length === 0) {
-        const error = new Error('申请不存在');
-        error.statusCode = 404;
-        error.errorCode = 'APPLICATION_NOT_FOUND';
-        throw error;
-    }
-
-    // 获取职位和公司信息，用于面试详情
-    const jobInfo = await query(`
-        SELECT j.title AS jobTitle, co.name AS companyName, co.location AS companyLocation
-        FROM jobs j
-        LEFT JOIN companies co ON j.company_id = co.id
-        WHERE j.id = (SELECT job_id FROM applications WHERE id = $1)
-    `, [applicationId]);
-
-    let finalLocation = location;
-    if (!location && jobInfo.rows.length > 0) {
-        finalLocation = jobInfo.rows[0].companyLocation;
-    }
-
-    const result = await query(`
-        INSERT INTO interviews (
-            application_id,
-            interview_date,
-            interview_time,
+    try {
+        const {
+            applicationId,
+            interviewDate,
+            interviewTime,
             location,
-            interviewer_id,
+            interviewerId,
+            status = 'scheduled',
+            notes,
+            interviewRound = 1,
+            interviewerName,
+            interviewerPosition,
+            interviewTimeEnd,
+            interviewPosition
+        } = req.body;
+
+        console.log('[DEBUG] POST /interviews - payload:', JSON.stringify(req.body));
+
+        // 验证必填字段
+        if (!applicationId || !interviewDate || !interviewTime) {
+            console.error('[ERROR] POST /interviews - Missing required fields');
+            const error = new Error('缺少必填字段');
+            error.statusCode = 400;
+            error.errorCode = 'MISSING_REQUIRED_FIELDS';
+            throw error;
+        }
+
+        // 检查申请是否存在
+        const applicationCheck = await query('SELECT * FROM applications WHERE id = $1', [applicationId]);
+        if (applicationCheck.rows.length === 0) {
+            const error = new Error('申请不存在');
+            error.statusCode = 404;
+            error.errorCode = 'APPLICATION_NOT_FOUND';
+            throw error;
+        }
+
+        // 获取职位和公司信息，用于面试详情
+        const jobInfo = await query(`
+            SELECT j.title AS jobTitle, co.name AS companyName, co.address AS companyLocation
+            FROM jobs j
+            LEFT JOIN companies co ON j.company_id = co.id
+            WHERE j.id = (SELECT job_id FROM applications WHERE id = $1)
+        `, [applicationId]);
+
+        let finalLocation = location;
+        if (!location && jobInfo.rows.length > 0) {
+            finalLocation = jobInfo.rows[0].companyLocation;
+        }
+
+        // 查找招聘者ID (interviewerId from frontend is actually User ID)
+        let finalInterviewerId = interviewerId;
+        try {
+            const recruiterQuery = await query('SELECT id FROM recruiters WHERE user_id = $1', [interviewerId]);
+            if (recruiterQuery.rows.length > 0) {
+                finalInterviewerId = recruiterQuery.rows[0].id;
+                console.log(`[DEBUG] Mapped User ID ${interviewerId} to Recruiter ID ${finalInterviewerId}`);
+            } else {
+                console.warn(`[WARNING] No recruiter found for User ID ${interviewerId}. Using original ID.`);
+                // If checking by ID directly finds it, then it was already a recruiter ID
+                const checkRecruiter = await query('SELECT id FROM recruiters WHERE id = $1', [interviewerId]);
+                if (checkRecruiter.rows.length === 0) {
+                    console.error(`[ERROR] ID ${interviewerId} not found in recruiters table as id or user_id`);
+                }
+            }
+        } catch (err) {
+            console.error('[ERROR] Failed to map interviewer ID:', err);
+        }
+
+        const result = await query(`
+            INSERT INTO interviews (
+                application_id,
+                interview_date,
+                interview_time,
+                interview_time_end,
+                location,
+                interviewer_id,
+                status,
+                notes,
+                interview_round,
+                interviewer_name,
+                interviewer_position,
+                "Interview_Position"
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING *
+        `, [
+            applicationId,
+            interviewDate,
+            interviewTime,
+            interviewTimeEnd,
+            finalLocation,
+            finalInterviewerId,
             status,
             notes,
-            interview_round,
-            interview_type,
-            interview_topic,
-            interview_duration,
-            interviewer_name,
-            interviewer_position
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING *
-    `, [
-        applicationId,
-        interviewDate,
-        interviewTime,
-        finalLocation,
-        interviewerId,
-        status,
-        notes,
-        interviewRound,
-        interviewType,
-        interviewTopic,
-        interviewDuration,
-        interviewerName,
-        interviewerPosition
-    ]);
+            interviewRound,
+            interviewerName,
+            interviewerPosition,
+            interviewPosition
+        ]);
 
-    res.status(201).json({
-        status: 'success',
-        data: result.rows[0],
-        message: '面试邀请创建成功'
-    });
+        console.log('[DEBUG] Interview created successfully, id:', result.rows[0].id);
+
+        res.status(201).json({
+            status: 'success',
+            data: result.rows[0],
+            message: '面试邀请创建成功'
+        });
+    } catch (error) {
+        console.error('[ERROR] Failed to create interview:', error);
+        throw error;
+    }
 }));
 
 // 更新面试
@@ -227,9 +252,6 @@ router.patch('/:id', asyncHandler(async (req, res) => {
         status,
         notes,
         interviewRound,
-        interviewType,
-        interviewTopic,
-        interviewDuration,
         interviewerName,
         interviewerPosition,
         interviewResult,
@@ -277,18 +299,6 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     if (interviewRound !== undefined) {
         updateFields.push(`interview_round = $${paramIndex++}`);
         updateValues.push(interviewRound);
-    }
-    if (interviewType !== undefined) {
-        updateFields.push(`interview_type = $${paramIndex++}`);
-        updateValues.push(interviewType);
-    }
-    if (interviewTopic !== undefined) {
-        updateFields.push(`interview_topic = $${paramIndex++}`);
-        updateValues.push(interviewTopic);
-    }
-    if (interviewDuration !== undefined) {
-        updateFields.push(`interview_duration = $${paramIndex++}`);
-        updateValues.push(interviewDuration);
     }
     if (interviewerName !== undefined) {
         updateFields.push(`interviewer_name = $${paramIndex++}`);
@@ -352,9 +362,33 @@ router.patch('/:id/status', asyncHandler(async (req, res) => {
         RETURNING *
     `, [status, id]);
 
+    const updatedInterview = result.rows[0];
+
+    // 发送Socket.IO事件通知招聘方
+    try {
+        const { getIo } = require('../services/socketService');
+        const io = getIo();
+
+        // 获取招聘方用户ID（从面试记录中的interviewer_id）
+        if (updatedInterview.interviewer_id) {
+            // 通知招聘方面试状态已更新
+            io.to(`user_${updatedInterview.interviewer_id}`).emit('interview_status_updated', {
+                interviewId: id,
+                status: status,
+                interview: updatedInterview,
+                message: status === 'accepted' ? '候选人已接受面试邀请' : '候选人已拒绝面试邀请'
+            });
+
+            console.log(`Notified recruiter ${updatedInterview.interviewer_id} about interview ${id} status change to ${status}`);
+        }
+    } catch (socketError) {
+        console.error('Failed to send Socket.IO notification:', socketError);
+        // 不影响主流程，继续返回成功响应
+    }
+
     res.json({
         status: 'success',
-        data: result.rows[0],
+        data: updatedInterview,
         message: '面试状态更新成功'
     });
 }));
