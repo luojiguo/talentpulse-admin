@@ -74,15 +74,54 @@ app.use(express.urlencoded({ extended: true })); // 解析URL编码请求
 
 const path = require('path');
 // 配置静态文件服务，用于访问上传的头像
-app.use('/avatars', express.static(path.join(__dirname, '../../Front_End/public/avatars')));
+// 配置静态文件服务，用于访问上传的头像
+app.use('/avatars', express.static(path.join(__dirname, '../../Front_End/public/avatars'), { maxAge: '7d' }));
 // 配置静态文件服务，用于访问上传的消息图片和文件
-app.use('/uploads', express.static(path.join(__dirname, '../../Front_End/public/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../../Front_End/public/uploads'), { maxAge: '7d' }));
 // 配置静态文件服务，用于访问上传的营业执照
-app.use('/business_license', express.static(path.join(__dirname, '../../Front_End/public/business_license')));
+app.use('/business_license', express.static(path.join(__dirname, '../../Front_End/public/business_license'), { maxAge: '7d' }));
 // 配置静态文件服务，用于访问上传的公司Logo
-app.use('/companies_logo', express.static(path.join(__dirname, '../../Front_End/public/companies_logo')));
+app.use('/companies_logo', express.static(path.join(__dirname, '../../Front_End/public/companies_logo'), { maxAge: '7d' }));
 // 配置静态文件服务，用于访问上传的简历
-app.use('/User_Resume', express.static(path.join(__dirname, '../../Front_End/public/User_Resume')));
+app.use('/User_Resume', express.static(path.join(__dirname, '../../Front_End/public/User_Resume'), { maxAge: '1d' }));
+
+// 检查上传目录权限
+const checkDirectoryPermissions = () => {
+    const fs = require('fs');
+    const directories = [
+        path.join(__dirname, '../../Front_End/public/avatars'),
+        path.join(__dirname, '../../Front_End/public/uploads'),
+        path.join(__dirname, '../../Front_End/public/business_license'),
+        path.join(__dirname, '../../Front_End/public/companies_logo'),
+        path.join(__dirname, '../../Front_End/public/User_Resume')
+    ];
+
+    directories.forEach(dir => {
+        try {
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+                console.log(`✅ 创建目录: ${dir}`);
+            }
+
+            // 测试写入权限
+            const testFile = path.join(dir, '.write_test');
+            fs.writeFileSync(testFile, 'test');
+            fs.unlinkSync(testFile);
+            console.log(`✅ 目录权限正常: ${path.basename(dir)}`);
+        } catch (error) {
+            console.error(`❌ 目录权限检查失败: ${dir}`, error.message);
+            throw new Error(`目录权限不足: ${dir}`);
+        }
+    });
+};
+
+// 执行目录权限检查
+try {
+    checkDirectoryPermissions();
+    console.log('📁 所有上传目录权限检查通过');
+} catch (error) {
+    console.error('⚠️  目录权限检查失败，服务器可能无法正常保存上传文件');
+}
 
 // 配置请求速率限制 - 根据环境设置不同的限制
 const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
@@ -166,6 +205,8 @@ app.use('/api/resumes', resumeRoutes);
 app.use('/api/recruiter', recruiterRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/interviews', interviewRoutes);
+app.use('/api/certification', require('./routes/certificationRoutes'));
+app.use('/api/onboardings', require('./routes/onboardingRoutes'));
 
 // 专门处理body-parser解析错误的中间件
 app.use((err, req, res, next) => {

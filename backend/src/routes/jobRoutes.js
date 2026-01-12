@@ -395,8 +395,9 @@ router.get('/', asyncHandler(async (req, res) => {
           j.id, j.title, j.location, j.salary, j.description, j.experience, j.degree, j.type,
           j.work_mode, j.job_level, j.department, j.status, j.publish_date, j.created_at,
           j.updated_at, j.company_id, j.recruiter_id, j.required_skills, j.preferred_skills, j.benefits,
-          c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
-          r.position AS recruiter_position, r.id AS recruiter_table_id
+          c.name AS company_name, c.logo AS company_logo, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
+          r.position AS recruiter_position, r.id AS recruiter_table_id,
+          (SELECT COUNT(*) FROM applications WHERE job_id = j.id) AS applications_count
         FROM jobs j
         LEFT JOIN companies c ON j.company_id = c.id
         LEFT JOIN recruiters r ON j.recruiter_id = r.id
@@ -426,7 +427,8 @@ router.get('/:id', asyncHandler(async (req, res) => {
           u.name AS recruiter_name, 
           u.avatar AS recruiter_avatar,
           r.position AS recruiter_position,
-          r.id AS recruiter_table_id
+          r.id AS recruiter_table_id,
+          (SELECT COUNT(*) FROM applications WHERE job_id = j.id) AS applications_count
         FROM jobs j 
         LEFT JOIN companies c ON j.company_id = c.id 
         LEFT JOIN recruiters r ON j.recruiter_id = r.id
@@ -593,9 +595,43 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // 记录更新职位日志
   await logAction(req, res, '更新职位', `招聘者更新了职位：${result.rows[0].title}`, 'update', { type: 'job', id: result.rows[0].id });
 
+  // Fetch the updated job with company and recruiter details for broadcasting
+  const fullJobResult = await query(`
+    SELECT 
+      j.*,
+      c.name AS company,
+      c.name AS company_name,
+      c.id AS company_id,
+      u.name AS recruiter_name,
+      u.avatar AS recruiter_avatar,
+      r.position AS recruiter_position,
+      j.recruiter_id AS poster_id,
+      j.hiring_count,
+      j.urgency,
+      j.job_level
+    FROM jobs j
+    LEFT JOIN companies c ON j.company_id = c.id
+    LEFT JOIN recruiters r ON j.recruiter_id = r.id
+    LEFT JOIN users u ON r.user_id = u.id
+    WHERE j.id = $1
+  `, [result.rows[0].id]);
+
+  const updatedJobData = fullJobResult.rows[0] || result.rows[0];
+
+  // Broadcast updated job to all connected clients
+  try {
+    const { getIo } = require('../services/socketService');
+    const { SERVER_EVENTS } = require('../constants/socketEvents');
+    const io = getIo();
+    io.emit(SERVER_EVENTS.JOB_UPDATED, updatedJobData);
+    console.log('[Socket] Broadcasted updated job:', updatedJobData.id);
+  } catch (error) {
+    console.warn('[Socket] Failed to broadcast updated job:', error.message);
+  }
+
   res.json({
     status: 'success',
-    data: result.rows[0]
+    data: updatedJobData
   });
 }));
 
@@ -660,7 +696,7 @@ router.post('/', asyncHandler(async (req, res) => {
   // 获取发布者的公司ID
   // 先根据用户ID查询招聘者信息
   const recruiterResult = await query(
-    'SELECT id, company_id FROM recruiters WHERE user_id = $1',
+    'SELECT id, company_id FROM recruiters WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
     [posterId]
   );
 
@@ -771,9 +807,43 @@ router.post('/', asyncHandler(async (req, res) => {
   // 记录创建职位日志
   await logAction(req, res, '创建职位', `招聘者创建了职位：${result.rows[0].title}`, 'create', { type: 'job', id: result.rows[0].id });
 
-  res.json({
+  // Fetch the created job with company and recruiter details for broadcasting
+  const fullJobResult = await query(`
+    SELECT 
+      j.*,
+      c.name AS company,
+      c.name AS company_name,
+      c.id AS company_id,
+      u.name AS recruiter_name,
+      u.avatar AS recruiter_avatar,
+      r.position AS recruiter_position,
+      j.recruiter_id AS poster_id,
+      j.hiring_count,
+      j.urgency,
+      j.job_level
+    FROM jobs j
+    LEFT JOIN companies c ON j.company_id = c.id
+    LEFT JOIN recruiters r ON j.recruiter_id = r.id
+    LEFT JOIN users u ON r.user_id = u.id
+    WHERE j.id = $1
+  `, [result.rows[0].id]);
+
+  const newJobData = fullJobResult.rows[0] || result.rows[0];
+
+  // Broadcast new job to all connected clients
+  try {
+    const { getIo } = require('../services/socketService');
+    const { SERVER_EVENTS } = require('../constants/socketEvents');
+    const io = getIo();
+    io.emit(SERVER_EVENTS.JOB_POSTED, newJobData);
+    console.log('[Socket] Broadcasted new job:', newJobData.id);
+  } catch (error) {
+    console.warn('[Socket] Failed to broadcast new job:', error.message);
+  }
+
+  res.status(201).json({
     status: 'success',
-    data: result.rows[0],
+    data: newJobData,
     message: '职位创建成功'
   });
 }));

@@ -141,6 +141,7 @@ export * from './interviewService';
 export * from './analyticsService';
 export * from './activityService';
 export * from './aiSessionService';
+export * from './onboardingService';
 
 // 为了向后兼容，同时导出命名对象
 import { userAPI } from './userService';
@@ -155,6 +156,7 @@ import { interviewAPI } from './interviewService';
 import { analyticsAPI } from './analyticsService';
 import { activityAPI } from './activityService';
 import { aiSessionAPI } from './aiSessionService';
+import { onboardingAPI } from './onboardingService';
 
 // Config Service
 // Config Service
@@ -175,6 +177,7 @@ export {
   analyticsAPI,
   activityAPI,
   aiSessionAPI,
+  onboardingAPI,
   configAPI
 };
 

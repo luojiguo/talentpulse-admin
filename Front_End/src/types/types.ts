@@ -81,7 +81,11 @@ export interface SystemUser {
   // 系统信息
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  // Recruiter specific
+  company_name?: string;
+  company_address?: string;
   resumeCompleteness?: number;
+  dbResumeCompleteness?: number;
 }
 
 // Candidate & Shared Types
@@ -305,6 +309,7 @@ export interface Application {
   candidateId: string;
   jobId: string | number;
   companyId: string | number;
+  companyLogo?: string;
   stage: 'Applied' | 'Screening' | 'Interview' | 'Offer' | 'Hired' | 'Rejected';
   appliedDate: string;
   updatedDate: string;

@@ -73,7 +73,15 @@ const parseUserAgent = (userAgent) => {
 const logAction = async (req, res, action, description, logType = 'info', resource = null) => {
   try {
     const { user } = req;
-    const ipAddress = req.ip || req.connection.remoteAddress;
+    let ipAddress = req.ip || req.connection.remoteAddress;
+
+    // Normalize IP
+    if (ipAddress === '::1') {
+      ipAddress = '127.0.0.1';
+    } else if (ipAddress && ipAddress.startsWith('::ffff:')) {
+      ipAddress = ipAddress.replace('::ffff:', '');
+    }
+
     const userAgent = req.headers['user-agent'] || '';
     const { browser, os, device_type } = parseUserAgent(userAgent);
 
@@ -121,22 +129,33 @@ const logAction = async (req, res, action, description, logType = 'info', resour
 const logMiddleware = (logType = 'info') => {
   return async (req, res, next) => {
     const startTime = Date.now();
-    
+
     // 保存原始的res.end方法
     const originalEnd = res.end;
-    
+
     res.end = async (chunk, encoding) => {
       // 计算响应时间
       const responseTime = Date.now() - startTime;
-      
+
       // 调用原始的res.end方法
       originalEnd.call(res, chunk, encoding);
-      
+
       // 记录日志（跳过某些特定路径，如日志查询本身）
-      if (!req.originalUrl.includes('/logs')) {
+      // 仅记录修改操作 (POST, PUT, PATCH, DELETE)，跳过读取操作 (GET, OPTIONS, HEAD)
+      const isStateChangeMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+
+      if (isStateChangeMethod && !req.originalUrl.includes('/logs')) {
         try {
           const { user } = req;
-          const ipAddress = req.ip || req.connection.remoteAddress;
+          let ipAddress = req.ip || req.connection.remoteAddress;
+
+          // Normalize IP
+          if (ipAddress === '::1') {
+            ipAddress = '127.0.0.1';
+          } else if (ipAddress && ipAddress.startsWith('::ffff:')) {
+            ipAddress = ipAddress.replace('::ffff:', '');
+          }
+
           const userAgent = req.headers['user-agent'] || '';
           const { browser, os, device_type } = parseUserAgent(userAgent);
 
@@ -172,7 +191,7 @@ const logMiddleware = (logType = 'info') => {
         }
       }
     };
-    
+
     next();
   };
 };

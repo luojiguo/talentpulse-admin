@@ -39,6 +39,11 @@ export const messageAPI = {
     return request.put(`/messages/read/${conversationId}/${userId}`);
   },
 
+  // 标记所有消息为已读
+  markAllAsRead: (userId: number, role: 'recruiter' | 'candidate') => {
+    return request.put('/messages/read-all', { userId, role });
+  },
+
   // 批量标记消息为已读 (兼容旧代码命名)
   markMessagesAsRead: (conversationId: string | number, userId: string | number) => {
     return request.put(`/messages/read/${conversationId}/${userId}`);

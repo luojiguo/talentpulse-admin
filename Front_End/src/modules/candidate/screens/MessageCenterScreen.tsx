@@ -1028,7 +1028,31 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                 {/* --- Sidebar List (Left) --- */}
                 <div className={listClasses}>
                     <div className="p-4 border-b border-gray-100 bg-gray-50 shrink-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">消息列表</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-bold text-gray-800">消息列表</h2>
+                                {conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0) > 0 && (
+                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                        {conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0)}
+                                    </span>
+                                )}
+                            </div>
+                            {conversations.some(c => (c.unreadCount || 0) > 0) && (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await messageAPI.markAllAsRead(currentUser.id, 'candidate');
+                                            window.location.reload();
+                                        } catch (e) {
+                                            message.error('操作失败');
+                                        }
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-indigo-600 underline"
+                                >
+                                    一键已读
+                                </button>
+                            )}
+                        </div>
                         <div className="relative mb-3">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                             <input
@@ -1084,7 +1108,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             }
                                         }}
                                         className={`relative group p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 
-                                            ${isActive && !isMobile ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent'}`}
+                                            ${isActive && !isMobile ? 'bg-emerald-50/60 border-l-4 border-l-emerald-600' : 'border-l-4 border-l-transparent'}`}
                                     >
                                         <div className="flex justify-between mb-1">
                                             <div className="flex items-center gap-2">
@@ -1092,11 +1116,11 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                     src={recruiterAvatar}
                                                     name={recruiterName}
                                                     size={40}
-                                                    className="bg-indigo-100 text-indigo-600 border border-indigo-50"
+                                                    className="bg-blue-100 text-blue-600 border border-blue-50"
                                                 />
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1">
-                                                        <h4 className={`font-bold text-sm truncate ${isActive && !isMobile ? 'text-indigo-900' : 'text-gray-900'}`}>{recruiterName}</h4>
+                                                        <h4 className={`font-bold text-sm truncate ${isActive && !isMobile ? 'text-emerald-900' : 'text-gray-900'}`}>{recruiterName}</h4>
 
                                                     </div>
                                                     <p className="text-xs text-gray-500 truncate">{displayJobTitle} • {conv.company_name || '未知公司'}</p>
@@ -1105,7 +1129,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             <div className="flex flex-col items-end gap-1">
                                                 <span className="text-xs text-gray-400">{formatDateTime(conv.lastTime).split(' ')[0]}</span>
                                                 {conv.unreadCount > 0 && (
-                                                    <span className="text-xs bg-indigo-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                                    <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                                                         {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                                                     </span>
                                                 )}
@@ -1193,7 +1217,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         src={activeConv.recruiter_avatar}
                                         name={activeConv.recruiter_name}
                                         size={40}
-                                        className="bg-indigo-100 text-indigo-600 border border-indigo-200"
+                                        className="bg-blue-100 text-blue-600 border border-blue-200"
                                     />
                                     <div className="flex-1 min-w-0">
                                         <h2 className="text-base font-bold text-gray-900">{activeConv.recruiter_name || '招聘者'}</h2>
@@ -1299,323 +1323,336 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         </div>
                                     </Modal>
 
-                                    {!activeConv.messages || activeConv.messages.length === 0 ? (
+                                    {(!activeConv?.messages || activeConv.messages.length === 0) ? (
                                         <div className="text-center py-10 text-gray-400 text-xs">
                                             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
                                             <p>暂无消息记录，开始聊天吧</p>
                                         </div>
-                                    ) : activeConv.messages.map((msg: Message, i: number) => {
-                                        const isMe = Number(msg.sender_id) === Number(currentUser?.id);
-                                        const isSystem = msg.type === 'system';
-                                        const isInterviewInvitation = msg.type === 'interview_invitation';
-
-                                        // --- 时间分割线逻辑 ---
-                                        const prevMsg = activeConv.messages?.[i - 1];
-                                        let showTimeDivider = false;
-                                        if (i === 0) {
-                                            showTimeDivider = true;
-                                        } else if (prevMsg) {
-                                            const diff = new Date(msg.time).getTime() - new Date(prevMsg.time).getTime();
-                                            if (diff > 5 * 60 * 1000) { // 超过5分钟显示一次时间
-                                                showTimeDivider = true;
+                                    ) : (() => {
+                                        // Deduplicate messages before rendering
+                                        const uniqueMessages = (activeConv.messages || []).reduce((acc: any[], current: any) => {
+                                            const x = acc.find((item: any) => item.id?.toString() === current.id?.toString());
+                                            if (!x) {
+                                                return acc.concat([current]);
+                                            } else {
+                                                return acc;
                                             }
-                                        }
+                                        }, []);
 
-                                        if (isSystem) return (
-                                            <div key={i}>
-                                                {showTimeDivider && (
-                                                    <div className="flex justify-center my-4">
-                                                        <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex justify-center my-4">
-                                                    <span className="text-xs bg-gray-200 text-gray-500 px-3 py-1 rounded-full">{msg.text}</span>
-                                                </div>
-                                            </div>
-                                        );
+                                        return uniqueMessages.map((msg: Message, i: number) => {
+                                            const isMe = Number(msg.sender_id) === Number(currentUser?.id);
+                                            const isSystem = msg.type === 'system';
+                                            const isInterviewInvitation = msg.type === 'interview_invitation';
 
-                                        if (isInterviewInvitation) return (
-                                            <div key={i}>
-                                                {showTimeDivider && (
-                                                    <div className="flex justify-center my-4">
-                                                        <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex justify-center my-4">
-                                                    <InterviewCard
-                                                        msg={msg}
-                                                        isCurrentUser={isMe}
-                                                        isRecruiter={false}
-                                                        onAccept={async (interviewId, messageId) => {
-                                                            // Handle accept interview
-                                                            // 消息提示已在 InterviewCard 组件中显示，这里不需要重复
-                                                            // Refresh conversation
-                                                            window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
-                                                        }}
-                                                        onReject={async (interviewId, messageId) => {
-                                                            // Handle reject interview
-                                                            // 消息提示已在 InterviewCard 组件中显示，这里不需要重复
-                                                            // Refresh conversation
-                                                            window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
-                                                        }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        );
+                                            // --- 时间分割线逻辑 ---
+                                            const prevMsg = uniqueMessages[i - 1];
+                                            let showTimeDivider = false;
+                                            if (i === 0) {
+                                                showTimeDivider = true;
+                                            } else if (prevMsg) {
+                                                const diff = new Date(msg.time).getTime() - new Date(prevMsg.time).getTime();
+                                                if (diff > 5 * 60 * 1000) { // 超过5分钟显示一次时间
+                                                    showTimeDivider = true;
+                                                }
+                                            }
 
-                                        return (
-                                            <div key={i} className="flex flex-col gap-4">
-                                                {showTimeDivider && (
-                                                    <div className="flex justify-center my-2">
-                                                        <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
-                                                    </div>
-                                                )}
-                                                <div className={`flex gap-2 items-end ${isMe ? 'justify-end' : 'justify-start'} group`}>
-                                                    {!isMe && (
-                                                        <UserAvatar
-                                                            src={msg.sender_avatar}
-                                                            name={msg.sender_name}
-                                                            size={32}
-                                                            className="bg-indigo-100 text-indigo-600"
-                                                        />
+                                            if (isSystem) return (
+                                                <div key={i}>
+                                                    {showTimeDivider && (
+                                                        <div className="flex justify-center my-4">
+                                                            <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
+                                                        </div>
                                                     )}
-                                                    <div
-                                                        className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
+                                                    <div className="flex justify-center my-4">
+                                                        <span className="text-xs bg-gray-200 text-gray-500 px-3 py-1 rounded-full">{msg.text}</span>
+                                                    </div>
+                                                </div>
+                                            );
+
+                                            if (isInterviewInvitation) return (
+                                                <div key={i}>
+                                                    {showTimeDivider && (
+                                                        <div className="flex justify-center my-4">
+                                                            <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-center my-4">
+                                                        <InterviewCard
+                                                            msg={msg}
+                                                            isCurrentUser={isMe}
+                                                            isRecruiter={false}
+                                                            onAccept={async (interviewId, messageId) => {
+                                                                // Handle accept interview
+                                                                // 消息提示已在 InterviewCard 组件中显示，这里不需要重复
+                                                                // Refresh conversation
+                                                                window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
+                                                            }}
+                                                            onReject={async (interviewId, messageId) => {
+                                                                // Handle reject interview
+                                                                // 消息提示已在 InterviewCard 组件中显示，这里不需要重复
+                                                                // Refresh conversation
+                                                                window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+
+                                            return (
+                                                <div key={i} className="flex flex-col gap-4">
+                                                    {showTimeDivider && (
+                                                        <div className="flex justify-center my-2">
+                                                            <span className="text-[11px] text-gray-400 font-medium">{formatDateTime(msg.time)}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className={`flex gap-2 items-end ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                                                        {!isMe && (
+                                                            <UserAvatar
+                                                                src={msg.sender_avatar}
+                                                                name={msg.sender_name}
+                                                                size={32}
+                                                                className="bg-blue-100 text-blue-600"
+                                                            />
+                                                        )}
+                                                        <div
+                                                            className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
                                                         ${isMe ? 'bg-green-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}
                                                         hover:shadow-md transition-shadow
                                                     `}
-                                                        onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
-                                                    >
+                                                            onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
+                                                        >
 
 
-                                                        {(msg.type as any) === 'wechat_card' ? (
-                                                            <WeChatCard
-                                                                msg={msg}
-                                                                isMe={isMe}
-                                                                onCopy={(text) => {
-                                                                    navigator.clipboard.writeText(text).then(() => {
-                                                                        message.success('已复制微信号');
-                                                                    });
-                                                                }}
-                                                            />
-                                                        ) : (msg.type as any) === 'exchange_request' ? (
-                                                            // Keep legacy support or remove if fully deprecated. 
-                                                            // User asked to "Replace/Refine", but having fallback is good.
-                                                            // For now keeping it but focus on wechat_card as primary.
-                                                            <div className="bg-white rounded-lg shadow-sm border border-emerald-100 overflow-hidden min-w-[260px] max-w-[300px]">
-                                                                {/* Legacy exchange request rendering... */}
-                                                                {(() => {
-                                                                    let status = 'pending';
-                                                                    let initiatorWechat = '';
-                                                                    let receiverWechat = '';
+                                                            {(msg.type as any) === 'wechat_card' ? (
+                                                                <WeChatCard
+                                                                    msg={msg}
+                                                                    isMe={isMe}
+                                                                    onCopy={(text) => {
+                                                                        navigator.clipboard.writeText(text).then(() => {
+                                                                            message.success('已复制微信号');
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            ) : (msg.type as any) === 'exchange_request' ? (
+                                                                // Keep legacy support or remove if fully deprecated. 
+                                                                // User asked to "Replace/Refine", but having fallback is good.
+                                                                // For now keeping it but focus on wechat_card as primary.
+                                                                <div className="bg-white rounded-lg shadow-sm border border-emerald-100 overflow-hidden min-w-[260px] max-w-[300px]">
+                                                                    {/* Legacy exchange request rendering... */}
+                                                                    {(() => {
+                                                                        let status = 'pending';
+                                                                        let initiatorWechat = '';
+                                                                        let receiverWechat = '';
 
-                                                                    try {
-                                                                        if (msg.text && (msg.text.startsWith('{') || msg.text === '')) {
-                                                                            const content = msg.text ? JSON.parse(msg.text) : {};
-                                                                            status = content.status || 'pending';
-                                                                            initiatorWechat = content.initiator_wechat;
-                                                                            receiverWechat = content.receiver_wechat;
+                                                                        try {
+                                                                            if (msg.text && (msg.text.startsWith('{') || msg.text === '')) {
+                                                                                const content = msg.text ? JSON.parse(msg.text) : {};
+                                                                                status = content.status || 'pending';
+                                                                                initiatorWechat = content.initiator_wechat;
+                                                                                receiverWechat = content.receiver_wechat;
+                                                                            }
+                                                                        } catch (e) {
+                                                                            // fallback
                                                                         }
-                                                                    } catch (e) {
-                                                                        // fallback
-                                                                    }
 
-                                                                    if (status === 'pending') {
-                                                                        return (
-                                                                            <div>
-                                                                                <div className="p-4 bg-emerald-50/30">
-                                                                                    <div className="flex items-start gap-3 mb-3">
+                                                                        if (status === 'pending') {
+                                                                            return (
+                                                                                <div>
+                                                                                    <div className="p-4 bg-emerald-50/30">
+                                                                                        <div className="flex items-start gap-3 mb-3">
+                                                                                            <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
+                                                                                                <span className="text-white text-xl font-bold">We</span>
+                                                                                            </div>
+                                                                                            <p className="text-gray-900 font-medium text-[15px] leading-snug">
+                                                                                                {isMe ? '您发起了微信交换请求' : '我想要和您交换微信，您是否同意'}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                                                                            为保障您的安全建议在平台内沟通，微信沟通中需特别保护您的个人信息，谨防受骗。
+                                                                                        </p>
+                                                                                    </div>
+
+                                                                                    {!isMe ? (
+                                                                                        <div className="flex border-t border-gray-100">
+                                                                                            <button
+                                                                                                onClick={() => handleRejectWechatRequest(msg.id)}
+                                                                                                className="flex-1 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium"
+                                                                                            >
+                                                                                                拒绝
+                                                                                            </button>
+                                                                                            <div className="w-px bg-gray-100"></div>
+                                                                                            <button
+                                                                                                onClick={() => handleAcceptWechatRequest(msg.id)}
+                                                                                                className="flex-1 py-3 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors font-medium"
+                                                                                            >
+                                                                                                同意
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="p-3 bg-gray-50 text-center border-t border-gray-100">
+                                                                                            <span className="text-xs text-gray-400">等待对方验证...</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        } else if (status === 'accepted') {
+                                                                            const otherWechat = isMe ? receiverWechat : initiatorWechat;
+                                                                            // const otherName = isMe ? (activeConv?.recruiter_name || '对方') : (activeConv?.candidate_name || '对方'); // Get name if possible, else '对方'
+                                                                            const displayName = isMe ? '对方' : (msg.sender_name || '对方');
+
+                                                                            return (
+                                                                                <div className="p-4">
+                                                                                    <div className="flex items-center gap-3 mb-4">
                                                                                         <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
                                                                                             <span className="text-white text-xl font-bold">We</span>
                                                                                         </div>
-                                                                                        <p className="text-gray-900 font-medium text-[15px] leading-snug">
-                                                                                            {isMe ? '您发起了微信交换请求' : '我想要和您交换微信，您是否同意'}
-                                                                                        </p>
+                                                                                        <div>
+                                                                                            <p className="text-gray-500 text-xs mb-0.5">{displayName}的微信号</p>
+                                                                                            <p className="text-gray-900 font-medium text-base select-all">{otherWechat || '未知'}</p>
+                                                                                        </div>
                                                                                     </div>
-                                                                                    <p className="text-xs text-gray-500 leading-relaxed">
-                                                                                        为保障您的安全建议在平台内沟通，微信沟通中需特别保护您的个人信息，谨防受骗。
-                                                                                    </p>
+                                                                                    <button
+                                                                                        onClick={() => handleCopyWechat(otherWechat)}
+                                                                                        className="w-full py-2 bg-emerald-50 text-emerald-600 text-sm font-medium rounded hover:bg-emerald-100 transition-colors"
+                                                                                    >
+                                                                                        复制微信号
+                                                                                    </button>
                                                                                 </div>
-
-                                                                                {!isMe ? (
-                                                                                    <div className="flex border-t border-gray-100">
-                                                                                        <button
-                                                                                            onClick={() => handleRejectWechatRequest(msg.id)}
-                                                                                            className="flex-1 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium"
-                                                                                        >
-                                                                                            拒绝
-                                                                                        </button>
-                                                                                        <div className="w-px bg-gray-100"></div>
-                                                                                        <button
-                                                                                            onClick={() => handleAcceptWechatRequest(msg.id)}
-                                                                                            className="flex-1 py-3 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors font-medium"
-                                                                                        >
-                                                                                            同意
-                                                                                        </button>
+                                                                            );
+                                                                        } else if (status === 'rejected') {
+                                                                            return (
+                                                                                <div className="p-4 flex items-center gap-3 text-gray-400">
+                                                                                    <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center shrink-0">
+                                                                                        <span className="text-gray-400 text-xl font-bold">We</span>
                                                                                     </div>
-                                                                                ) : (
-                                                                                    <div className="p-3 bg-gray-50 text-center border-t border-gray-100">
-                                                                                        <span className="text-xs text-gray-400">等待对方验证...</span>
-                                                                                    </div>
+                                                                                    <span className="text-sm">{isMe ? '对方拒绝了请求' : '您拒绝了请求'}</span>
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                    })()}
+                                                                </div>
+                                                            ) : msg.type === 'image' && msg.file_url ? (
+                                                                <div className="space-y-1">
+                                                                    <img
+                                                                        src={msg.file_url}
+                                                                        alt="图片消息"
+                                                                        className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                                                        onClick={() => window.open(msg.file_url, '_blank')}
+                                                                        loading="lazy"
+                                                                    />
+                                                                    {msg.text && msg.text !== '[图片]' && <p>{msg.text}</p>}
+                                                                </div>
+                                                            ) :
+                                                                /* 文件消息 - 包括简历 */
+                                                                ((msg.type === 'file' || (msg.text && (msg.text.includes('[简历]') || msg.text.includes('[文件]')))) && msg.file_url) ? (
+                                                                    <div className="space-y-2">
+                                                                        {/* 文件图标和信息 */}
+                                                                        <div className="flex items-center gap-2">
+                                                                            <FileText className={`w-5 h-5 ${isMe ? 'text-green-200' : 'text-gray-400'}`} />
+                                                                            <div className="flex-1">
+                                                                                <p className="font-medium">{msg.file_name || msg.text.replace('[简历] ', '').replace('[文件] ', '')}</p>
+                                                                                {msg.file_size && (
+                                                                                    <p className={`text-xs ${isMe ? 'text-green-200' : 'text-gray-500'}`}>
+                                                                                        {formatFileSize(msg.file_size)}
+                                                                                    </p>
                                                                                 )}
                                                                             </div>
-                                                                        );
-                                                                    } else if (status === 'accepted') {
-                                                                        const otherWechat = isMe ? receiverWechat : initiatorWechat;
-                                                                        // const otherName = isMe ? (activeConv?.recruiter_name || '对方') : (activeConv?.candidate_name || '对方'); // Get name if possible, else '对方'
-                                                                        const displayName = isMe ? '对方' : (msg.sender_name || '对方');
-
-                                                                        return (
-                                                                            <div className="p-4">
-                                                                                <div className="flex items-center gap-3 mb-4">
-                                                                                    <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
-                                                                                        <span className="text-white text-xl font-bold">We</span>
-                                                                                    </div>
-                                                                                    <div>
-                                                                                        <p className="text-gray-500 text-xs mb-0.5">{displayName}的微信号</p>
-                                                                                        <p className="text-gray-900 font-medium text-base select-all">{otherWechat || '未知'}</p>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <button
-                                                                                    onClick={() => handleCopyWechat(otherWechat)}
-                                                                                    className="w-full py-2 bg-emerald-50 text-emerald-600 text-sm font-medium rounded hover:bg-emerald-100 transition-colors"
-                                                                                >
-                                                                                    复制微信号
-                                                                                </button>
-                                                                            </div>
-                                                                        );
-                                                                    } else if (status === 'rejected') {
-                                                                        return (
-                                                                            <div className="p-4 flex items-center gap-3 text-gray-400">
-                                                                                <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center shrink-0">
-                                                                                    <span className="text-gray-400 text-xl font-bold">We</span>
-                                                                                </div>
-                                                                                <span className="text-sm">{isMe ? '对方拒绝了请求' : '您拒绝了请求'}</span>
-                                                                            </div>
-                                                                        );
-                                                                    }
-                                                                })()}
-                                                            </div>
-                                                        ) : msg.type === 'image' && msg.file_url ? (
-                                                            <div className="space-y-1">
-                                                                <img
-                                                                    src={msg.file_url}
-                                                                    alt="图片消息"
-                                                                    className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                                                    onClick={() => window.open(msg.file_url, '_blank')}
-                                                                    loading="lazy"
-                                                                />
-                                                                {msg.text && msg.text !== '[图片]' && <p>{msg.text}</p>}
-                                                            </div>
-                                                        ) :
-                                                            /* 文件消息 - 包括简历 */
-                                                            ((msg.type === 'file' || (msg.text && (msg.text.includes('[简历]') || msg.text.includes('[文件]')))) && msg.file_url) ? (
-                                                                <div className="space-y-2">
-                                                                    {/* 文件图标和信息 */}
-                                                                    <div className="flex items-center gap-2">
-                                                                        <FileText className={`w-5 h-5 ${isMe ? 'text-green-200' : 'text-gray-400'}`} />
-                                                                        <div className="flex-1">
-                                                                            <p className="font-medium">{msg.file_name || msg.text.replace('[简历] ', '').replace('[文件] ', '')}</p>
-                                                                            {msg.file_size && (
-                                                                                <p className={`text-xs ${isMe ? 'text-green-200' : 'text-gray-500'}`}>
-                                                                                    {formatFileSize(msg.file_size)}
-                                                                                </p>
-                                                                            )}
+                                                                        </div>
+                                                                        {/* 查看和下载按钮 */}
+                                                                        <div className="flex gap-2">
+                                                                            {/* 查看按钮 */}
+                                                                            <button
+                                                                                onClick={() => window.open(msg.file_url, '_blank')}
+                                                                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-green-400 hover:bg-green-300 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
+                                                                            >
+                                                                                <Eye className="w-3.5 h-3.5" />
+                                                                                查看
+                                                                            </button>
+                                                                            {/* 下载按钮 */}
+                                                                            <a
+                                                                                href={msg.file_url}
+                                                                                download={msg.file_name}
+                                                                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
+                                                                            >
+                                                                                <Download className="w-3.5 h-3.5" />
+                                                                                下载
+                                                                            </a>
                                                                         </div>
                                                                     </div>
-                                                                    {/* 查看和下载按钮 */}
-                                                                    <div className="flex gap-2">
-                                                                        {/* 查看按钮 */}
-                                                                        <button
-                                                                            onClick={() => window.open(msg.file_url, '_blank')}
-                                                                            className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-green-400 hover:bg-green-300 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
-                                                                        >
-                                                                            <Eye className="w-3.5 h-3.5" />
-                                                                            查看
-                                                                        </button>
-                                                                        {/* 下载按钮 */}
-                                                                        <a
-                                                                            href={msg.file_url}
-                                                                            download={msg.file_name}
-                                                                            className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
-                                                                        >
-                                                                            <Download className="w-3.5 h-3.5" />
-                                                                            下载
-                                                                        </a>
+                                                                ) : (
+                                                                    /* 文本消息 */
+                                                                    <div className="space-y-2">
+                                                                        {/* 引用消息部分 - 现代化引用样式 */}
+                                                                        {msg.quoted_message ? (
+                                                                            <div className={`
+                                                                        p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50 text-sm
+                                                                        ${isMe
+                                                                                    ? 'border-green-500 bg-green-50 text-green-800'
+                                                                                    : 'border-gray-300 bg-gray-50 text-gray-700'
+                                                                                }
+                                                                    `}>
+                                                                                <div className="flex items-center gap-2 mb-1">
+                                                                                    <span className="font-medium text-xs opacity-80">
+                                                                                        {msg.quoted_message.sender_name}
+                                                                                    </span>
+                                                                                    <span className="text-xs opacity-60">
+                                                                                        {msg.quoted_message.type === 'image' ? '[图片]' :
+                                                                                            msg.quoted_message.type === 'file' ? `[文件: ${msg.quoted_message.file_name || '附件'}]` :
+                                                                                                msg.quoted_message.text}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : msg.text?.startsWith('回复 ') ? (
+                                                                            // 兼容旧格式的回复消息
+                                                                            <div className={`
+                                                                        p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50 text-sm
+                                                                        ${isMe
+                                                                                    ? 'border-green-500 bg-green-50 text-green-800'
+                                                                                    : 'border-gray-300 bg-gray-50 text-gray-700'
+                                                                                }
+                                                                    `}>
+                                                                                <div className="flex items-center gap-2 mb-1">
+                                                                                    <span className="font-medium text-xs opacity-80">
+                                                                                        {msg.text.split('\n')[0].replace('回复 ', '').split(':')[0]}
+                                                                                    </span>
+                                                                                    <span className="text-xs opacity-60">
+                                                                                        {msg.text.split('\n')[0].split(':')[1] || msg.text.split('\n')[1]}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : null}
+                                                                        {/* 实际消息内容 */}
+                                                                        <p className="whitespace-pre-wrap">{msg.text.split('\n\n').slice(-1)[0]}</p>
                                                                     </div>
-                                                                </div>
-                                                            ) : (
-                                                                /* 文本消息 */
-                                                                <div className="space-y-2">
-                                                                    {/* 引用消息部分 - 现代化引用样式 */}
-                                                                    {msg.quoted_message ? (
-                                                                        <div className={`
-                                                                        p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50 text-sm
-                                                                        ${isMe
-                                                                                ? 'border-green-500 bg-green-50 text-green-800'
-                                                                                : 'border-gray-300 bg-gray-50 text-gray-700'
-                                                                            }
-                                                                    `}>
-                                                                            <div className="flex items-center gap-2 mb-1">
-                                                                                <span className="font-medium text-xs opacity-80">
-                                                                                    {msg.quoted_message.sender_name}
-                                                                                </span>
-                                                                                <span className="text-xs opacity-60">
-                                                                                    {msg.quoted_message.type === 'image' ? '[图片]' :
-                                                                                        msg.quoted_message.type === 'file' ? `[文件: ${msg.quoted_message.file_name || '附件'}]` :
-                                                                                            msg.quoted_message.text}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : msg.text?.startsWith('回复 ') ? (
-                                                                        // 兼容旧格式的回复消息
-                                                                        <div className={`
-                                                                        p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50 text-sm
-                                                                        ${isMe
-                                                                                ? 'border-green-500 bg-green-50 text-green-800'
-                                                                                : 'border-gray-300 bg-gray-50 text-gray-700'
-                                                                            }
-                                                                    `}>
-                                                                            <div className="flex items-center gap-2 mb-1">
-                                                                                <span className="font-medium text-xs opacity-80">
-                                                                                    {msg.text.split('\n')[0].replace('回复 ', '').split(':')[0]}
-                                                                                </span>
-                                                                                <span className="text-xs opacity-60">
-                                                                                    {msg.text.split('\n')[0].split(':')[1] || msg.text.split('\n')[1]}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : null}
-                                                                    {/* 实际消息内容 */}
-                                                                    <p className="whitespace-pre-wrap">{msg.text.split('\n\n').slice(-1)[0]}</p>
-                                                                </div>
-                                                            )}
+                                                                )}
+                                                        </div>
+                                                        {isMe && (
+                                                            <UserAvatar
+                                                                src={currentUser?.avatar}
+                                                                name={currentUser?.name || '我'}
+                                                                size={32}
+                                                                className="bg-indigo-100 text-indigo-600"
+                                                            />
+                                                        )}
                                                     </div>
-                                                    {isMe && (
-                                                        <UserAvatar
-                                                            src={currentUser?.avatar}
-                                                            name={currentUser?.name || '我'}
-                                                            size={32}
-                                                            className="bg-indigo-100 text-indigo-600"
-                                                        />
-                                                    )}
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })
+                                    })()
+                                    }
                                 </div>
-
-                                {/* 回到最新消息按钮 */}
-                                {showScrollToNew && (
-                                    <button
-                                        onClick={() => scrollToLatest(true)}
-                                        className="absolute bottom-4 right-4 p-2 bg-white text-indigo-600 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 transition-all"
-                                        aria-label="回到最新消息"
-                                    >
-                                        <ChevronDown className="w-5 h-5" />
-                                    </button>
-                                )}
                             </div>
+
+                            {/* 回到最新消息按钮 */}
+                            {showScrollToNew && (
+                                <button
+                                    onClick={() => scrollToLatest(true)}
+                                    className="absolute bottom-4 right-4 p-2 bg-white text-indigo-600 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 transition-all"
+                                    aria-label="回到最新消息"
+                                >
+                                    <ChevronDown className="w-5 h-5" />
+                                </button>
+                            )}
 
                             {/* 右键菜单 */}
                             {contextMenu.visible && (

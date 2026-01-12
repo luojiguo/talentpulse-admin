@@ -7,6 +7,7 @@ const fs = require('fs');
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { notifyConversation, notifyUser } = require('../services/socketService');
+const { authenticate } = require('../middleware/auth');
 
 // 确保聊天文件上传目录存在
 const baseUploadDir = path.join(__dirname, '../../../Front_End/public/uploads/chats');
@@ -49,6 +50,9 @@ const upload = multer({
     }
   }
 });
+
+// Apply authentication middleware to all message routes
+router.use(authenticate);
 
 // 获取对话列表 - 优化：只返回对话元数据，不包含详细消息，实现真正的按需加载
 router.get('/conversations/:userId', asyncHandler(async (req, res) => {
@@ -117,6 +121,7 @@ router.get('/conversations/:userId', asyncHandler(async (req, res) => {
         COALESCE(co.name, '未知公司') AS company_name,
         COALESCE(u1.name, '未知候选人') AS candidate_name,
         COALESCE(u1.avatar, '') AS candidate_avatar,
+        COALESCE(u1.id, cd.user_id) AS "candidateUserId",
         COALESCE(cd.experience, '经验未知') AS candidate_experience,
         COALESCE(cd.city, '地点未知') AS candidate_location,
         COALESCE(u2.name, '未知招聘者') AS recruiter_name,
@@ -222,13 +227,31 @@ router.post('/conversations', async (req, res) => {
     // 注意：前端传递的candidateId是users表的id，需要转换为candidates表的id
     // 但recruiterId已经是recruiters表的id，直接使用即可
 
+    console.log('[DEBUG] Input candidateId (User ID):', candidateId, typeof candidateId);
+    console.log('[DEBUG] Input recruiterId:', recruiterId, typeof recruiterId);
+
+    // First, verify the candidate User ID exists in users table
+    const candidateUserCheck = await query(
+      'SELECT id FROM users WHERE id = $1',
+      [parseInt(candidateId)]
+    );
+
+    if (candidateUserCheck.rows.length === 0) {
+      console.log('[DEBUG] Candidate User ID not found in users table:', candidateId);
+      return res.status(404).json({
+        status: 'error',
+        message: '候选人用户不存在'
+      });
+    }
+
     // 获取候选人ID（candidates表中的id）
-    const candidateResult = await pool.query(
-      'SELECT id FROM candidates WHERE user_id = $1',
-      [candidateId]
+    const candidateResult = await query(
+      'SELECT id, user_id FROM candidates WHERE user_id = $1',
+      [parseInt(candidateId)]
     );
 
     if (candidateResult.rows.length === 0) {
+      console.log('[DEBUG] No candidate record found for user_id:', candidateId);
       return res.status(404).json({
         status: 'error',
         message: '候选人不存在'
@@ -236,7 +259,48 @@ router.post('/conversations', async (req, res) => {
     }
 
     const actualCandidateId = candidateResult.rows[0].id;
-    const actualRecruiterId = recruiterId;
+    const actualCandidateUserId = candidateResult.rows[0].user_id;
+
+    console.log('[DEBUG] Resolved actualCandidateId (Candidate Table ID):', actualCandidateId);
+    console.log('[DEBUG] Resolved actualCandidateUserId (User ID):', actualCandidateUserId);
+
+    // Resolve Recruiter ID:
+    // Frontend might pass User ID as 'recruiterId'. We need 'recruiters.id'.
+    // Try to find by ID first, then by User ID.
+    let actualRecruiterId = recruiterId;
+    const recIdInt = parseInt(recruiterId);
+
+    console.log(`[DEBUG] Resolving Recruiter ID for: ${recruiterId} (Int: ${recIdInt})`);
+
+    const recruiterCheck = await query(
+      'SELECT id FROM recruiters WHERE id = $1',
+      [recIdInt]
+    );
+
+    console.log(`[DEBUG] Lookup by ID result count: ${recruiterCheck.rows.length}`);
+
+    if (recruiterCheck.rows.length > 0) {
+      actualRecruiterId = recruiterCheck.rows[0].id;
+      console.log(`[DEBUG] Found by Recruiter ID: ${actualRecruiterId}`);
+    } else {
+      // Try searching by user_id
+      const recruiterByUser = await query(
+        'SELECT id FROM recruiters WHERE user_id = $1',
+        [recIdInt]
+      );
+      console.log(`[DEBUG] Lookup by User ID result count: ${recruiterByUser.rows.length}`);
+
+      if (recruiterByUser.rows.length > 0) {
+        actualRecruiterId = recruiterByUser.rows[0].id;
+        console.log(`[DEBUG] Found by User ID. Actual Recruiter ID: ${actualRecruiterId}`);
+      } else {
+        console.log(`[DEBUG] Recruiter NOT FOUND for ID: ${recruiterId}`);
+        return res.status(404).json({
+          status: 'error',
+          message: '招聘者不存在'
+        });
+      }
+    }
 
     // 检查对话是否已经存在 - 移除job_id检查，同一招聘者和候选人之间只允许一个对话
     const existingConversation = await pool.query(`
@@ -269,9 +333,9 @@ router.post('/conversations', async (req, res) => {
     }
 
     // 获取招聘者的用户ID
-    const recruiterUserResult = await pool.query(
+    const recruiterUserResult = await query(
       'SELECT user_id FROM recruiters WHERE id = $1',
-      [recruiterId]
+      [actualRecruiterId] // Use the RESOLVED recruiter ID
     );
 
     if (recruiterUserResult.rows.length === 0) {
@@ -283,13 +347,20 @@ router.post('/conversations', async (req, res) => {
 
     const recruiterUserId = recruiterUserResult.rows[0].user_id;
 
+    console.log('[DEBUG] Preparing to INSERT message:');
+    console.log('[DEBUG] conversationId:', conversationId);
+    console.log('[DEBUG] sender_id (recruiterUserId):', recruiterUserId, typeof recruiterUserId);
+    console.log('[DEBUG] receiver_id (actualCandidateUserId):', actualCandidateUserId, typeof actualCandidateUserId);
+    console.log('[DEBUG] message text:', message);
+
     // 发送消息
-    const newMessage = await pool.query(`
+    // Sender is Recruiter (recruiterUserId), Receiver is Candidate (actualCandidateUserId - validated User ID)
+    const newMessage = await query(`
     INSERT INTO messages (
       conversation_id, sender_id, receiver_id, text, type, status, time, is_deleted
     ) VALUES ($1, $2, $3, $4, 'text', 'sent', CURRENT_TIMESTAMP, false)
     RETURNING *
-  `, [conversationId, candidateId, recruiterUserId, message]);
+  `, [conversationId, recruiterUserId, actualCandidateUserId, message]);
 
     // 确定要更新的字段
     const updateFields = [
@@ -504,18 +575,34 @@ router.put('/read/:conversationId/:userId', async (req, res) => {
     }
 
     // 更新对话的未读计数
-    await pool.query(`
+    const updatedConversationRes = await pool.query(`
       UPDATE conversations 
       SET ${updateField} = 0, updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
+      RETURNING id, candidate_unread, recruiter_unread, updated_at
     `, [conversationId]);
 
     // 更新消息的状态为已读
-    await pool.query(`
+    const updatedMessagesRes = await pool.query(`
       UPDATE messages 
       SET status = 'read'
       WHERE conversation_id = $1 AND receiver_id = $2 AND status != 'read'
-    `, [conversationId, userId]);
+      RETURNING *
+    `, [conversationId, userIdNum]);
+
+    const updatedMessages = updatedMessagesRes.rows || [];
+    for (const msg of updatedMessages) {
+      notifyConversation(conversationId, 'message_updated', msg);
+      if (msg.sender_id) notifyUser(msg.sender_id, 'message_updated', msg);
+      if (msg.receiver_id) notifyUser(msg.receiver_id, 'message_updated', msg);
+    }
+
+    const updatedConversation = updatedConversationRes.rows?.[0];
+    if (updatedConversation) {
+      if (candidate_user_id) notifyUser(candidate_user_id, 'conversation_updated', updatedConversation);
+      if (recruiter_user_id) notifyUser(recruiter_user_id, 'conversation_updated', updatedConversation);
+      notifyConversation(conversationId, 'conversation_updated', updatedConversation);
+    }
 
     res.json({
       status: 'success',
@@ -528,6 +615,56 @@ router.put('/read/:conversationId/:userId', async (req, res) => {
     });
   }
 });
+
+// 标记所有消息为已读
+router.put('/read-all', asyncHandler(async (req, res) => {
+  const { userId, role } = req.body;
+
+  if (!userId || !role) {
+    return res.status(400).json({ status: 'error', message: '缺少用户ID或角色参数' });
+  }
+
+  const userIdNum = parseInt(userId);
+  let updateConversationSql = '';
+
+  // 1. 更新对话表中的未读计数
+  if (role === 'recruiter') {
+    // 招聘者：更新 recruiter_unread
+    // 需要连接 recruiters 表来确认 recruiter_id
+    updateConversationSql = `
+      UPDATE conversations c
+      SET recruiter_unread = 0, updated_at = CURRENT_TIMESTAMP
+      FROM recruiters r
+      WHERE c.recruiter_id = r.id AND r.user_id = $1 AND c.recruiter_unread > 0
+    `;
+  } else if (role === 'candidate') {
+    // 候选人：更新 candidate_unread
+    // 需要连接 candidates 表来确认 candidate_id
+    updateConversationSql = `
+      UPDATE conversations c
+      SET candidate_unread = 0, updated_at = CURRENT_TIMESTAMP
+      FROM candidates cd
+      WHERE c.candidate_id = cd.id AND cd.user_id = $1 AND c.candidate_unread > 0
+    `;
+  } else {
+    return res.status(400).json({ status: 'error', message: '无效的角色' });
+  }
+
+  await pool.query(updateConversationSql, [userIdNum]);
+
+  // 2. 更新消息表中的状态
+  // 将所有接收者为当前用户的未读消息标记为已读
+  await pool.query(`
+    UPDATE messages 
+    SET status = 'read'
+    WHERE receiver_id = $1 AND status != 'read'
+  `, [userIdNum]);
+
+  res.json({
+    status: 'success',
+    message: '所有消息已标记为已读'
+  });
+}));
 
 // 获取单个对话详情
 router.get('/conversation/:conversationId', asyncHandler(async (req, res) => {
@@ -1199,6 +1336,8 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
 
     // Notify
     notifyConversation(msg.conversation_id, 'message_updated', updateRes.rows[0]);
+    if (candidate_user_id) notifyUser(candidate_user_id, 'message_updated', updateRes.rows[0]);
+    if (recruiter_user_id) notifyUser(recruiter_user_id, 'message_updated', updateRes.rows[0]);
     return res.json({ status: 'success', data: updateRes.rows[0] });
 
   } else if (action === 'reject') {
@@ -1208,6 +1347,8 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
       [newContent, messageId]
     );
     notifyConversation(msg.conversation_id, 'message_updated', updateRes.rows[0]);
+    if (candidate_user_id) notifyUser(candidate_user_id, 'message_updated', updateRes.rows[0]);
+    if (recruiter_user_id) notifyUser(recruiter_user_id, 'message_updated', updateRes.rows[0]);
     return res.json({ status: 'success', data: updateRes.rows[0] });
   }
 

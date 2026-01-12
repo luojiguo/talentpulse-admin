@@ -18,7 +18,64 @@ router.get('/', asyncHandler(async (req, res) => {
             u.name,
             u.email,
             u.phone,
-            u.avatar
+            u.avatar,
+            COALESCE(
+                (SELECT school FROM education_experiences 
+                WHERE user_id = c.user_id 
+                ORDER BY start_date DESC LIMIT 1),
+                c.school
+            ) as latest_school,
+            COALESCE(
+                (SELECT degree FROM education_experiences 
+                WHERE user_id = c.user_id 
+                ORDER BY start_date DESC LIMIT 1),
+                c.education
+            ) as latest_degree,
+            COALESCE(
+                (SELECT major FROM education_experiences 
+                WHERE user_id = c.user_id 
+                ORDER BY start_date DESC LIMIT 1),
+                c.major
+            ) as latest_major,
+            (
+                SELECT company_name FROM work_experiences 
+                WHERE user_id = c.user_id 
+                ORDER BY start_date DESC LIMIT 1
+            ) as latest_company,
+            (
+                SELECT position FROM work_experiences 
+                WHERE user_id = c.user_id 
+                ORDER BY start_date DESC LIMIT 1
+            ) as latest_position,
+            (
+                SELECT comp.name 
+                FROM applications a
+                JOIN jobs j ON a.job_id = j.id
+                JOIN companies comp ON j.company_id = comp.id
+                WHERE a.candidate_id = c.id
+                ORDER BY a.created_at DESC LIMIT 1
+            ) as latest_application_company,
+            (
+                SELECT j.title
+                FROM applications a
+                JOIN jobs j ON a.job_id = j.id
+                WHERE a.candidate_id = c.id
+                ORDER BY a.created_at DESC LIMIT 1
+            ) as latest_application_job_title,
+            (
+                SELECT u_rec.name 
+                FROM applications a
+                JOIN jobs j ON a.job_id = j.id
+                JOIN recruiters r ON j.recruiter_id = r.id
+                JOIN users u_rec ON r.user_id = u_rec.id
+                WHERE a.candidate_id = c.id
+                ORDER BY a.created_at DESC LIMIT 1
+            ) as latest_application_recruiter,
+            (
+                SELECT COUNT(*) 
+                FROM applications a 
+                WHERE a.candidate_id = c.id
+            ) as application_count
         FROM candidates c
         LEFT JOIN users u ON c.user_id = u.id
         ORDER BY c.created_at DESC

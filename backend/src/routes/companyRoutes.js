@@ -7,6 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const iconv = require('iconv-lite');
+const { authenticate, optionalAuth } = require('../middleware/auth');
 
 // 修复中文文件名编码
 function fixFilenameEncoding(filename) {
@@ -44,18 +45,30 @@ if (!fs.existsSync(frontendBusinessLicenseDir)) {
   fs.mkdirSync(frontendBusinessLicenseDir, { recursive: true });
 }
 
-// 配置multer存储 - 用于营业执照
+// 配置multer存储 - 用于营业执照和公司Logo
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, frontendBusinessLicenseDir);
+    if (file.fieldname === 'logo') {
+      cb(null, frontendCompaniesLogoDir);
+    } else {
+      cb(null, frontendBusinessLicenseDir);
+    }
   },
   filename: (req, file, cb) => {
     // 修复中文文件名编码
     const fixedOriginalname = fixFilenameEncoding(file.originalname);
     const extname = path.extname(fixedOriginalname);
     const companyId = req.params.id || 'unknown';
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(Math.random() * 10000);
 
-    // 尝试从数据库获取公司名称
+    if (file.fieldname === 'logo') {
+      const filename = `company_logo_${companyId}_${timestamp}_${randomSuffix}${extname}`;
+      cb(null, filename);
+      return;
+    }
+
+    // 尝试从数据库获取公司名称 (仅对非logo, 或通用)
     pool.query('SELECT name FROM companies WHERE id = $1', [companyId])
       .then(result => {
         let companyName = 'unknown';
@@ -63,17 +76,12 @@ const storage = multer.diskStorage({
           // 清理公司名称，移除特殊字符，替换为下划线
           companyName = result.rows[0].name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
         }
-
-        const timestamp = Date.now();
-        const randomSuffix = Math.floor(Math.random() * 10000);
         const filename = `${companyName}_营业执照_${timestamp}_${randomSuffix}${extname}`;
         cb(null, filename);
       })
       .catch(err => {
         console.error('获取公司名称失败:', err);
         // 出错时使用默认名称
-        const timestamp = Date.now();
-        const randomSuffix = Math.floor(Math.random() * 10000);
         const filename = `company_${companyId}_营业执照_${timestamp}_${randomSuffix}${extname}`;
         cb(null, filename);
       });
@@ -152,7 +160,7 @@ const handleMulterError = (multerMiddleware) => {
 };
 
 // 获取用户关注的所有公司
-router.get('/followed', asyncHandler(async (req, res) => {
+router.get('/followed', optionalAuth, asyncHandler(async (req, res) => {
   const { user_id } = req.query;
 
   if (!user_id) {
@@ -188,7 +196,7 @@ router.get('/followed', asyncHandler(async (req, res) => {
 }));
 
 // 智能推荐公司 - 根据用户期望职位匹配公司
-router.get('/recommended/:userId', asyncHandler(async (req, res) => {
+router.get('/recommended/:userId', authenticate, asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
   // 获取用户信息
@@ -275,7 +283,7 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
 }));
 
 // 获取所有公司，支持筛选
-router.get('/', asyncHandler(async (req, res) => {
+router.get('/', optionalAuth, asyncHandler(async (req, res) => {
   const { search, industry, status, size } = req.query;
 
   // 构建查询条件
@@ -333,7 +341,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // 获取单个公司
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', optionalAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const result = await query('SELECT * FROM companies WHERE id = $1', [id]);
   if (result.rows.length === 0) {
@@ -363,11 +371,11 @@ router.get('/:id/details', asyncHandler(async (req, res) => {
 
   // 获取公司下的认证招聘者
   const recruitersResult = await query(`
-      SELECT u.id, u.name, u.email, u.phone, r.position, r.department, r.is_verified, r.verification_date
+      SELECT u.id, u.name, u.email, u.phone, u.avatar, r.position, r.department, r.is_verified, r.verification_date
       FROM users u
       JOIN recruiters r ON u.id = r.user_id
       JOIN user_roles ur ON u.id = ur.user_id
-      WHERE r.company_id = $1 AND ur.role = 'recruiter' AND r.is_verified = true
+      WHERE r.company_id = $1 AND ur.role = 'recruiter'
       ORDER BY r.created_at DESC
     `, [id]);
 
@@ -398,19 +406,15 @@ router.get('/:id/details', asyncHandler(async (req, res) => {
   });
 }));
 
-// 企业认证申请（直接通过，无需管理员审核）
-router.post('/:id/verify', handleMulterError(upload.single('business_license')), asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const { social_credit_code, contact_info, user_id } = req.body;
-
-  // 检查公司是否存在
-  const companyResult = await query('SELECT * FROM companies WHERE id = $1', [id]);
-  if (companyResult.rows.length === 0) {
-    const error = new Error('Company not found');
-    error.statusCode = 404;
-    error.errorCode = 'COMPANY_NOT_FOUND';
-    throw error;
-  }
+// 创建新公司并提交认证申请
+router.post('/verify-create', authenticate, handleMulterError(upload.fields([
+  { name: 'business_license', maxCount: 1 },
+  { name: 'logo', maxCount: 1 }
+])), asyncHandler(async (req, res) => {
+  const {
+    social_credit_code, contact_name, contact_phone, user_id,
+    company_name, industry, size, address
+  } = req.body;
 
   // 检查用户是否存在
   if (!user_id) {
@@ -420,8 +424,15 @@ router.post('/:id/verify', handleMulterError(upload.single('business_license')),
     throw error;
   }
 
+  // 验证必填字段
+  if (!company_name || !industry || !size) {
+    const error = new Error('公司名称、行业和规模为必填项');
+    error.statusCode = 400;
+    error.errorCode = 'MISSING_REQUIRED_FIELDS';
+    throw error;
+  }
+
   // 验证字段类型匹配
-  // social_credit_code 必须是18位字符串
   if (social_credit_code && (typeof social_credit_code !== 'string' || social_credit_code.length !== 18)) {
     const error = new Error('统一社会信用代码必须是18位字符串');
     error.statusCode = 400;
@@ -429,55 +440,361 @@ router.post('/:id/verify', handleMulterError(upload.single('business_license')),
     throw error;
   }
 
-  // contact_info 必须是字符串
-  if (contact_info && typeof contact_info !== 'string') {
-    const error = new Error('联系人信息必须是字符串');
-    error.statusCode = 400;
-    error.errorCode = 'INVALID_CONTACT_INFO';
-    throw error;
-  }
-
-  // 构建营业执照路径
+  // 构建文件路径
   let businessLicensePath = '';
-  if (req.file) {
-    businessLicensePath = `/business_license/${req.file.filename}`;
+  if (req.files && req.files['business_license']) {
+    businessLicensePath = `/business_license/${req.files['business_license'][0].filename}`;
   } else if (req.body.business_license) {
+    // Support passing existing path string if handling partial updates or reuse
     businessLicensePath = req.body.business_license;
   }
 
-  // 更新公司认证信息，直接设置为已认证
-  const updateResult = await query(
-    `UPDATE companies 
-       SET social_credit_code = $1, contact_info = $2, business_license = $3, status = 'active',
-           is_verified = true, verification_date = CURRENT_TIMESTAMP 
-       WHERE id = $4 RETURNING *`,
-    [social_credit_code, contact_info, businessLicensePath, id]
-  );
+  let logoPath = '';
+  if (req.files && req.files['logo']) {
+    logoPath = `/companies_logo/${req.files['logo'][0].filename}`;
+  }
 
-  // 更新招聘者用户的认证状态
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. 检查是否存在同名或同信用代码的公司
+    const existingCompanyRes = await client.query(
+      `SELECT * FROM companies WHERE name = $1 OR social_credit_code = $2`,
+      [company_name, social_credit_code]
+    );
+
+    let newCompany;
+
+    if (existingCompanyRes.rows.length > 0) {
+      const existingCompany = existingCompanyRes.rows[0];
+
+      // Case 1: 完全匹配 -> 复用现有公司
+      if (existingCompany.name === company_name && existingCompany.social_credit_code === social_credit_code) {
+        newCompany = existingCompany;
+
+        // 如果用户上传了新logo，则更新公司logo
+        if (logoPath) {
+          await client.query(
+            `UPDATE companies SET logo = $1 WHERE id = $2`,
+            [logoPath, existingCompany.id]
+          );
+          newCompany.logo = logoPath;
+        } else if (!newCompany.logo && !logoPath) {
+          // 如果公司没有logo也没上传，保持原状或设默认
+        }
+      }
+      // Case 2: 公司名相同，信用代码不同 -> 报错
+      else if (existingCompany.name === company_name) {
+        throw new AppError('该公司名称已被注册，且信用代码不匹配', 400, 'COMPANY_NAME_EXISTS_CODE_MISMATCH');
+      }
+      // Case 3: 信用代码相同，公司名不同 -> 报错
+      else {
+        throw new AppError('该统一社会信用代码已被其他公司注册', 400, 'CREDIT_CODE_EXISTS_NAME_MISMATCH');
+      }
+    } else {
+      // 2. 创建新公司
+      // status='active' enables it generally, but is_verified=false means it's not "official" yet
+      const createCompanyRes = await client.query(
+        `INSERT INTO companies (
+                name, industry, size, address, 
+                social_credit_code, contact_name, contact_phone, business_license,
+                logo,
+                status, is_verified
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', false)
+            RETURNING *`,
+        [company_name, industry, size, address, social_credit_code, contact_name, contact_phone, businessLicensePath, logoPath || '🏢']
+      );
+      newCompany = createCompanyRes.rows[0];
+    }
+
+    // 2. 更新 recruiter_user 关联到新公司
+    const updateRecruiterRes = await client.query(
+      `UPDATE recruiter_user 
+           SET company_id = $1, 
+               is_verified = false, 
+               verification_status = 'pending',
+               business_license = $2, 
+               contact_name = $3, 
+               contact_phone = $4,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $5`,
+      [newCompany.id, businessLicensePath, contact_name, contact_phone, user_id]
+    );
+
+    // 如果没有找到 recruiter_user 记录（可能是新用户，或者角色是 candidate），则插入一条新记录
+    if (updateRecruiterRes.rowCount === 0) {
+      await client.query(
+        `INSERT INTO recruiter_user (
+                user_id, company_id, is_verified, verification_status, 
+                business_license, contact_name, contact_phone, 
+                created_at, updated_at
+            ) VALUES ($1, $2, false, 'pending', $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [user_id, newCompany.id, businessLicensePath, contact_name, contact_phone]
+      );
+
+      // 同时确保 recruiters 表也有一条记录 (为了兼容旧逻辑)
+      // Check if exists first? Or UPSERT
+      const checkRecruiter = await client.query('SELECT id FROM recruiters WHERE user_id = $1', [user_id]);
+      if (checkRecruiter.rowCount === 0) {
+        await client.query(
+          `INSERT INTO recruiters (user_id, company_id, is_verified, created_at, updated_at)
+                 VALUES ($1, $2, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [user_id, newCompany.id]
+        );
+      }
+    }
+
+
+    // 3. 确保用户拥有recruiter角色
+    const checkRole = await client.query('SELECT role FROM user_roles WHERE user_id = $1 AND role = $2', [user_id, 'recruiter']);
+    if (checkRole.rowCount === 0) {
+      await client.query(
+        `INSERT INTO user_roles (user_id, role, created_at) VALUES ($1, $2, CURRENT_TIMESTAMP)`,
+        [user_id, 'recruiter']
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      status: 'success',
+      message: '公司创建成功并已提交认证申请！',
+      data: {
+        company: newCompany,
+        business_license: businessLicensePath,
+        verification_status: 'pending'
+      }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}));
+
+// 单独上传公司Logo
+router.post('/:id/logo', authenticate, handleMulterError(upload.single('logo')), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!req.file) {
+    const error = new Error('请选择图片文件');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const logoPath = `/companies_logo/${req.file.filename}`;
+
+  // 检查公司是否存在
+  const companyResult = await query('SELECT * FROM companies WHERE id = $1', [id]);
+  if (companyResult.rows.length === 0) {
+    const error = new Error('Company not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 更新Logo
   await query(
-    `UPDATE recruiter_user 
-       SET is_verified = true, verification_status = 'approved', 
-           business_license = $1, contact_info = $2, 
-           verification_date = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-       WHERE user_id = $3 AND company_id = $4`,
-    [businessLicensePath, contact_info, user_id, id]
+    'UPDATE companies SET logo = $1 WHERE id = $2',
+    [logoPath, id]
   );
 
   res.json({
     status: 'success',
-    message: '企业认证成功！',
+    message: 'Logo上传成功',
     data: {
-      company: updateResult.rows[0],
-      business_license: businessLicensePath,
-      contact_info: contact_info,
-      is_verified: true
+      logo: logoPath
     }
   });
 }));
 
+// 企业认证申请（提交审核，设置为待审核状态）或 更新企业信息
+router.post('/:id/verify', authenticate, handleMulterError(upload.fields([
+  { name: 'business_license', maxCount: 1 },
+  { name: 'logo', maxCount: 1 }
+])), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const {
+    social_credit_code, contact_name, contact_phone, user_id,
+    company_name, industry, size, address
+  } = req.body;
+
+  // 1. 检查当前公司是否存在
+  const companyResult = await query('SELECT * FROM companies WHERE id = $1', [id]);
+  if (companyResult.rows.length === 0) {
+    const error = new Error('Company not found');
+    error.statusCode = 404;
+    error.errorCode = 'COMPANY_NOT_FOUND';
+    throw error;
+  }
+  const currentCompany = companyResult.rows[0];
+
+  // 2. 检查用户ID
+  if (!user_id) {
+    const error = new Error('请提供用户ID');
+    error.statusCode = 400;
+    error.errorCode = 'MISSING_USER_ID';
+    throw error;
+  }
+
+  // 3. 验证字段类型
+  if (social_credit_code && (typeof social_credit_code !== 'string' || social_credit_code.length !== 18)) {
+    const error = new Error('统一社会信用代码必须是18位字符串');
+    error.statusCode = 400;
+    error.errorCode = 'INVALID_SOCIAL_CREDIT_CODE';
+    throw error;
+  }
+
+  // 4. 构建文件路径
+  let businessLicensePath = '';
+  if (req.files && req.files['business_license']) {
+    businessLicensePath = `/business_license/${req.files['business_license'][0].filename}`;
+  } else if (req.body.business_license) {
+    businessLicensePath = req.body.business_license;
+  } else {
+    // 默认保持原有（如果切换公司，需注意是否应携带，通常如果是新上传会覆盖）
+    businessLicensePath = currentCompany.business_license;
+  }
+
+  let logoPath = '';
+  if (req.files && req.files['logo']) {
+    logoPath = `/companies_logo/${req.files['logo'][0].filename}`;
+  } else {
+    logoPath = currentCompany.logo;
+  }
+
+  // 5. 核心逻辑：判断是更新当前公司 还是 切换/关联新公司
+  let targetCompanyId = id;
+  let targetCompanyData = currentCompany;
+  let isSwitching = false;
+
+  // 如果提供了新的社会信用代码，且与当前不同 -> 切换/创建
+  if (social_credit_code && social_credit_code !== currentCompany.social_credit_code) {
+    isSwitching = true;
+    console.log(`[Verify] Switching company from ${currentCompany.social_credit_code} to ${social_credit_code}`);
+
+    // 检查目标公司是否存在
+    const targetRes = await query('SELECT * FROM companies WHERE social_credit_code = $1', [social_credit_code]);
+
+    if (targetRes.rows.length > 0) {
+      // 目标公司已存在 -> 关联并更新其信息
+      targetCompanyId = targetRes.rows[0].id;
+      targetCompanyData = targetRes.rows[0];
+
+      await query(
+        `UPDATE companies 
+               SET contact_name = COALESCE($1, contact_name), 
+                   contact_phone = COALESCE($2, contact_phone), 
+                   business_license = COALESCE($3, business_license), 
+                   name = COALESCE($4, name), 
+                   industry = COALESCE($5, industry), 
+                   size = COALESCE($6, size), 
+                   address = COALESCE($7, address),
+                   logo = COALESCE($8, logo),
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $9`,
+        [contact_name, contact_phone, businessLicensePath, company_name, industry, size, address, logoPath, targetCompanyId]
+      );
+    } else {
+      // 目标公司不存在 -> 创建新公司
+      // Check Name Uniqueness first
+      const nameCheck = await query('SELECT id FROM companies WHERE name = $1', [company_name]);
+      if (nameCheck.rows.length > 0) {
+        const error = new Error('该公司名称已存在，请使用其他名称或核对统一社会信用代码');
+        error.statusCode = 400;
+        throw error;
+      }
+
+      // 默认状态 active, is_verified false
+      const insertRes = await query(
+        `INSERT INTO companies (
+            name, industry, size, address, 
+            social_credit_code, contact_name, contact_phone, business_license,
+            logo, status, is_verified, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING *`,
+        [company_name, industry, size, address, social_credit_code, contact_name, contact_phone, businessLicensePath, logoPath || '🏢']
+      );
+      targetCompanyId = insertRes.rows[0].id;
+      targetCompanyData = insertRes.rows[0];
+    }
+  } else {
+    // 保持当前公司 -> 更新信息
+    // 根据原逻辑：如果是已认证，保持 true；否则 false（待审核）
+    // 这里我们实际上是在提交审核，所以通常不需要改变 is_verified，除非管理员操作
+    // 原代码逻辑：const newVerificationStatus = isPreviouslyVerified ? true : false;
+    const isVerified = currentCompany.is_verified;
+
+    await query(
+      `UPDATE companies 
+           SET social_credit_code = $1, contact_name = $2, contact_phone = $3, business_license = $4, 
+               name = COALESCE($5, name), industry = COALESCE($6, industry), size = COALESCE($7, size), address = COALESCE($8, address),
+               logo = $9,
+               updated_at = CURRENT_TIMESTAMP
+               -- 注意：此处不修改 is_verified 状态，认证状态由管理员决定，或者保持原样
+           WHERE id = $10`,
+      [social_credit_code, contact_name, contact_phone, businessLicensePath, company_name, industry, size, address, logoPath, id]
+    );
+    // targetCompanyId 保持为 id
+    targetCompanyData = currentCompany; // 简略：依然指向当前对象，但属性可能已旧。只要ID对即可。
+    targetCompanyData.is_verified = isVerified;
+  }
+
+  // 6. 确定 recruiter_user 的认证状态
+  // 如果关联的是已认证公司，招聘者可视为 approved (或者 pending admin approval to link?)
+  // 原逻辑：isPreviouslyVerified ? 'approved' : 'pending'
+  // 如果切换了公司，通常需要重新审核关联关系，所以 safe default is 'pending' unless company is strictly verified and we trust the user.
+  // 保持原逻辑：跟随公司的 is_verified 状态
+  // 但是如果公司没有验证(is_verified=false), recruiter_user status naturally pending.
+  // 如果公司已验证(is_verified=true), recruiter_user usually approved if auto-link, OR pending if manual check needed.
+  // 让我们遵循原代码的精神：和公司状态对齐。
+
+  // Refetch target company to be sure of status
+  const finalTargetRes = await query('SELECT is_verified FROM companies WHERE id = $1', [targetCompanyId]);
+  const finalIsVerified = finalTargetRes.rows[0].is_verified;
+
+  const recruiterVerificationStatus = finalIsVerified ? 'approved' : 'pending';
+
+  // 7. 更新 recruiter_user
+  // 修复了之前缺失参数的BUG，并支持修改 company_id
+  await query(
+    `UPDATE recruiter_user 
+       SET is_verified = $1, verification_status = $2, 
+           business_license = $3, contact_name = $4, contact_phone = $5, 
+           company_id = $6,
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = $7`,
+    [finalIsVerified, recruiterVerificationStatus, businessLicensePath, contact_name, contact_phone, targetCompanyId, user_id]
+  );
+
+  // 8. 确保用户拥有recruiter角色
+  const checkRole = await query('SELECT role FROM user_roles WHERE user_id = $1 AND role = $2', [user_id, 'recruiter']);
+  if (checkRole.rows.length === 0) {
+    await query(
+      `INSERT INTO user_roles (user_id, role, created_at) VALUES ($1, $2, CURRENT_TIMESTAMP)`,
+      [user_id, 'recruiter']
+    );
+  }
+
+  res.json({
+    status: 'success',
+    message: finalIsVerified ? '企业关联已更新，已通过认证！' : '企业认证申请已提交，请等待管理员审核！',
+    data: {
+      company: {
+        ...targetCompanyData,
+        id: targetCompanyId,
+        is_verified: finalIsVerified
+        // 其他最新字段略
+      },
+      user_status: recruiterVerificationStatus
+    }
+  });
+
+}));
+
 // 审核企业认证（管理员使用）
-router.put('/:id/verify-status', async (req, res) => {
+router.put('/:id/verify-status', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { is_verified, verification_date } = req.body;
@@ -526,11 +843,14 @@ router.put('/:id/verify-status', async (req, res) => {
 });
 
 // 获取用户关联的公司信息
-router.get('/user/:userId', asyncHandler(async (req, res) => {
+router.get('/user/:userId', optionalAuth, asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
   const result = await query(
-    `SELECT c.*, ru.is_verified as recruiter_verified, ru.verification_status, ru.business_license as recruiter_business_license, ru.contact_info as recruiter_contact_info 
+    `SELECT c.*, 
+            ru.is_verified as recruiter_verified, ru.verification_status, 
+            ru.business_license as recruiter_business_license, 
+            ru.contact_name as recruiter_contact_name, ru.contact_phone as recruiter_contact_phone
        FROM companies c 
        JOIN recruiter_user ru ON c.id = ru.company_id 
        WHERE ru.user_id = $1`,
@@ -539,10 +859,11 @@ router.get('/user/:userId', asyncHandler(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
-    const error = new Error('未找到关联的公司');
-    error.statusCode = 404;
-    error.errorCode = 'COMPANY_NOT_FOUND';
-    throw error;
+    // Return empty array instead of 404 to allow frontend to handle "no company" state
+    return res.json({
+      status: 'success',
+      data: []
+    });
   }
 
   res.json({
@@ -552,7 +873,7 @@ router.get('/user/:userId', asyncHandler(async (req, res) => {
 }));
 
 // 关注公司
-router.post('/:id/follow', async (req, res) => {
+router.post('/:id/follow', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.body;
@@ -615,7 +936,7 @@ router.post('/:id/follow', async (req, res) => {
 });
 
 // 取消关注公司
-router.delete('/:id/follow', async (req, res) => {
+router.delete('/:id/follow', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.query;
@@ -668,7 +989,7 @@ router.delete('/:id/follow', async (req, res) => {
 });
 
 // 检查用户是否关注了公司
-router.get('/:id/follow/status', async (req, res) => {
+router.get('/:id/follow/status', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.query;
@@ -700,7 +1021,7 @@ router.get('/:id/follow/status', async (req, res) => {
 });
 
 // 上传公司Logo
-router.post('/:id/logo', companyLogoUpload.single('company_logo'), async (req, res) => {
+router.post('/:id/logo', authenticate, companyLogoUpload.single('company_logo'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -750,7 +1071,7 @@ router.post('/:id/logo', companyLogoUpload.single('company_logo'), async (req, r
 });
 
 // 上传营业执照
-router.post('/:id/business-license', handleMulterError(upload.single('business_license')), async (req, res) => {
+router.post('/:id/business-license', authenticate, handleMulterError(upload.single('business_license')), async (req, res) => {
   try {
     const { id } = req.params;
 

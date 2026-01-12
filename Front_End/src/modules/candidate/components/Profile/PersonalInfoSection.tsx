@@ -75,12 +75,18 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
             if (response.data && response.data.avatar) {
                 const newAvatar = response.data.avatar;
 
+                // 添加短暂延迟，确保文件已完全写入磁盘
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // 添加时间戳参数强制浏览器重新加载
+                const avatarUrlWithTimestamp = `${newAvatar}?t=${Date.now()}`;
+
                 // 1. 更新当前个人信息模块的显示
-                onUpdate({ avatar: newAvatar });
+                onUpdate({ avatar: avatarUrlWithTimestamp });
 
                 // 2. 触发全局事件，通知Layout/Header更新头像
                 window.dispatchEvent(new CustomEvent('userAvatarUpdated', {
-                    detail: { avatar: newAvatar }
+                    detail: { avatar: avatarUrlWithTimestamp }
                 }));
             } else {
                 onUpdate(); // 保底刷新

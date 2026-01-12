@@ -51,7 +51,7 @@ const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({ onBackToLogin, 
     setIsLoading(true);
 
     try {
-      const response = await userAPI.sendVerificationCode(identifier);
+      const response = await userAPI.sendVerificationCodeForReset(identifier);
       if (response.success) {
         message.success('验证码发送成功，请注意查收');
         setCountdown(60); // 60秒倒计时

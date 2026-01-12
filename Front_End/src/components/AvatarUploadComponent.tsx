@@ -85,13 +85,13 @@ const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
       }
 
       const data = await response.json();
-      
+
       // 更新头像路径，安全访问data.avatar
       if (data && data.data && data.data.avatar) {
         const newAvatarPath = data.data.avatar;
         // 更新本地状态
         setLocalAvatarPath(newAvatarPath);
-        
+
         // 更新 localStorage 中的 currentUser 头像
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
@@ -101,12 +101,12 @@ const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
           // 触发自定义事件，通知其他组件更新头像
           window.dispatchEvent(new CustomEvent('userAvatarUpdated', { detail: { avatar: newAvatarPath } }));
         }
-        
+
         // 调用外部回调
         if (onAvatarUpdate) {
           onAvatarUpdate(newAvatarPath);
         }
-        
+
         message.success('头像上传成功');
       } else {
         throw new Error('无效的响应数据');
@@ -169,7 +169,7 @@ const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
           <span>上传中...</span>
         </div>
       )}
-      
+
       {/* 上传按钮，只在鼠标悬停时显示 */}
       {showUploadButton && (
         <Upload {...uploadProps}>
@@ -200,27 +200,27 @@ const AvatarUploadComponent: React.FC<AvatarUploadComponentProps> = ({
 export default AvatarUploadComponent;
 
 // 头像路径处理工具函数 - 可单独使用
-export const processAvatarUrl = (avatarPath: string, defaultAvatar?: string): string => {
+export const processAvatarUrl = (avatarPath?: string, defaultAvatar?: string, forceRefresh?: boolean): string => {
   if (!avatarPath) return defaultAvatar || '';
   let url = avatarPath.trim();
-  
+
   // 如果是完整的HTTP/HTTPS URL，直接返回
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  
+
   // 确保路径以斜杠开头
   if (!url.startsWith('/')) {
     url = '/' + url;
   }
-  
-  // 如果路径包含 /avatars/，添加时间戳以强制刷新缓存
-  // 这样在上传新头像后，浏览器会立即显示新头像
-  if (url.includes('/avatars/')) {
+
+  // 只在明确要求刷新时才添加时间戳（例如刚上传后）
+  // 正常显示时不添加时间戳，让浏览器缓存正常工作
+  if (forceRefresh && url.includes('/avatars/')) {
     const timestamp = new Date().getTime();
     return `${url}?t=${timestamp}`;
   }
-  
+
   return url;
 };
 

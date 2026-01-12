@@ -12,6 +12,7 @@ const { createValidator } = require('../middleware/validators');
 const { asyncHandler } = require('../middleware/errorHandler');
 const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
+const { authenticate, authorize, optionalAuth } = require('../middleware/auth');
 const { sendVerificationEmail, sendPasswordResetSuccessEmail } = require('../services/emailService');
 const { logAction } = require('../middleware/logger');
 
@@ -58,6 +59,13 @@ router.post('/login', loginValidator, asyncHandler(async (req, res) => {
   if (!isPasswordValid) {
     throw new AppError('密码错误', 401, 'INVALID_PASSWORD');
   }
+
+  // 更新最后登录时间和IP
+  const loginIp = req.headers['x-forwarded-for'] || req.ip;
+  await query(
+    'UPDATE users SET last_login_at = CURRENT_TIMESTAMP, last_login_ip = $1 WHERE id = $2',
+    [loginIp, user.id]
+  );
 
   // 验证用户角色
   if (!userRoles.includes(userType)) {
@@ -200,7 +208,7 @@ router.post('/register', registerValidator, asyncHandler(async (req, res) => {
 
       // 创建招聘者记录 - recruiter_user表
       await client.query(
-        'INSERT INTO recruiter_user (user_id, company_id, is_verified, status, created_at, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+        'INSERT INTO recruiter_user (user_id, company_id, is_verified, verification_status, created_at, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
         [userId, companyId, false, 'pending']
       );
 
@@ -281,43 +289,59 @@ const sendCodeValidator = createValidator({
 });
 
 // 发送验证码路由
+// 发送验证码路由
 router.post('/send-verification-code', sendCodeValidator, asyncHandler(async (req, res) => {
   const { identifier } = req.body;
 
   // 查找用户
   const userQuery = await query(
-    'SELECT id, email, phone FROM users WHERE email = $1 OR phone = $1',
+    'SELECT id, email FROM users WHERE email = $1 OR phone = $1',
     [identifier]
   );
 
-  // 无论用户是否存在，都生成并发送验证码（防止攻击者通过验证码判断邮箱是否已注册）
-  // 但只有存在的用户才能通过后续验证
   const user = userQuery.rows[0];
-  const code = generateVerificationCode();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10分钟后过期
 
-  // 存储验证码
-  verificationCodes.set(identifier, {
-    code,
-    expiresAt,
-    userId: user ? user.id : null
-  });
+  // 如果用户不存在，为了安全起见（防止账号枚举），我们也返回成功，但不发送邮件也不存储验证码
+  // 或者我们可以选择发送一封"账号不存在"的提示邮件，但这比较复杂。
+  // 这里我们选择直接返回成功。
+  if (!user) {
+    // 模拟网络延迟，防止通过响应时间判断账号是否存在
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-  // 检查是否是邮箱地址
+    return res.json({
+      status: 'success',
+      message: '验证码发送成功，请注意查收',
+      data: {
+        expiresIn: 600
+      }
+    });
+  }
+
+  // 生成6位数字验证码
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分钟后过期
+
+  // 将验证码存储到数据库
+  // 注意：这里我们覆盖了可能存在的旧验证码
+  await query(
+    'UPDATE users SET verification_code = $1, verification_code_expires_at = $2 WHERE id = $3',
+    [code, expiresAt, user.id]
+  );
+
+  // 发送邮件验证码（目前只支持邮箱）
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (emailRegex.test(identifier)) {
-    // 发送邮件验证码
-    await sendVerificationEmail(identifier, code);
+  if (emailRegex.test(user.email)) {
+    await sendVerificationEmail(user.email, code);
   } else {
-    // 这里可以添加短信验证码发送逻辑
-    console.log(`向用户 ${identifier} 发送验证码: ${code}`);
+    // 短信发送逻辑（暂未实现）
+    console.log(`[Mock SMS] To ${user.phone}: ${code}`);
   }
 
   res.json({
     status: 'success',
     message: '验证码发送成功，请注意查收',
     data: {
-      expiresIn: 600 // 验证码有效期（秒）
+      expiresIn: 600
     }
   });
 }));
@@ -367,7 +391,7 @@ const upload = multer({
 });
 
 // 上传用户头像 - 需要特殊处理multer，不能直接用asyncHandler
-router.post('/:id/avatar', asyncHandler(async (req, res) => {
+router.post('/:id/avatar', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   // 检查用户是否存在
@@ -379,29 +403,44 @@ router.post('/:id/avatar', asyncHandler(async (req, res) => {
   // 使用multer处理上传
   upload.single('avatar')(req, res, async (err) => {
     if (err) {
+      console.error('[AVATAR_UPLOAD] Multer上传错误:', err);
       return res.status(400).json({ status: 'error', errorCode: 'UPLOAD_ERROR', message: err.message });
     }
 
     if (!req.file) {
+      console.error('[AVATAR_UPLOAD] 没有接收到文件');
       return res.status(400).json({ status: 'error', errorCode: 'NO_FILE', message: '请选择要上传的图片' });
     }
 
     try {
+      console.log('[AVATAR_UPLOAD] 开始处理头像上传, 用户ID:', id);
+      console.log('[AVATAR_UPLOAD] 文件信息:', {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        path: req.file.path
+      });
+
+      // 验证文件确实已保存
+      const filePath = req.file.path;
+      if (!fs.existsSync(filePath)) {
+        console.error('[AVATAR_UPLOAD] 文件保存失败，路径不存在:', filePath);
+        throw new Error('文件保存失败，请重试');
+      }
+
+      // 额外验证：检查文件大小
+      const stats = fs.statSync(filePath);
+      if (stats.size === 0) {
+        console.error('[AVATAR_UPLOAD] 文件大小为0，保存失败');
+        fs.unlinkSync(filePath); // 删除空文件
+        throw new Error('文件保存失败（文件为空），请重试');
+      }
+
+      console.log('[AVATAR_UPLOAD] 文件保存成功，路径:', filePath, '大小:', stats.size, 'bytes');
+
       // 构建文件路径
       const avatarPath = `/avatars/${req.file.filename}`;
-
-      // 删除旧头像 (可选，为了节省空间)
-      const oldAvatar = userCheck.rows[0].avatar;
-      if (oldAvatar && oldAvatar.startsWith('/avatars/') && !oldAvatar.includes('default')) {
-        const oldAvatarFullPath = path.join(frontendAvatarsDir, path.basename(oldAvatar));
-        if (fs.existsSync(oldAvatarFullPath)) {
-          try {
-            fs.unlinkSync(oldAvatarFullPath);
-          } catch (e) {
-            console.error('删除旧头像失败:', e);
-          }
-        }
-      }
 
       // 更新数据库
       const updateResult = await query(
@@ -409,28 +448,60 @@ router.post('/:id/avatar', asyncHandler(async (req, res) => {
         [avatarPath, id]
       );
 
+      console.log('[AVATAR_UPLOAD] 数据库更新成功, 新头像路径:', avatarPath);
+
+      // 只有在数据库更新成功后，才删除旧头像
+      const oldAvatar = userCheck.rows[0].avatar;
+      if (oldAvatar && oldAvatar.startsWith('/avatars/') && !oldAvatar.includes('default')) {
+        const oldAvatarFullPath = path.join(frontendAvatarsDir, path.basename(oldAvatar));
+        if (fs.existsSync(oldAvatarFullPath)) {
+          try {
+            fs.unlinkSync(oldAvatarFullPath);
+            console.log('[AVATAR_UPLOAD] 旧头像已删除:', oldAvatarFullPath);
+          } catch (e) {
+            console.error('[AVATAR_UPLOAD] 删除旧头像失败 (但新头像已保存):', e);
+            // 不抛出错误，因为主要操作（更新）已成功
+          }
+        }
+      }
+
+      console.log('[AVATAR_UPLOAD] 上传完成');
+
       res.json({
         status: 'success',
         message: '头像上传成功',
         data: {
           avatar: updateResult.rows[0].avatar
-        }
+        },
+        avatarPath: updateResult.rows[0].avatar // 添加明确的路径字段
       });
     } catch (dbError) {
-      // 如果数据库更新失败，删除已上传的文件
-      if (req.file) {
-        fs.unlinkSync(req.file.path);
+      console.error('[AVATAR_UPLOAD] 数据库更新失败:', dbError);
+
+      // 如果数据库更新失败，删除已上传的新文件
+      if (req.file && fs.existsSync(req.file.path)) {
+        try {
+          fs.unlinkSync(req.file.path);
+          console.log('[AVATAR_UPLOAD] 回滚: 已删除上传的文件', req.file.path);
+        } catch (unlinkError) {
+          console.error('[AVATAR_UPLOAD] 删除无效的新头像失败:', unlinkError);
+        }
       }
-      const error = new Error('数据库错误');
-      error.statusCode = 500;
-      error.errorCode = 'DATABASE_ERROR';
-      throw error;
+
+      // 返回适当的错误响应
+      if (!res.headersSent) {
+        return res.status(500).json({
+          status: 'error',
+          errorCode: 'DATABASE_ERROR',
+          message: '数据库更新失败，请重试'
+        });
+      }
     }
   });
 }));
 
 // 获取性别选项配置 - 必须在 /:id 路由之前
-router.get('/config/genders', asyncHandler(async (req, res) => {
+router.get('/config/genders', optionalAuth, asyncHandler(async (req, res) => {
   // 查询数据库中的 check 约束定义
   const result = await query(`
       SELECT pg_get_constraintdef(oid) as definition
@@ -467,19 +538,22 @@ router.get('/config/genders', asyncHandler(async (req, res) => {
 }));
 
 // 获取用户信息
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', optionalAuth, asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const result = await query(
-    `SELECT u.id, u.name, u.email, u.phone, u.avatar, u.gender, u.birth_date, 
+    `SELECT u.id, u.name, u.email, u.phone, u.avatar, u.status, u.gender, u.birth_date, 
               c.education, c.major, c.school, c.graduation_year, c.work_experience_years, 
               c.desired_position as "desiredPosition", c.skills, c.languages, u.address, 
               c.city, c.job_status as "jobStatus", c.availability_status, -- Include availability_status explicitly
               c.expected_salary_min as "expectedSalaryMin", c.expected_salary_max as "expectedSalaryMax", c.expected_salary as "expectedSalary",
               c.preferred_locations as "preferredLocations",
-              u.wechat, u.linkedin, u.github, u.personal_website, u.created_at, u.updated_at   
+              u.wechat, u.linkedin, u.github, u.personal_website, u.created_at, u.updated_at,
+              comp.name as company_name, comp.address as company_address
        FROM users u
        LEFT JOIN candidates c ON u.id = c.user_id
+       LEFT JOIN recruiter_user ru ON u.id = ru.user_id
+       LEFT JOIN companies comp ON ru.company_id = comp.id
        WHERE u.id = $1`,
     [id],
     30000
@@ -498,8 +572,34 @@ router.get('/:id', asyncHandler(async (req, res) => {
   });
 }));
 
+// 更新用户状态（管理员）
+router.patch('/:id/status', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!['active', 'inactive', 'suspended'].includes(status)) {
+    throw new AppError('无效的状态值', 400, 'INVALID_STATUS');
+  }
+
+  const result = await query(
+    'UPDATE users SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, status',
+    [status, id]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
+  }
+
+  await logAction(req, res, '更新用户状态', `管理员更新了用户 ${id} 的状态为 ${status}`, 'update', { type: 'user', id });
+
+  res.json({
+    status: 'success',
+    data: result.rows[0]
+  });
+}));
+
 // 更新用户信息
-router.put('/:id', asyncHandler(async (req, res) => {
+router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   const { id } = req.params;
   const {
     name, email, phone, position, education, major, school, desired_position, skills, languages, emergency_contact, emergency_phone, address, city, jobStatus, expectedSalary,
@@ -537,6 +637,9 @@ router.put('/:id', asyncHandler(async (req, res) => {
     birth_date: birth_date !== undefined ? (birth_date === '' ? null : birth_date) : currentUserRecord.birth_date, // Allow clearing birth_date
     gender: gender !== undefined ? (gender === '' ? null : gender) : currentUserRecord.gender // Allow clearing gender
   };
+
+  // 如果前端传了 resume_completeness，直接使用；否则根据现有信息计算（可选，此处优先信任前端传值）
+  const resumeCompleteness = req.body.resume_completeness !== undefined ? req.body.resume_completeness : currentUserRecord.resume_completeness;
 
   // 检查邮箱冲突（如果更改了邮箱）
   // 只有当前端明确发送了email字段，且与当前值不同时，才检查冲突
@@ -718,13 +821,13 @@ router.put('/:id', asyncHandler(async (req, res) => {
          SET name = $1, email = $2, phone = $3, position = $4, gender = $5, birth_date = $6, 
              emergency_contact = $7, emergency_phone = $8, 
              address = $9, wechat = $10, linkedin = $11, github = $12, 
-             personal_website = $13, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $14 RETURNING *`,
+             personal_website = $13, resume_completeness = $14, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $15 RETURNING *`,
       [
         updateData.name, updateData.email, updateData.phone, updateData.position, updateData.gender, updateData.birth_date,
         updateData.emergency_contact, updateData.emergency_phone,
         updateData.address, updateData.wechat, updateData.linkedin, updateData.github,
-        updateData.personal_website, id
+        updateData.personal_website, resumeCompleteness, id
       ]
     );
     console.log('Users table update completed, result:', updateResult.rows[0]);
@@ -998,30 +1101,44 @@ const verifyCodeValidator = createValidator({
 });
 
 // 验证验证码路由
+// 验证验证码路由
 router.post('/verify-code', verifyCodeValidator, asyncHandler(async (req, res) => {
   const { identifier, code } = req.body;
 
-  // 查找验证码
-  const storedCode = verificationCodes.get(identifier);
+  // 查找用户
+  const userQuery = await query(
+    'SELECT id, email, verification_code, verification_code_expires_at FROM users WHERE email = $1 OR phone = $1',
+    [identifier]
+  );
+  const user = userQuery.rows[0];
 
-  if (!storedCode) {
-    throw new AppError('验证码不存在或已过期', 400, 'INVALID_CODE');
+  if (!user) {
+    throw new AppError('用户不存在', 404, 'USER_NOT_FOUND');
+  }
+
+  // 检查是否有验证码
+  if (!user.verification_code) {
+    throw new AppError('验证码无效或已过期', 400, 'INVALID_CODE');
   }
 
   // 检查验证码是否过期
-  if (Date.now() > storedCode.expiresAt) {
-    verificationCodes.delete(identifier);
+  if (new Date() > new Date(user.verification_code_expires_at)) {
+    // 清除过期验证码
+    await query('UPDATE users SET verification_code = NULL, verification_code_expires_at = NULL WHERE id = $1', [user.id]);
     throw new AppError('验证码已过期', 400, 'CODE_EXPIRED');
   }
 
   // 检查验证码是否正确
-  if (code !== storedCode.code) {
+  if (code !== user.verification_code) {
     throw new AppError('验证码错误', 400, 'INVALID_CODE');
   }
 
-  // 验证成功，生成一个临时token用于重置密码
+  // 验证成功，清除验证码并生成临时token
+  await query('UPDATE users SET verification_code = NULL, verification_code_expires_at = NULL WHERE id = $1', [user.id]);
+
+  // 生成一个临时token用于重置密码
   const resetToken = jwt.sign(
-    { userId: storedCode.userId, identifier },
+    { userId: user.id, identifier, type: 'reset_password' }, // Added type for extra security
     process.env.JWT_SECRET || 'your-secret-key',
     { expiresIn: '10m' } // 10分钟有效期
   );
@@ -1201,6 +1318,103 @@ router.post('/reset-password', resetPasswordValidator, asyncHandler(async (req, 
   }
 }));
 
+// 验证码验证逻辑
+const verifyCode = async (userId, code) => {
+  const userQuery = await query(
+    'SELECT verification_code, verification_code_expires_at FROM users WHERE id = $1',
+    [userId]
+  );
+
+  const user = userQuery.rows[0];
+  if (!user || !user.verification_code || !user.verification_code_expires_at) {
+    throw new AppError('请先获取验证码', 400, 'NO_VERIFICATION_CODE');
+  }
+
+  if (user.verification_code !== code) {
+    throw new AppError('验证码错误', 400, 'INVALID_VERIFICATION_CODE');
+  }
+
+  if (new Date() > new Date(user.verification_code_expires_at)) {
+    throw new AppError('验证码已过期', 400, 'VERIFICATION_CODE_EXPIRED');
+  }
+
+  // 验证通过后清除验证码
+  await query(
+    'UPDATE users SET verification_code = NULL, verification_code_expires_at = NULL WHERE id = $1',
+    [userId]
+  );
+};
+
+// 发送验证码路由 (已登录用户)
+router.post('/send-auth-verification-code', authenticate, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+
+  // 获取用户邮箱
+  const userQuery = await query('SELECT email FROM users WHERE id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  if (!user || !user.email) {
+    throw new AppError('用户未绑定邮箱，无法发送验证码', 400, 'NO_EMAIL_BOUND');
+  }
+
+  // 生成6位数字验证码
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 设置过期时间为10分钟后
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  // 保存验证码到数据库
+  await query(
+    'UPDATE users SET verification_code = $1, verification_code_expires_at = $2 WHERE id = $3',
+    [code, expiresAt, userId]
+  );
+
+  // 发送邮件
+  await sendVerificationEmail(user.email, code);
+
+  res.json({
+    status: 'success',
+    message: '验证码已发送至您的邮箱，请查收'
+  });
+}));
+
+// 修改密码路由验证
+const updatePasswordValidator = createValidator({
+  required: ['oldPassword', 'newPassword', 'verificationCode']
+});
+
+// 修改密码路由 (需要登录)
+router.post('/update-password', authenticate, updatePasswordValidator, asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword, verificationCode } = req.body;
+  const userId = req.user.id;
+
+  // 1. 验证验证码
+  await verifyCode(userId, verificationCode);
+
+  // 2. 验证旧密码
+  const userQuery = await query('SELECT password FROM users WHERE id = $1', [userId]);
+  const user = userQuery.rows[0];
+
+  const isMatch = await bcrypt.compare(oldPassword, user.password);
+  if (!isMatch) {
+    throw new AppError('旧密码不正确', 400, 'INVALID_OLD_PASSWORD');
+  }
+
+  // 3. 加密新密码
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // 4. 更新密码
+  await query(
+    'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+    [hashedPassword, userId]
+  );
+
+  res.json({
+    status: 'success',
+    message: '密码修改成功'
+  });
+}));
+
 // 发送邮箱绑定验证码路由验证
 const sendEmailBindCodeValidator = createValidator({
   required: ['email']
@@ -1304,17 +1518,42 @@ router.post('/bind-email', bindEmailValidator, asyncHandler(async (req, res) => 
 // 获取所有用户
 router.get('/', asyncHandler(async (req, res) => {
   const result = await query(
-    `SELECT u.id, u.name, u.email, u.phone, u.password, u.avatar, u.created_at, u.updated_at,
-              json_agg(ur.role) as roles
+    `SELECT u.id, u.name, u.email, u.phone, u.password, u.avatar, u.status, u.gender, u.birth_date, u.last_login_at,
+              u.created_at, u.updated_at,
+              c.education, c.major, c.school, c.graduation_year, c.work_experience_years, c.desired_position,
+              json_agg(DISTINCT ur.role) as roles
        FROM users u
-       JOIN user_roles ur ON u.id = ur.user_id
-       GROUP BY u.id
+       LEFT JOIN user_roles ur ON u.id = ur.user_id
+       LEFT JOIN candidates c ON u.id = c.user_id
+       GROUP BY u.id, c.id
        ORDER BY u.created_at DESC`
   );
 
   res.json({
     status: 'success',
     data: result.rows
+  });
+}));
+
+// 管理员重置用户密码
+router.put('/:id/reset-password', authenticate, authorize('admin'), asyncHandler(async (req, res) => {
+  const userId = req.params.id;
+  const defaultPassword = '123456';
+
+  // 哈希并更新密码
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(defaultPassword, salt);
+
+  await query(
+    'UPDATE users SET password = $1 WHERE id = $2',
+    [hashedPassword, userId]
+  );
+
+  logAction(req.user.id, 'RESET_USER_PASSWORD', `Reset password for user ${userId}`);
+
+  res.json({
+    status: 'success',
+    message: '密码已重置为 123456'
   });
 }));
 

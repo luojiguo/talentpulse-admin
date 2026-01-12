@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Modal, message } from 'antd';
 import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation, Message } from '@/types/types';
 import { userAPI, jobAPI, companyAPI, messageAPI, candidateAPI } from '@/services/apiService';
@@ -39,6 +39,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // Candidate Screen Props Management
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const activeConversationIdRef = React.useRef<string | null>(null);
+  const joinedConversationIdRef = React.useRef<string | null>(null);
 
   // Sync ref with state
   useEffect(() => {
@@ -51,7 +52,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   const [searchText, setSearchText] = useState('');
   const [filterUnread, setFilterUnread] = useState(false);
   const [userResume, setUserResume] = useState({});
-  
+
   // 记录已发送过立即沟通消息的招聘者ID，用于防止重复发送
   const [sentRecruiterIds, setSentRecruiterIds] = useState<Set<string | number>>(new Set());
 
@@ -91,7 +92,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     [localCurrentUser?.id],
     { autoFetch: !!localCurrentUser?.id, cache: true } // 启用缓存，仅当ID存在时请求
   );
-  const jobs = jobsData?.data || [];
+  // Fix: Pass undefined instead of [] when data is not ready or empty, so HomeScreen can use its own fetch logic
+  const jobs = (jobsData?.data && jobsData.data.length > 0) ? jobsData.data : undefined;
 
   // 使用 useApi Hook 获取用户资料（并行加载）
   const {
@@ -100,7 +102,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     refetch: refetchProfile
   } = useApi<{ status: string; data: Profile }>(
     () => localCurrentUser?.id ? userAPI.getUserById(localCurrentUser.id) as any : Promise.resolve({ data: {} }),
-    [localCurrentUser?.id],
+    [localCurrentUser?.id, localCurrentUser?.avatar],
     { autoFetch: !!localCurrentUser?.id, cache: false } // 禁用缓存，确保获取最新数据
   );
 
@@ -150,6 +152,10 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // 获取用户对话列表
   const fetchConversations = useCallback(async () => {
     if (!localCurrentUser.id) return;
+
+    // Check for token to avoid 401
+    const token = localStorage.getItem('token');
+    if (!token) return;
 
     setConversationError(null);
 
@@ -231,12 +237,12 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                 const isCurrentConversation = currentActiveId && currentActiveId.toString() === message.conversation_id.toString();
 
                 const existingMessages = conv.messages || [];
-                // Avoid duplicates by ID
-                if (existingMessages.some(m => m.id === message.id)) {
+                // Avoid duplicates by ID (string comparison)
+                if (existingMessages.some(m => m.id?.toString() === message.id?.toString())) {
                   // If it exists, it might be an update (like exchange accepted)
                   return {
                     ...conv,
-                    messages: existingMessages.map(m => m.id === message.id ? { ...m, ...message } : m)
+                    messages: existingMessages.map(m => m.id?.toString() === message.id?.toString() ? { ...m, ...message } : m)
                   };
                 }
 
@@ -290,8 +296,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         });
       });
 
-      // Listen for message updates (e.g. exchange status change)
-      (socketService as any).socket?.on('message_updated', (updatedMessage: any) => {
+      const handleMessageUpdated = (updatedMessage: any) => {
         console.log('Received message update:', updatedMessage);
         setConversations(prevConversations => {
           return prevConversations.map(conv => {
@@ -299,27 +304,61 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               return {
                 ...conv,
                 messages: (conv.messages || []).map(m =>
-                  m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m
+                  m.id?.toString() === updatedMessage.id?.toString() ? { ...m, ...updatedMessage } : m
                 )
               };
             }
             return conv;
           });
         });
-      });
+      };
+
+      socketService.onMessageUpdated(handleMessageUpdated);
+
+      const handleConversationUpdated = (updatedConversation: any) => {
+        if (!updatedConversation?.id) return;
+
+        setConversations(prevConversations => {
+          return prevConversations.map(conv => {
+            if (conv.id.toString() !== updatedConversation.id.toString()) return conv;
+
+            const candidateUnread = updatedConversation.candidate_unread ?? updatedConversation.candidateUnread;
+            const recruiterUnread = updatedConversation.recruiter_unread ?? updatedConversation.recruiterUnread;
+            const updatedAt = updatedConversation.updated_at ?? updatedConversation.updatedAt;
+
+            return {
+              ...conv,
+              candidateUnread: candidateUnread ?? conv.candidateUnread,
+              recruiterUnread: recruiterUnread ?? (conv as any).recruiterUnread,
+              unreadCount: candidateUnread ?? conv.unreadCount,
+              updated_at: updatedAt ?? (conv as any).updated_at,
+              updatedAt: updatedAt ?? (conv as any).updatedAt
+            };
+          });
+        });
+      };
+
+      socketService.onConversationUpdated(handleConversationUpdated);
 
     }
 
     return () => {
       socketService.disconnect();
       socketService.offNewMessage();
+      socketService.offMessageUpdated();
+      socketService.offConversationUpdated();
     };
   }, [localCurrentUser?.id]); // Only depend on User ID
 
   // Handle joining conversation rooms when active conversation changes
   useEffect(() => {
     if (activeConversationId) {
+      const prevJoinedId = joinedConversationIdRef.current;
+      if (prevJoinedId && prevJoinedId.toString() !== activeConversationId.toString()) {
+        socketService.leaveConversation(prevJoinedId);
+      }
       socketService.joinConversation(activeConversationId);
+      joinedConversationIdRef.current = activeConversationId;
 
       // Mark as read when entering room (handled by API call in handleSelectConversation, but good to keep in mind)
     }
@@ -1112,6 +1151,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         <Route path="/interviews" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><InterviewsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
         <Route path="/enterprise-verification" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><EnterpriseVerificationScreen currentUser={localCurrentUser} profile={userProfile} onSwitchRole={onSwitchRole} /></CandidateLayout>} />
         <Route path="/profile" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ProfileScreen currentUser={localCurrentUser} onUpdateUser={handleSetCurrentUser} /></CandidateLayout>} />
+
+        {/* Catch-all route to prevent blank screen on unknown paths (like /login when already logged in) */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );

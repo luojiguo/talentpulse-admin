@@ -27,3 +27,15 @@ Thumbs.db
 # Other
 coverage/
 temp/
+
+# User uploads
+public/avatars/
+public/business_license/
+public/companies_logo/
+public/User_Resume/
+
+# Backend scripts
+backend/src/scripts/
+
+# Database migrations
+backend/src/migrations/

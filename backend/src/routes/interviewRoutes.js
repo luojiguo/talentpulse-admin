@@ -27,8 +27,14 @@ router.get('/', asyncHandler(async (req, res) => {
         a.candidate_id AS "candidateId",
         a.job_id AS "jobId",
         u.name AS "candidateName",
+        u.email AS "candidateEmail",
+        u.phone AS "candidatePhone",
+        u.avatar AS "candidateAvatar",
         j.title AS "jobTitle",
-        co.name AS "companyName"
+        j.location AS "jobLocation",
+        j.salary AS "jobSalary",
+        co.name AS "companyName",
+        co.logo AS "companyLogo"
       FROM interviews i
       LEFT JOIN applications a ON i.application_id = a.id
       LEFT JOIN candidates c ON a.candidate_id = c.id
@@ -70,6 +76,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
         a.candidate_id AS "candidateId",
         a.job_id AS "jobId",
         u.name AS "candidateName",
+        u.avatar AS "candidateAvatar",
         j.title AS "jobTitle",
         co.name AS "companyName"
       FROM interviews i

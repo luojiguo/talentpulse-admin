@@ -20,10 +20,24 @@ router.get('/jobs', asyncHandler(async (req, res) => {
     // 首先获取招聘者的公司ID和用户ID
     // 支持通过招聘者ID或用户ID查询
     console.log('[DEBUG] Querying recruiter info for ID:', recruiterId);
-    const recruiterResult = await query(
-        'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE id = $1 OR user_id = $1',
+    // 首先尝试将参数视为 user_id 查询 (这是 RecruiterApp 的标准行为)
+    // 同时也保留 id = $1 作为备选，但在 SQL 层面优先匹配 user_id
+    // 注意：如果 user_id 和 id 碰巧相同但属于不同记录，这确实会产生歧义
+    // 鉴于前端传的是 currentUser.id (System User ID)，我们应该优先匹配 user_id
+
+    let recruiterResult = await query(
+        'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
         [recruiterId]
     );
+
+    // 如果没找到，再尝试作为 recruiter_id 查询 (兼容可能的其他调用方式)
+    if (recruiterResult.rows.length === 0) {
+        console.log('[DEBUG] No recruiter found by user_id, trying by recruiter_id:', recruiterId);
+        recruiterResult = await query(
+            'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE id = $1 ORDER BY created_at DESC LIMIT 1',
+            [recruiterId]
+        );
+    }
 
     console.log('[DEBUG] Recruiter query result:', recruiterResult.rows.length, 'rows');
 
@@ -150,8 +164,24 @@ router.get('/candidates', asyncHandler(async (req, res) => {
         throw error;
     }
 
+    // 首先获取招聘者ID（支持传入user_id或recruiter_id）
+    const recruiterResult = await query(
+        'SELECT id FROM recruiters WHERE id = $1 OR user_id = $1',
+        [recruiterId]
+    );
+
+    if (recruiterResult.rows.length === 0) {
+        return res.json({
+            status: 'success',
+            data: [],
+            count: 0
+        });
+    }
+
+    const actualRecruiterId = recruiterResult.rows[0].id;
+
     // 增加查询超时时间到30秒，因为涉及多个JOIN
-    console.log('[DEBUG] Fetching candidates for recruiterId:', recruiterId);
+    console.log('[DEBUG] Fetching candidates for recruiterId:', actualRecruiterId);
     const result = await query(`
             SELECT DISTINCT
                 c.id,
@@ -159,22 +189,30 @@ router.get('/candidates', asyncHandler(async (req, res) => {
                 u.email,
                 u.phone,
                 u.avatar,
+                u.id AS user_id,
                 COALESCE(c.desired_position, '') AS current_position,
                 COALESCE(c.work_experience_years, 0) AS years_of_experience,
                 COALESCE(c.education, '') AS education,
+                (SELECT school FROM education_experiences WHERE user_id = u.id ORDER BY start_date DESC LIMIT 1) AS school,
                 c.skills,
                 a.id AS application_id,
                 a.job_id,
                 COALESCE(j.title, '未知职位') AS job_title,
                 COALESCE(a.status, 'pending') AS stage,
-                a.created_at AS applied_date
+                a.created_at AS applied_date,
+                (SELECT interview_date FROM interviews WHERE application_id = a.id ORDER BY interview_date DESC, interview_time DESC LIMIT 1) AS latest_interview_date,
+                (SELECT interview_time FROM interviews WHERE application_id = a.id ORDER BY interview_date DESC, interview_time DESC LIMIT 1) AS latest_interview_time,
+                (SELECT status FROM interviews WHERE application_id = a.id ORDER BY interview_date DESC, interview_time DESC LIMIT 1) AS latest_interview_status,
+                r.resume_file_url AS application_resume_url,
+                r.resume_file_name AS application_resume_name
             FROM applications a
             LEFT JOIN jobs j ON a.job_id = j.id
             LEFT JOIN candidates c ON a.candidate_id = c.id
             LEFT JOIN users u ON c.user_id = u.id
+            LEFT JOIN resumes r ON a.resume_id = r.id
             WHERE j.recruiter_id = $1
             ORDER BY a.created_at DESC
-        `, [recruiterId], 30000);
+        `, [actualRecruiterId], 30000);
 
     console.log('[DEBUG] Candidates query returned', result.rows.length, 'rows');
 

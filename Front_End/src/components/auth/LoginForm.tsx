@@ -83,6 +83,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onSwitchToRegiste
 
       if (data.success) {
         // 登录成功
+        // 保存Token
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+        }
+
         // 保存记住的凭证
         if (rememberMe) {
           localStorage.setItem('rememberedCredentials', JSON.stringify({

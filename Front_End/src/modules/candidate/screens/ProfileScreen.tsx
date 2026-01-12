@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, message, Button, Upload, Avatar, Modal, Affix } from 'antd';
 import { UserOutlined, UploadOutlined } from '@ant-design/icons';
+import { Eye, EyeOff } from 'lucide-react';
 import { resumeAPI, userAPI, configAPI, candidateAPI } from '../../../services/apiService';
 import ProfileSidebar from '../components/Profile/ProfileSidebar';
 import PersonalInfoSection from '../components/Profile/PersonalInfoSection';
@@ -167,6 +168,105 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
 
     // ---- 渲染辅助函数 ----
 
+    // ---- 修改密码逻辑 ----
+    const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+    const [passwordLoading, setPasswordLoading] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+        verificationCode: ''
+    });
+    // Count down timer for verification code
+    const [countdown, setCountdown] = useState(0);
+    const [sendingCode, setSendingCode] = useState(false);
+
+    // Password visibility state
+    const [showOldPass, setShowOldPass] = useState(false);
+    const [showNewPass, setShowNewPass] = useState(false);
+    const [showConfirmPass, setShowConfirmPass] = useState(false);
+
+    useEffect(() => {
+        let timer: NodeJS.Timeout;
+        if (countdown > 0) {
+            timer = setInterval(() => {
+                setCountdown((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => {
+            if (timer) clearInterval(timer);
+        };
+    }, [countdown]);
+
+    const handleSendCode = async () => {
+        try {
+            setSendingCode(true);
+            await userAPI.sendVerificationCode();
+            message.success('验证码已发送，请注意查收');
+            setCountdown(60); // Start 60s countdown
+        } catch (error: any) {
+            console.error('发送验证码失败:', error);
+            message.error(error.response?.data?.message || '发送验证码失败，请稍后重试');
+        } finally {
+            setSendingCode(false);
+        }
+    };
+
+    const handlePasswordChange = async () => {
+        const { oldPassword, newPassword, confirmPassword } = passwordForm;
+
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            message.error('请填写所有密码字段');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            message.error('两次输入的新密码不一致');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            message.error('新密码长度不能少于6位');
+            return;
+        }
+
+        if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+            message.error('两次输入的密码不一致');
+            return;
+        }
+
+        if (!passwordForm.verificationCode) {
+            message.error('请输入验证码');
+            return;
+        }
+
+        try {
+            setPasswordLoading(true);
+            const { oldPassword, newPassword, verificationCode } = passwordForm;
+            await userAPI.updatePassword({
+                oldPassword,
+                newPassword,
+                verificationCode
+            });
+            message.success('密码修改成功，请重新登录');
+            message.success('密码修改成功，请重新登录');
+            // 不要关闭模态框，直接跳转，避免触发组件更新导致的API请求错误
+            // setPasswordModalVisible(false);
+
+            // 登出并跳转
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('currentUser');
+            // 使用 replace 替换当前历史记录，避免用户返回
+            window.location.replace('/');
+        } catch (error: any) {
+            console.error('修改密码失败:', error);
+            message.error(error.response?.data?.message || '修改密码失败，请检查旧密码是否正确');
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
+
     /**
      * 渲染主要内容区域
      * 包含各个表单板块
@@ -179,21 +279,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                     <PersonalInfoSection
                         user={user}
                         onUpdate={fetchUserData}
-                        // 渲染额外的头部操作按钮：预览
+                        // 渲染额外的头部操作按钮：预览 和 修改密码
                         renderExtraHeader={() => (
                             <div className="flex gap-4 text-blue-600 text-sm cursor-pointer ml-4">
-                                <span onClick={() => setShowPreview(true)} className="hover:text-blue-800 transition-colors">预览</span>
+                                <span onClick={() => setPasswordModalVisible(true)} className="hover:text-blue-800 transition-colors">修改密码</span>
+                                <span className="text-gray-300">|</span>
+                                <span onClick={() => setShowPreview(true)} className="hover:text-blue-800 transition-colors">预览简历</span>
+                                <span className="text-gray-300">|</span>
+                                <a href="/recruiter/certification" className="hover:text-blue-800 transition-colors text-blue-600">企业认证</a>
                             </div>
                         )}
                     />
                 </div>
 
                 {/* 期望职位板块 */}
-                {/* 期望职位板块 */}
                 <div id="expected-job">
                     <ExpectedJobSection userId={userId} dictionaries={dictionaries} />
                 </div>
-
+                {/* ... other sections ... */}
                 {/* 工作经历板块 */}
                 <div id="work-experience">
                     <WorkExperienceSection userId={userId} dictionaries={dictionaries} />
@@ -292,7 +395,83 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                 userId={userId}
             />
 
+            {/* 修改密码模态框 */}
+            <Modal
+                title="修改密码"
+                open={passwordModalVisible}
+                onOk={handlePasswordChange}
+                onCancel={() => setPasswordModalVisible(false)}
+                confirmLoading={passwordLoading}
+                okText="确认修改"
+                cancelText="取消"
+            >
+                <div className="flex flex-col gap-4 py-4">
+                    <div>
+                        <div className="mb-1 text-sm text-gray-600">旧密码</div>
+                        <div className="relative">
+                            <input
+                                type={showOldPass ? "text" : "password"}
+                                value={passwordForm.oldPassword}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+                                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+                                placeholder="请输入旧密码"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowOldPass(!showOldPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                            >
+                                {showOldPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
+                    </div>
 
+                    <div>
+                        <div className="mb-1 text-sm text-gray-600">验证码</div>
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={passwordForm.verificationCode}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, verificationCode: e.target.value })}
+                                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="请输入6位验证码"
+                            />
+                            <button
+                                onClick={handleSendCode}
+                                disabled={countdown > 0 || sendingCode}
+                                className={`px-4 py-2 rounded-md font-medium text-sm transition-colors whitespace-nowrap
+                                    ${countdown > 0 || sendingCode
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200'
+                                    }`}
+                            >
+                                {sendingCode ? '发送中...' : countdown > 0 ? `${countdown}秒后重新获取` : '获取验证码'}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="mb-1 text-sm text-gray-600">新密码</div>
+                        <input
+                            type="password"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={passwordForm.newPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                            placeholder="请输入新密码（至少6位）"
+                        />
+                    </div>
+                    <div>
+                        <div className="mb-1 text-sm text-gray-600">确认新密码</div>
+                        <input
+                            type="password"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={passwordForm.confirmPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                            placeholder="请再次输入新密码"
+                        />
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

@@ -24,6 +24,7 @@ interface Interview {
   candidateName?: string;
   jobTitle?: string;
   companyName?: string;
+  candidateAvatar?: string;
   // 新增字段
   invitationMessage?: string;
   invitationSentAt?: string;
@@ -203,8 +204,19 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
               ) : (
                 filteredInterviews.map(interview => (
                   <tr key={interview.id} className="border-b hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">
-                      {interview.candidateName || '未知'}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                          {interview.candidateAvatar ? (
+                            <img src={interview.candidateAvatar} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold text-sm">
+                              {interview.candidateName ? interview.candidateName.charAt(0).toUpperCase() : '?'}
+                            </div>
+                          )}
+                        </div>
+                        <div className="font-medium text-gray-900">{interview.candidateName || '未知'}</div>
+                      </div>
                     </td>
                     <td className="px-6 py-4">{interview.jobTitle || '未知'}</td>
                     <td className="px-6 py-4">
@@ -216,13 +228,13 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        {interview.interviewTime}
+                        {interview.interviewTime?.slice(0, 5)}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        {interview.interviewTimeEnd || '-'}
+                        {interview.interviewTimeEnd?.slice(0, 5) || '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -231,7 +243,7 @@ const InterviewsView: React.FC<InterviewsViewProps> = ({ currentUserId }) => {
                         <span className="truncate max-w-[150px]">{interview.location || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">{interview.interviewType}</td>
+                    <td className="px-6 py-4">{interview.interviewType || ''}</td>
                     <td className="px-6 py-4">第 {interview.interviewRound} 轮</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(interview.status)}`}>

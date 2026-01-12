@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Camera, Building2, Shield, Settings, Save, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, Camera, Building2, Shield, Settings, Save, Sparkles, ChevronDown, ChevronUp, Lock, Eye, EyeOff, Mail } from 'lucide-react';
 import { UserRole } from '@/types/types';
 import { userAPI } from '@/services/apiService';
 import { MessageAlert } from './CommonComponents';
@@ -31,9 +31,114 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const logoInputRef = useRef<HTMLInputElement>(null);
 
+
+    // Password Change State
+    const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+        verificationCode: ''
+    });
+    const [passwordVisible, setPasswordVisible] = useState({
+        old: false,
+        new: false,
+        confirm: false
+    });
+    const [countdown, setCountdown] = useState(0);
+    const [sendingCode, setSendingCode] = useState(false);
+
     // Business license upload state
     const businessLicenseInputRef = useRef<HTMLInputElement>(null);
     const [isCompanyInfoExpanded, setIsCompanyInfoExpanded] = useState(false);
+
+    // 倒计时逻辑
+    useEffect(() => {
+        if (countdown > 0) {
+            const timer = setTimeout(() => {
+                setCountdown(countdown - 1);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [countdown]);
+
+    // 发送验证码
+    const handleSendCode = async () => {
+        if (!profile.email) {
+            message.error('请先绑定邮箱');
+            return;
+        }
+
+        try {
+            setSendingCode(true);
+            const response = await userAPI.sendVerificationCode();
+            if (response.status === 'success') {
+                message.success('验证码已发送至您的邮箱');
+                setCountdown(60);
+            } else {
+                message.error(response.message || '发送验证码失败');
+            }
+        } catch (error: any) {
+            console.error('发送验证码错误:', error);
+            message.error(error.response?.data?.message || '发送验证码失败，请稍后重试');
+        } finally {
+            setSendingCode(false);
+        }
+    };
+
+    // 修改密码
+    const handlePasswordChange = async () => {
+        const { oldPassword, newPassword, confirmPassword, verificationCode } = passwordForm;
+
+        if (!oldPassword || !newPassword || !confirmPassword || !verificationCode) {
+            message.error('请填写所有必填字段');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            message.error('两次输入的新密码不一致');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            message.error('新密码长度不能少于6位');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            await userAPI.updatePassword({
+                oldPassword,
+                newPassword,
+                verificationCode
+            });
+
+            message.success('密码修改成功，请重新登录');
+
+            // 清除本地存储通过
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('currentUser');
+
+            // 强制跳转登录页
+            window.location.replace('/');
+
+        } catch (error: any) {
+            console.error('密码修改失败:', error);
+            const errorMsg = error.response?.data?.message || '密码修改失败';
+            if (errorMsg === 'INVALID_OLD_PASSWORD') {
+                message.error('旧密码错误');
+            } else if (errorMsg === 'INVALID_VERIFICATION_CODE') {
+                message.error('验证码错误');
+            } else if (errorMsg === 'VERIFICATION_CODE_EXPIRED') {
+                message.error('验证码已过期，请重新获取');
+            } else {
+                message.error(errorMsg);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // AI company description generation handler
     const handleGenerateCompanyDescription = async () => {
@@ -136,9 +241,25 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 const response = await userAPI.uploadAvatar(userId, file);
 
                 if (response.status === 'success') {
-                    // 使用后端返回的头像路径
+                    // 使用后端返回的头像路径，添加时间戳强制刷新
                     const avatarUrl = response.avatarPath || response.data.avatar;
-                    setProfile({ ...profile, avatar: avatarUrl });
+
+                    // 添加短暂延迟，确保文件已完全写入磁盘
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // 添加时间戳参数强制浏览器重新加载
+                    const avatarUrlWithTimestamp = `${avatarUrl}?t=${Date.now()}`;
+
+                    setProfile({ ...profile, avatar: avatarUrlWithTimestamp });
+
+                    // Update localStorage and dispatch event to sync across app
+                    const storedUser = localStorage.getItem('currentUser');
+                    if (storedUser) {
+                        const currentUser = JSON.parse(storedUser);
+                        currentUser.avatar = avatarUrlWithTimestamp;
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    }
+                    window.dispatchEvent(new CustomEvent('userAvatarUpdated', { detail: { avatar: avatarUrlWithTimestamp } }));
 
                     // 显示保存成功消息
                     setAlertMessage('头像已成功上传！');
@@ -217,6 +338,67 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
         }
     };
 
+    // 提交企业认证申请
+    const handleSubmitVerification = async () => {
+        if (!profile.company?.business_license) {
+            setAlertMessage('请先上传营业执照！');
+            setTimeout(() => setAlertMessage(''), 3000);
+            return;
+        }
+
+        if (!profile.company?.social_credit_code || profile.company.social_credit_code.length !== 18) {
+            setAlertMessage('请填写正确的18位统一社会信用代码！');
+            setTimeout(() => setAlertMessage(''), 3000);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const response = await fetch(`/api/companies/${profile.company.id}/verify`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    social_credit_code: profile.company.social_credit_code,
+                    contact_info: profile.company.contact_info || profile.name,
+                    user_id: profile.id,
+                    business_license: profile.company.business_license
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                // Update local profile state
+                setProfile({
+                    ...profile,
+                    company: {
+                        ...profile.company,
+                        is_verified: false,
+                        // Assuming the backend sets status to 'active' which implies 'Pending' when is_verified is false
+                        status: 'active'
+                    }
+                });
+
+                await fetchRecruiterProfile(); // Reload to get exact status
+
+                setAlertMessage('认证申请已提交，请等待管理员审核！');
+                setTimeout(() => setAlertMessage(''), 3000);
+            } else {
+                setAlertMessage('提交认证失败：' + data.message);
+                setTimeout(() => setAlertMessage(''), 3000);
+            }
+        } catch (error) {
+            console.error('提交认证失败:', error);
+            setAlertMessage('提交认证失败，请稍后重试！');
+            setTimeout(() => setAlertMessage(''), 3000);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // 获取字段的默认值或提示文本
     const getFieldPlaceholder = (fieldName: string, value: any) => {
         if (value) return value;
@@ -267,10 +449,16 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
             {alertMessage && <MessageAlert text={alertMessage} />}
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50">
+                <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-gray-800 flex items-center">
                         <User className="w-5 h-5 mr-2 text-emerald-600" /> 个人信息
                     </h3>
+                    <button
+                        onClick={() => setPasswordModalVisible(true)}
+                        className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center transition-colors"
+                    >
+                        <Lock className="w-4 h-4 mr-1" /> 修改密码
+                    </button>
                 </div>
                 <div className="p-8 flex flex-col md:flex-row items-start gap-8">
                     <div className="relative mb-4">
@@ -278,7 +466,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             src={profile.avatar}
                             name={profile.name}
                             size={96}
-                            className="w-24 h-24 rounded-full border-4 border-white shadow-sm"
+                            className="w-24 h-24 rounded-full border-4 border-white shadow-sm bg-emerald-100 text-emerald-600"
                         />
                         <button
                             onClick={() => avatarInputRef.current?.click()}
@@ -369,12 +557,21 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         ) : null}
 
                         {/* 认证状态显示 */}
-                        <div className={`mb-6 p-4 rounded-lg ${profile.company?.is_verified ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+                        <div className={`mb-6 p-4 rounded-lg ${profile.company?.is_verified
+                            ? 'bg-green-50 border border-green-200'
+                            : (profile.company?.status === 'active' && !profile.company?.is_verified)
+                                ? 'bg-blue-50 border border-blue-200' // Pending state
+                                : 'bg-yellow-50 border border-yellow-200' // Unverified/Rejected state
+                            }`}>
                             <div className="flex items-start">
                                 <div className="flex-shrink-0">
                                     {profile.company?.is_verified ? (
                                         <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                        </svg>
+                                    ) : (profile.company?.status === 'active' && !profile.company?.is_verified) ? (
+                                        <svg className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                         </svg>
                                     ) : (
                                         <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -391,12 +588,17 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                                     <span className="text-green-600 font-medium">✅ 您的企业已通过认证</span>
                                                     <span className="text-xs text-green-500">认证日期：{profile.company?.verification_date ? new Date(profile.company.verification_date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : '未知'}</span>
                                                 </div>
+                                            ) : (profile.company?.status === 'active' && !profile.company?.is_verified) ? (
+                                                <div className="flex flex-col gap-2">
+                                                    <span className="text-blue-600 font-medium">⏳ 您的企业认证正在审核中</span>
+                                                    <p className="text-gray-600 text-xs">管理员正在审核您的申请，请耐心等待。</p>
+                                                </div>
                                             ) : (
                                                 <>
                                                     <span className="text-yellow-600 font-medium">⚠️ 您的企业尚未认证</span>
                                                     <p className="mt-1 text-gray-600">认证后可以发布职位和查看候选人信息</p>
                                                     <ul className="mt-2 space-y-1 text-xs text-gray-600 list-disc list-inside">
-                                                        <li>填写完整的公司信息</li>
+                                                        <li>填写完整的公司信息（包括统一社会信用代码）</li>
                                                         <li>上传营业执照照片</li>
                                                         <li>点击"提交认证申请"按钮</li>
                                                     </ul>
@@ -691,6 +893,20 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                         }}
                                     />
                                 </div>
+                                <div className="mt-4 flex justify-end">
+                                    <button
+                                        onClick={handleSubmitVerification}
+                                        disabled={loading || profile.company?.is_verified || (profile.company?.status === 'active' && !profile.company?.is_verified)}
+                                        className={`px-6 py-2 rounded-lg font-medium transition-colors border shadow-sm flex items-center gap-2
+                                            ${(loading || profile.company?.is_verified || (profile.company?.status === 'active' && !profile.company?.is_verified))
+                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                                            }`}
+                                    >
+                                        <Shield className="w-4 h-4" />
+                                        {(profile.company?.status === 'active' && !profile.company?.is_verified) ? '审核中' : '提交认证申请'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -716,6 +932,15 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 <Save className="w-5 h-5 mr-2" />
                             )}
                             {loading ? '保存中...' : '保存更新'}
+                        </button>
+
+                        {/* 修改密码按钮 */}
+                        <button
+                            onClick={() => setPasswordModalVisible(true)}
+                            className="flex items-center justify-center w-full md:w-auto px-6 py-3 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition border border-blue-200"
+                            disabled={loading}
+                        >
+                            <Lock className="w-5 h-5 mr-2" /> 修改密码
                         </button>
 
                         <button
@@ -811,7 +1036,172 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                     </div>
                 </div>
             </div>
-        </div>
+
+            {/* 修改密码模态框 */}
+            <Modal
+                title={
+                    <div className="text-xl font-bold flex items-center gap-2 text-gray-800">
+                        <Shield className="w-6 h-6 text-emerald-600" />
+                        <span>修改密码</span>
+                    </div>
+                }
+                open={passwordModalVisible}
+                onCancel={() => setPasswordModalVisible(false)}
+                footer={null}
+                centered
+                maskClosable={false}
+                className="rounded-xl overflow-hidden"
+                width={480}
+            >
+                <div className="mt-6 space-y-6">
+                    <div className="bg-emerald-50 p-4 rounded-lg flex items-start gap-3">
+                        <div className="bg-emerald-100 p-2 rounded-full mt-0.5">
+                            <Shield className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div>
+                            <h4 className="font-medium text-emerald-800 text-sm">账号安全保护</h4>
+                            <p className="text-xs text-emerald-600 mt-1">
+                                为了保障您的账号安全，修改密码需要验证您的注册邮箱：<br />
+                                <span className="font-bold">{profile.email}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* 旧密码 */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">旧密码</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <Lock className="w-4 h-4" />
+                                </span>
+                                <input
+                                    type={passwordVisible.old ? "text" : "password"}
+                                    value={passwordForm.oldPassword}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+                                    className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                    placeholder="请输入当前使用的密码"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setPasswordVisible({ ...passwordVisible, old: !passwordVisible.old })}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    {passwordVisible.old ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 新密码 */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">新密码</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <Lock className="w-4 h-4" />
+                                </span>
+                                <input
+                                    type={passwordVisible.new ? "text" : "password"}
+                                    value={passwordForm.newPassword}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                                    className={`w-full pl-10 pr-10 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all ${passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
+                                        ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                                        : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500'
+                                        }`}
+                                    placeholder="请输入新密码（至少6位）"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setPasswordVisible({ ...passwordVisible, new: !passwordVisible.new })}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    {passwordVisible.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 确认新密码 */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">确认新密码</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                    <Lock className="w-4 h-4" />
+                                </span>
+                                <input
+                                    type={passwordVisible.confirm ? "text" : "password"}
+                                    value={passwordForm.confirmPassword}
+                                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                                    className={`w-full pl-10 pr-10 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all ${passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
+                                        ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
+                                        : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500'
+                                        }`}
+                                    placeholder="请再次输入新密码"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setPasswordVisible({ ...passwordVisible, confirm: !passwordVisible.confirm })}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    {passwordVisible.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                            {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                                <p className="text-xs text-red-500 mt-1 ml-1">两次输入的密码不一致</p>
+                            )}
+                        </div>
+
+                        {/* 验证码 */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">邮箱验证码</label>
+                            <div className="flex gap-3">
+                                <div className="relative flex-1">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                        <Mail className="w-4 h-4" />
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={passwordForm.verificationCode}
+                                        onChange={(e) => setPasswordForm({ ...passwordForm, verificationCode: e.target.value })}
+                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                        placeholder="6位数字验证码"
+                                        maxLength={6}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleSendCode}
+                                    disabled={countdown > 0 || sendingCode}
+                                    className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all border ${countdown > 0 || sendingCode
+                                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                        : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300'
+                                        }`}
+                                >
+                                    {sendingCode ? '发送中...' : countdown > 0 ? `${countdown}s 后重试` : '获取验证码'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-4 border-t border-gray-100">
+                        <button
+                            onClick={() => setPasswordModalVisible(false)}
+                            className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                        >
+                            取消
+                        </button>
+                        <button
+                            onClick={handlePasswordChange}
+                            disabled={loading || !passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.verificationCode}
+                            className={`flex-1 py-2.5 rounded-lg text-white font-medium shadow-sm transition-all ${loading || !passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.verificationCode
+                                ? 'bg-emerald-400 cursor-not-allowed'
+                                : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow transform active:scale-95'
+                                }`}
+                        >
+                            {loading ? '提交中...' : '确认修改'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        </div >
     );
 }
 

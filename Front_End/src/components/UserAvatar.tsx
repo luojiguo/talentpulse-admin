@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { processAvatarUrl, generateDefaultAvatar } from './AvatarUploadComponent';
 
 interface UserAvatarProps {
@@ -7,58 +7,79 @@ interface UserAvatarProps {
   size?: number;
   className?: string;
   alt?: string;
-  onError?: () => void;
 }
 
-const UserAvatar: React.FC<UserAvatarProps> = ({
-  src,
-  name = '',
-  size = 36,
-  className = '',
-  alt = 'User Avatar',
-  onError
-}) => {
-  const [imageError, setImageError] = useState(false);
-  
-  const handleError = () => {
-    setImageError(true);
-    onError?.();
+const UserAvatar: React.FC<UserAvatarProps> = ({ src, name, size = 40, className, alt }) => {
+  const [imgError, setImgError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const imgRef = React.useRef<HTMLImageElement>(null);
+
+  const handleImageError = () => {
+    setImgError(true);
+    setIsLoading(false);
   };
-  
-  // 生成默认头像或使用名称首字母作为备用
-  const fallbackAvatar = () => {
-    // 如果有名称，使用首字母
-    if (name && name.length > 0) {
-      return (
-        <span className="w-full h-full flex items-center justify-center text-sm font-bold">
-          {name.charAt(0)}
-        </span>
-      );
+
+  const handleImageLoad = () => {
+    setImgError(false);
+    setIsLoading(false);
+  };
+
+  // 当src变化时重置状态
+  useEffect(() => {
+    if (src) {
+      setImgError(false);
+
+      // Check if image is already loaded (cached)
+      if (imgRef.current && imgRef.current.complete) {
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
+
+      // Safety timeout
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setIsLoading(false);
     }
-    // 否则使用默认头像
-    return (
-      <img
-        src={generateDefaultAvatar(name)}
-        alt={alt}
-        className="w-full h-full object-cover"
-      />
-    );
-  };
-  
+  }, [src]);
+
+  const processedSrc = processAvatarUrl(src);
+  const shouldShowImage = processedSrc && !imgError;
+
   return (
     <div
-      className={`rounded-full overflow-hidden flex-shrink-0 ${className}`}
+      className={`relative inline-flex items-center justify-center overflow-hidden rounded-full ${className}`}
       style={{ width: size, height: size }}
     >
-      {!imageError && src && src !== '' ? (
-        <img
-          src={processAvatarUrl(src)}
-          alt={alt}
-          className="w-full h-full object-cover"
-          onError={handleError}
-        />
+      {shouldShowImage ? (
+        <>
+          {isLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-gray-200 rounded-full">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+          <img
+            ref={imgRef}
+            src={processedSrc}
+            alt={alt || name}
+            className="w-full h-full object-cover"
+            onError={handleImageError}
+            onLoad={handleImageLoad}
+            style={{
+              opacity: isLoading ? 0 : 1,
+              transition: 'opacity 0.2s ease-in-out'
+            }}
+          />
+        </>
       ) : (
-        fallbackAvatar()
+        <div className={`w-full h-full flex items-center justify-center font-bold ${className || 'bg-gradient-to-br from-blue-400 to-blue-600 text-white'}`}>
+          <span style={{ fontSize: size * 0.4 }}>
+            {name ? name.charAt(0).toUpperCase() : '?'}
+          </span>
+        </div>
       )}
     </div>
   );

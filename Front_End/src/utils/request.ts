@@ -37,19 +37,19 @@ service.interceptors.request.use(
 );
 
 // 响应拦截器
- service.interceptors.response.use(
+service.interceptors.response.use(
   (response: AxiosResponse) => {
     // 对响应数据做点什么
     // 这里可以根据后端返回的状态码进行统一处理
     // 后端实际返回格式：{ status: 'success', data: ... } 或 { status: 'error', message: ... }
-    
+
     // 如果是二进制响应（如Blob），直接返回原始响应，不进行处理
     if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
       return response;
     }
-    
+
     const res = response.data;
-    
+
     // 转换为前端期望的ApiResponse格式
     return {
       code: res.status === 'success' ? 200 : 500,
@@ -63,7 +63,7 @@ service.interceptors.request.use(
   (error: any) => {
     // 对响应错误做点什么
     console.error('Response Error:', error);
-    
+
     if (error.response) {
       // 确保错误响应中的数据格式一致，保留errorCode等字段
       const errorData = error.response.data;
@@ -73,16 +73,18 @@ service.interceptors.request.use(
         // 确保success字段为false
         success: false
       };
-      
+
       const { status } = error.response;
-      
+
       switch (status) {
         case 401:
           // 未授权，登录页的401错误由登录组件自己处理
           if (!window.location.pathname.includes('/login')) {
             console.warn('未授权，请重新登录');
-            // 可以触发事件或直接跳转
-            // window.location.href = '/login';
+            // Clear artifacts potentially causing issues
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
           }
           break;
         case 403:
@@ -98,13 +100,13 @@ service.interceptors.request.use(
           console.error(`请求失败: ${status}`);
       }
     } else if (error.request) {
-        // 请求已发出，但没有收到响应
-        console.error('网络连接异常，请检查网络');
+      // 请求已发出，但没有收到响应
+      console.error('网络连接异常，请检查网络');
     } else {
-        // 在设置请求时发生错误
-        console.error('请求配置错误', error.message);
+      // 在设置请求时发生错误
+      console.error('请求配置错误', error.message);
     }
-    
+
     return Promise.reject(error);
   }
 );

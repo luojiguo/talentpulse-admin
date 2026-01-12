@@ -105,14 +105,38 @@ const AuthScreen: React.FC<{ onAuthSuccess: (user: User) => void }> = ({ onAuthS
 const App: React.FC = () => {
   // 从localStorage初始化用户状态，确保刷新页面时保持登录状态
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      // 确保id始终是数字类型，避免类型不匹配导致的死循环
-      if (parsedUser.id && typeof parsedUser.id === 'string') {
-        parsedUser.id = parseInt(parsedUser.id, 10);
+    try {
+      const storedUser = localStorage.getItem('currentUser');
+      const token = localStorage.getItem('token');
+
+      // Must have both user and token to be considered logged in
+      if (storedUser && token) {
+        const parsedUser = JSON.parse(storedUser);
+
+        // 确保id始终是数字类型
+        if (parsedUser.id && typeof parsedUser.id === 'string') {
+          parsedUser.id = parseInt(parsedUser.id, 10);
+        }
+
+        // Validate role exists
+        if (!parsedUser.role) {
+          return null;
+        }
+
+        return parsedUser;
       }
-      return parsedUser;
+
+      // If one is missing, clear both to ensure clean state
+      if (storedUser || token) {
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user'); // Clean up potential legacy key
+      }
+    } catch (error) {
+      console.error('Error parsing stored user:', error);
+      // On error, clear everything
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('token');
     }
     return null;
   });
@@ -392,8 +416,8 @@ const App: React.FC = () => {
               {/* 管理员路由 */}
               {currentUser.role === 'admin' && (
                 <>
-                  <Route path="/admin/*" element={<AdminApp userRole={currentUser.role} onLogout={handleLogout} />} />
-                  <Route path="/*" element={<AdminApp userRole={currentUser.role} onLogout={handleLogout} />} />
+                  <Route path="/admin/*" element={<AdminApp currentUser={currentUser} onLogout={handleLogout} />} />
+                  <Route path="/*" element={<AdminApp currentUser={currentUser} onLogout={handleLogout} />} />
                 </>
               )}
             </>

@@ -83,6 +83,8 @@ export const TRANSLATIONS = {
       dept: '部门',
       type: '性质',
       applicants: '申请人数',
+      location: '地点',
+      salary: '薪资',
       status: '状态',
       date: '发布日期'
     },
@@ -188,6 +190,8 @@ export const TRANSLATIONS = {
       dept: 'Department',
       type: 'Type',
       applicants: 'Applicants',
+      location: 'Location',
+      salary: 'Salary',
       status: 'Status',
       date: 'Posted Date'
     },

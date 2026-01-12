@@ -6,8 +6,11 @@ import { Search, ChevronUp, ChevronDown, MapPin, Briefcase, Filter, CheckCircle,
 import { Modal, Input, Select, message } from 'antd';
 import CompanyCard from '../components/CompanyCard';
 import JobCard from '../components/JobCard';
+import UserAvatar from '@/components/UserAvatar';
 import CityPickerModal from '../components/CityPickerModal';
 import { EXPERIENCE_OPTIONS, DEGREE_OPTIONS, JOB_TYPE_OPTIONS } from '@/constants/constants';
+import { socketService } from '@/services/socketService';
+import { SERVER_EVENTS } from '@/constants/socketEvents';
 
 interface HomeScreenProps {
   jobs?: JobPosting[];
@@ -367,6 +370,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   // Poll for AI recommendations
   useEffect(() => {
     if (!isAIPending || !currentUser?.id) return;
+    // ... existing AI polling logic ...
+    // Note: This block is inside the replacement to maintain context, but the key change is adding the socket listener below
 
     let isMounted = true;
     const intervalId = setInterval(async () => {
@@ -378,7 +383,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
             setAIJobsError(null);
             console.log('AI recommendations loaded:', res.data);
             const aiJobs = formatJobData(res.data);
-            // Merge AI jobs with existing, removing duplicates
             setLocalJobs(prevJobs => {
               const jobMap = new Map();
               [...aiJobs, ...prevJobs].forEach(job => jobMap.set(job.id, job));
@@ -390,7 +394,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
             setAIJobsError('AI推荐失败，请稍后重试。');
             clearInterval(intervalId);
           }
-          // If 'pending' or 'not_started', do nothing and let the interval continue
         }
       } catch (error) {
         if (isMounted) {
@@ -399,14 +402,72 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
           clearInterval(intervalId);
         }
       }
-    }, 3000); // Poll every 3 seconds
+    }, 3000);
 
-    // Cleanup function to clear interval
     return () => {
       isMounted = false;
       clearInterval(intervalId);
     };
   }, [isAIPending, currentUser?.id]);
+
+  // Listen for real-time job updates
+  useEffect(() => {
+    // Connect socket if not connected (idempotent)
+    if (currentUser?.id) {
+      socketService.connect(currentUser.id);
+    }
+
+    const socket = socketService.getSocket();
+
+    if (socket) {
+      const handleNewJob = (newJobData: any) => {
+        console.log('收到新职位推送:', newJobData);
+
+        // Format the new job data
+        const formattedNewJobs = formatJobData([newJobData]);
+        if (formattedNewJobs.length > 0) {
+          const newJob = formattedNewJobs[0];
+
+          // Update local jobs state
+          setLocalJobs(prevJobs => {
+            // Check if job already exists
+            if (prevJobs.some(job => job.id === newJob.id)) {
+              return prevJobs;
+            }
+
+            // Add new job to the top
+            return [newJob, ...prevJobs];
+          });
+        }
+      };
+
+      socket.on(SERVER_EVENTS.JOB_POSTED, handleNewJob);
+
+      const handleJobUpdate = (updatedJobData: any) => {
+        console.log('收到职位更新推送:', updatedJobData);
+
+        // Format the updated job data
+        const formattedUpdatedJobs = formatJobData([updatedJobData]);
+        if (formattedUpdatedJobs.length > 0) {
+          const updatedJob = formattedUpdatedJobs[0];
+
+          // Update local jobs state
+          setLocalJobs(prevJobs => {
+            return prevJobs.map(job =>
+              job.id === updatedJob.id ? updatedJob : job
+            );
+          });
+        }
+      };
+
+      socket.on(SERVER_EVENTS.JOB_UPDATED, handleJobUpdate);
+
+      return () => {
+        socket.off(SERVER_EVENTS.JOB_POSTED, handleNewJob);
+        socket.off(SERVER_EVENTS.JOB_UPDATED, handleJobUpdate);
+      };
+    }
+  }, [currentUser?.id]);
 
   const formatJobData = (data: any[]): JobPosting[] => {
     if (!data || !Array.isArray(data)) {
@@ -869,11 +930,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
                 <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-200 overflow-hidden">
-                  {userProfile.avatar ? (
-                    <img src={userProfile.avatar} alt="User" className="w-full h-full object-cover" />
-                  ) : (
-                    '求'
-                  )}
+                  <UserAvatar
+                    src={userProfile.avatar}
+                    name={userProfile.name}
+                    size={24}
+                    className="w-full h-full"
+                    alt="User"
+                  />
                 </div>
                 <span className="text-sm font-bold text-slate-700">根据求职期望匹配：</span>
                 <div className="flex items-center gap-2 text-xs font-medium text-slate-600">

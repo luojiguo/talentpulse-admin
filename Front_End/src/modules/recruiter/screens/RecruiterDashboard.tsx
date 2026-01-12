@@ -14,6 +14,8 @@ interface RecruiterDashboardProps {
     currentUser: any;
     jobs: JobPosting[];
     candidates: any[];
+    interviews: any[];
+    unreadMessageCount: number;
     profile: any;
     onSetIsPostModalOpen: (isOpen: boolean) => void;
     onSetNewJob: (job: any) => void;
@@ -31,6 +33,8 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
     currentUser,
     jobs,
     candidates,
+    interviews,
+    unreadMessageCount,
     profile,
     onSetIsPostModalOpen,
     onSetNewJob,
@@ -100,7 +104,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                                 </li>
                             </ul>
                             <a
-                                href="/recruiter/profile"
+                                href="/recruiter/certification"
                                 className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition shadow-sm text-sm"
                             >
                                 立即认证
@@ -154,7 +158,7 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                         </div>
                     </div>
                     <div className="flex items-baseline">
-                        <span className="text-3xl font-bold text-gray-900">5</span>
+                        <span className="text-3xl font-bold text-gray-900">{interviews.length}</span>
                         <span className="ml-2 text-sm text-red-600 flex items-center">
                             <TrendingDown className="w-4 h-4 mr-1" />
                             3%
@@ -202,13 +206,13 @@ export const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({
                                     onClick={() => setIsSuggestionsExpanded(!isSuggestionsExpanded)}
                                     className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition flex items-center justify-center"
                                 >
-                                    <ChevronDown 
-                                        className={`w-4 h-4 transition-transform duration-300 ${isSuggestionsExpanded ? 'rotate-180' : ''}`} 
+                                    <ChevronDown
+                                        className={`w-4 h-4 transition-transform duration-300 ${isSuggestionsExpanded ? 'rotate-180' : ''}`}
                                     />
                                 </button>
                             </div>
                         </div>
-                        <div 
+                        <div
                             className={`transition-all duration-300 ease-in-out overflow-hidden ${isSuggestionsExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
                         >
                             {aiSuggestions ? (

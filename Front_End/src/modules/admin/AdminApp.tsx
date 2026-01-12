@@ -24,13 +24,15 @@ import OnboardingsView from './views/OnboardingsView';
 import SystemLogsView from './views/SystemLogsView';
 import AnalyticsView from './views/AnalyticsView';
 import SettingsView from './views/SettingsView';
+import CertificationReviewScreen from './views/CertificationReviewScreen';
 
 interface AdminAppProps {
-  userRole: UserRole;
+  currentUser: any;
   onLogout: () => void;
 }
 
-export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
+export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => {
+  const userRole = currentUser.role;
   const location = useLocation();
   const [lang, setLang] = useState<Language>('zh');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -63,6 +65,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
     if (path === '/admin/onboardings' || path.startsWith('/admin/onboardings/')) return 'onboardings';
     if (path === '/admin/logs' || path.startsWith('/admin/logs/')) return 'logs';
     if (path === '/admin/analytics' || path.startsWith('/admin/analytics/')) return 'analytics';
+    if (path === '/admin/certifications' || path.startsWith('/admin/certifications/')) return 'certifications';
     if (path === '/admin/settings' || path.startsWith('/admin/settings/')) return 'settings';
     return 'dashboard';
   };
@@ -80,7 +83,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
   useEffect(() => {
     if ((dashboardData as any)?.status === 'success' && dashboardData.data) {
       const data = dashboardData.data;
-      
+
       // Set stats data from API response
       setStats([
         { id: '1', icon: 'users', label: t.dashboard.total_users, value: data.stats.totalUsers, change: 12, trend: 'up' },
@@ -92,12 +95,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
         { id: '7', icon: 'file-text', label: t.dashboard.applications, value: data.stats.applications, change: 22, trend: 'up' },
         { id: '8', icon: 'zap', label: t.dashboard.hired, value: data.stats.hired, change: 14, trend: 'up' },
       ]);
-      
+
       // Set other data from API response
-                    setTrends(data.trends || []);
-                    // 将roles数据映射为categories数据，用于职位分类分布图表
-                    setCategories(data.roles || []);
-                    setActivity(data.activity || []);
+      setTrends(data.trends || []);
+      // 将categories数据用于职位分类分布图表
+      setCategories(data.categories || []);
+      setActivity(data.activity || []);
       setLoading(false);
     } else if (dashboardData === null && !dashboardLoading) {
       // 初始化默认数据，避免页面空白
@@ -115,7 +118,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
       setCategories([]);
       setActivity([]);
     }
-    
+
     // 只有在没有缓存数据时才显示loading
     setLoading(dashboardLoading && !dashboardData);
   }, [dashboardData, dashboardLoading, t]);
@@ -135,10 +138,10 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
   return (
     <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} overflow-hidden`}>
       {/* 左侧固定侧边栏 */}
-      <Sidebar 
-        currentView={currentView} 
-        onViewChange={() => {}} 
-        lang={lang} 
+      <Sidebar
+        currentView={currentView}
+        onViewChange={() => { }}
+        lang={lang}
         onLogout={onLogout}
         isMobileOpen={sidebarOpen}
         onMobileToggle={() => setSidebarOpen(!sidebarOpen)}
@@ -159,12 +162,12 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
         </button>
 
         {/* 导航栏 */}
-        <Header 
+        <Header
           onGenerateInsight={handleGenerateInsight}
           insightStatus={insightStatus}
           lang={lang}
           t={t}
-          userRole={userRole}
+          currentUser={currentUser}
           onLogout={onLogout}
         />
 
@@ -172,9 +175,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
         <main className="flex-1 bg-slate-100 dark:bg-slate-900 p-2 md:p-4 lg:p-6 overflow-auto">
           <InsightPanel status={insightStatus} text={insightText} onClose={() => setInsightStatus(InsightStatus.IDLE)} t={t} />
           <Routes>
-            <Route 
-              path="/dashboard" 
-              element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} featureUsage={dashboardData?.data?.featureUsage || []} userGrowth={dashboardData?.data?.userGrowth || []} categories={categories} activity={activity} loading={loading} />} 
+            <Route
+              path="/dashboard"
+              element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} categories={categories} activity={activity} loading={loading} />}
             />
             <Route path="/users" element={<SystemUsersView lang={lang} />} />
             <Route path="/companies" element={<CompaniesView lang={lang} />} />
@@ -186,10 +189,11 @@ export const AdminApp: React.FC<AdminAppProps> = ({ userRole, onLogout }) => {
             <Route path="/onboardings" element={<OnboardingsView lang={lang} />} />
             <Route path="/logs" element={<SystemLogsView lang={lang} />} />
             <Route path="/analytics" element={<AnalyticsView lang={lang} theme={theme} />} />
-            <Route 
-              path="/settings" 
-              element={<SettingsView lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} />} 
+            <Route
+              path="/settings"
+              element={<SettingsView lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} />}
             />
+            <Route path="/certifications" element={<CertificationReviewScreen />} />
             {/* 默认重定向到dashboard */}
             <Route path="/*" element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} categories={categories} activity={activity} loading={loading} />} />
           </Routes>

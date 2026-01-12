@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Download, X, Shield, Briefcase, Users } from 'lucide-react';
+import { Search, Filter, Download, X, Shield, Briefcase, Users, User, Ban, CheckCircle, Key } from 'lucide-react';
+import { message, Popconfirm } from 'antd';
 import { TRANSLATIONS } from '@/constants/constants';
 import { userAPI } from '@/services/apiService';
 import { SystemUser, Language, UserRole } from '@/types/types';
-import { exportToCSV } from '../helpers';
+import { exportToCSV, calculateResumeCompleteness } from '../helpers';
 import Pagination from '@/components/Pagination';
 
 // 测试环境中密码哈希值到明文密码的映射
 const passwordMap: Record<string, string> = {
-  '$2b$10$TfgQY0rgp0WPJt.7ZiEFDuBuM7geFIJwybRTcxI.RTxs81j7iO1Iy': '123456',
-  // 可以根据需要添加更多映射
+    '$2b$10$TfgQY0rgp0WPJt.7ZiEFDuBuM7geFIJwybRTcxI.RTxs81j7iO1Iy': '123456',
+    // 可以根据需要添加更多映射
 };
 
 const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
@@ -19,25 +20,26 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null);
     const [loading, setLoading] = useState(true);
-    
+
     // 列配置状态
     const [visibleColumns, setVisibleColumns] = useState({
         name: true,
         email: true,
-        phone: false, // 手机号
-        gender: false, // 性别
+        phone: true, // 手机号
+        gender: true, // 性别
         password: false, // 默认隐藏密码列
-        userType: true, // 用户类型列（替换状态列）
-        education: false, // 学历
-        workExperience: false, // 工作经验
+        userType: true, // 用户类型列
+        status: true, // 状态列 - Added back to clarify state vs action
+        education: true, // 学历
+        workExperience: true, // 工作经验
         desiredPosition: false, // 期望职位
         createdAt: true,
-        lastLogin: true,
+        lastLogin: false,
         emailVerified: false, // 邮箱验证状态
         phoneVerified: false, // 手机验证状态
         action: true
     });
-    
+
     // 列显示/隐藏弹窗状态
     const [showColumnModal, setShowColumnModal] = useState(false);
 
@@ -85,7 +87,9 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                     // 系统信息
                     emailVerified: user.email_verified,
                     phoneVerified: user.phone_verified,
-                    resumeCompleteness: user.resume_completeness
+                    resumeCompleteness: calculateResumeCompleteness(user),
+                    dbResumeCompleteness: user.resume_completeness, // Store original DB value for comparison
+                    avatar: user.avatar
                 }));
                 setUsers(formattedUsers);
             } catch (error) {
@@ -100,7 +104,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
 
     // 筛选用户数据
     const filteredUsersList = useMemo(() => {
-        return users.filter(user => 
+        return users.filter(user =>
             (filterRole === 'all' || user.role === filterRole) &&
             (user.name.toLowerCase().includes(searchTerm.toLowerCase()) || user.email.toLowerCase().includes(searchTerm.toLowerCase()))
         );
@@ -127,7 +131,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
             recruiter: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
             candidate: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
         };
-        const icons = { admin: <Shield size={12}/>, recruiter: <Briefcase size={12}/>, candidate: <Users size={12}/> };
+        const icons = { admin: <Shield size={12} />, recruiter: <Briefcase size={12} />, candidate: <Users size={12} /> };
         return <span className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${colors[role]}`}>{icons[role]}{role}</span>;
     };
 
@@ -139,14 +143,75 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
         };
         return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${colors[status]}`}>{status}</span>;
     };
-    
+
+    // Fetch full user details when a user is selected
+    useEffect(() => {
+        const fetchUserDetails = async () => {
+            if (selectedUser?.id && selectedUser.roles?.includes('recruiter')) {
+                try {
+                    const response = await userAPI.getUserById(selectedUser.id);
+                    if (response.data) {
+                        setSelectedUser(prev => prev ? {
+                            ...prev,
+                            company_name: response.data.company_name,
+                            company_address: response.data.company_address
+                        } : null);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch user details:', error);
+                }
+            }
+        };
+
+        if (selectedUser) {
+            fetchUserDetails();
+        }
+    }, [selectedUser?.id]);
+
+    const syncResumeCompleteness = async (user: SystemUser) => {
+        try {
+            await userAPI.updateUser(user.id.toString(), {
+                resume_completeness: user.resumeCompleteness
+            });
+            // 更新本地状态
+            setUsers(prev => prev.map(u => u.id === user.id ? { ...u, dbResumeCompleteness: user.resumeCompleteness } : u));
+            if (selectedUser?.id === user.id) {
+                setSelectedUser(prev => prev ? { ...prev, dbResumeCompleteness: user.resumeCompleteness } : null);
+            }
+        } catch (error) {
+            console.error('同步简历完整度失败:', error);
+        }
+    };
+
+    const handleUpdateStatus = async (userId: string | number, newStatus: 'active' | 'suspended') => {
+        try {
+            await userAPI.updateUserStatus(userId, newStatus);
+            message.success(`用户状态已更新为 ${newStatus === 'active' ? '正常' : '已封禁'}`);
+
+            // Update local state
+            setUsers(prev => prev.map(u => {
+                if (u.id === userId) {
+                    return { ...u, status: newStatus === 'active' ? 'Active' : 'Suspended' };
+                }
+                return u;
+            }));
+
+            if (selectedUser?.id === userId) {
+                setSelectedUser(prev => prev ? { ...prev, status: newStatus === 'active' ? 'Active' : 'Suspended' } : null);
+            }
+        } catch (error) {
+            console.error('更新用户状态失败:', error);
+            message.error('更新用户状态失败');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="flex gap-2 items-center w-full md:w-auto">
-                        <Search className="text-slate-400 w-5 h-5"/>
-                        <input type="text" placeholder="按姓名或邮箱搜索..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm w-full md:w-64"/>
+                        <Search className="text-slate-400 w-5 h-5" />
+                        <input type="text" placeholder="按姓名或邮箱搜索..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm w-full md:w-64" />
                     </div>
                     <div className="flex gap-4 w-full md:w-auto">
                         <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm px-4 py-2 w-full md:w-auto focus:ring-2 focus:ring-blue-500">
@@ -156,10 +221,10 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                             <option value="candidate">求职者</option>
                         </select>
                         <button onClick={() => exportToCSV(filteredUsers, 'system_users')} className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all">
-                            <Download size={16}/> 导出
+                            <Download size={16} /> 导出
                         </button>
                         {/* 列显示/隐藏控制按钮 */}
-                        <button 
+                        <button
                             onClick={() => setShowColumnModal(true)}
                             className="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
                         >
@@ -178,6 +243,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 {visibleColumns.gender && <th scope="col" className="px-6 py-3 text-left min-w-[80px]">性别</th>}
                                 {visibleColumns.password && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">密码</th>}
                                 {visibleColumns.userType && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">用户类型</th>}
+                                {visibleColumns.status && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">状态</th>}
                                 {visibleColumns.education && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">学历</th>}
                                 {visibleColumns.workExperience && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">工作经验</th>}
                                 {visibleColumns.desiredPosition && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">期望职位</th>}
@@ -204,41 +270,129 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                             ) : (
                                 filteredUsers.map(user => (
                                     <tr key={user.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
-                                        {visibleColumns.name && <td className="px-6 py-4 font-medium text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.name}</td>}
+                                        {visibleColumns.name && (
+                                            <td className="px-6 py-4 font-medium text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="relative h-8 w-8 flex-shrink-0">
+                                                        {/* Base Layer: Initials */}
+                                                        <div className={`h-full w-full rounded-full flex items-center justify-center font-bold border border-white dark:border-slate-800 shadow-sm text-xs ${user.roles?.includes('candidate')
+                                                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                                            : user.roles?.includes('recruiter')
+                                                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                                                : 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400'
+                                                            }`}>
+                                                            {user.name.charAt(0)}
+                                                        </div>
+
+                                                        {/* Top Layer: Image */}
+                                                        {user.avatar && (
+                                                            <img
+                                                                src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:3001${user.avatar}`}
+                                                                alt={user.name}
+                                                                className="absolute inset-0 h-full w-full rounded-full object-cover"
+                                                                onError={(e) => {
+                                                                    e.currentTarget.style.display = 'none';
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <span>{user.name}</span>
+                                                </div>
+                                            </td>
+                                        )}
                                         {visibleColumns.email && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</td>}
                                         {visibleColumns.phone && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.phone || '未设置'}</td>}
                                         {visibleColumns.gender && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.gender || '未设置'}</td>}
                                         {visibleColumns.password && <td className="px-6 py-4 font-mono text-sm text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">
-                                          {user.password ? user.password : '未设置'}
+                                            {user.password ? user.password : '未设置'}
                                         </td>}
                                         {visibleColumns.userType && <td className="px-6 py-4">
-                                          {user.roles?.includes('candidate') && user.roles?.includes('recruiter') ? (
-                                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">求职者和招聘者</span>
-                                          ) : user.roles?.includes('candidate') ? (
-                                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">求职者</span>
-                                          ) : user.roles?.includes('recruiter') ? (
-                                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">招聘者</span>
-                                          ) : (
-                                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">管理员</span>
-                                          )}
+                                            {user.roles?.includes('candidate') && user.roles?.includes('recruiter') ? (
+                                                <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">求职者和招聘者</span>
+                                            ) : user.roles?.includes('candidate') ? (
+                                                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">求职者</span>
+                                            ) : user.roles?.includes('recruiter') ? (
+                                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">招聘者</span>
+                                            ) : (
+                                                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">管理员</span>
+                                            )}
+                                        </td>}
+                                        {visibleColumns.status && <td className="px-6 py-4">
+                                            <StatusBadge status={user.status} />
                                         </td>}
                                         {visibleColumns.education && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.education || '未设置'}</td>}
                                         {visibleColumns.workExperience && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.workExperienceYears || 0} 年</td>}
                                         {visibleColumns.desiredPosition && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.desiredPosition || '未设置'}</td>}
                                         {visibleColumns.emailVerified && <td className="px-6 py-4">
-                                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.emailVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {user.emailVerified ? '已验证' : '未验证'}
-                                          </span>
+                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.emailVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {user.emailVerified ? '已验证' : '未验证'}
+                                            </span>
                                         </td>}
                                         {visibleColumns.phoneVerified && <td className="px-6 py-4">
-                                          <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {user.phoneVerified ? '已验证' : '未验证'}
-                                          </span>
+                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                                {user.phoneVerified ? '已验证' : '未验证'}
+                                            </span>
                                         </td>}
                                         {visibleColumns.createdAt && <td className="px-6 py-4 whitespace-nowrap">{user.createdAt}</td>}
                                         {visibleColumns.lastLogin && <td className="px-6 py-4 whitespace-nowrap">{user.lastLogin}</td>}
                                         {visibleColumns.action && <td className="px-6 py-4 whitespace-nowrap">
-                                            <button onClick={() => setSelectedUser(user)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">查看</button>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => setSelectedUser(user)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">查看</button>
+                                                {user.role !== 'admin' && (
+                                                    <>
+                                                        <Popconfirm
+                                                            title="重置密码"
+                                                            description="确定要将该用户的密码重置为 123456 吗？"
+                                                            onConfirm={async () => {
+                                                                try {
+                                                                    await userAPI.adminResetPassword(user.id);
+                                                                    message.success('密码已重置为 123456');
+                                                                } catch (error) {
+                                                                    console.error('重置密码失败:', error);
+                                                                    message.error('重置密码失败');
+                                                                }
+                                                            }}
+                                                            okText="确定"
+                                                            cancelText="取消"
+                                                        >
+                                                            <button
+                                                                className="p-1 text-amber-600 hover:bg-amber-100 rounded"
+                                                                title="重置密码 (123456)"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <Key size={16} />
+                                                            </button>
+                                                        </Popconfirm>
+
+                                                        {user.status === 'Suspended' ? (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); handleUpdateStatus(user.id, 'active'); }}
+                                                                className="p-1 text-red-600 hover:bg-red-100 rounded"
+                                                                title="解封账号"
+                                                            >
+                                                                <Ban size={16} />
+                                                            </button>
+                                                        ) : (
+                                                            <div onClick={e => e.stopPropagation()}>
+                                                                <Popconfirm
+                                                                    title="封禁用户"
+                                                                    description="确定要封禁该用户吗？封禁后用户将无法登录。"
+                                                                    onConfirm={() => handleUpdateStatus(user.id, 'suspended')}
+                                                                    okText="确定"
+                                                                    cancelText="取消"
+                                                                >
+                                                                    <button
+                                                                        className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                                                        title="封禁账号"
+                                                                    >
+                                                                        <CheckCircle size={16} />
+                                                                    </button>
+                                                                </Popconfirm>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
                                         </td>}
                                     </tr>
                                 ))
@@ -246,7 +400,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                         </tbody>
                     </table>
                 </div>
-                
+
                 {/* 分页组件 */}
                 <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
                     <Pagination
@@ -268,144 +422,153 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                     <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b pb-4 dark:border-slate-700 mb-4">
                             <h2 className="text-xl font-bold dark:text-white">列设置</h2>
-                            <button onClick={() => setShowColumnModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><X size={20}/></button>
+                            <button onClick={() => setShowColumnModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><X size={20} /></button>
                         </div>
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">用户名称</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.name} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, name: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.name}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, name: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">邮箱</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.email} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, email: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.email}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, email: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手机号</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.phone} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, phone: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.phone}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, phone: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">性别</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.gender} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, gender: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.gender}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, gender: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">密码</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.password} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, password: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.password}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, password: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">用户类型</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.userType} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, userType: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.userType}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, userType: e.target.checked }))}
+                                    className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
+                                />
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">状态</label>
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.status}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, status: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">学历</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.education} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, education: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.education}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, education: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">工作经验</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.workExperience} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, workExperience: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.workExperience}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, workExperience: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">期望职位</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.desiredPosition} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, desiredPosition: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.desiredPosition}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, desiredPosition: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">邮箱验证</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.emailVerified} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, emailVerified: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.emailVerified}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, emailVerified: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手机验证</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.phoneVerified} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, phoneVerified: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.phoneVerified}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, phoneVerified: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">创建时间</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.createdAt} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, createdAt: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.createdAt}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, createdAt: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">最后登录</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.lastLogin} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, lastLogin: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.lastLogin}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, lastLogin: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                             <div className="flex items-center justify-between">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">操作</label>
-                                <input 
-                                    type="checkbox" 
-                                    checked={visibleColumns.action} 
-                                    onChange={(e) => setVisibleColumns(prev => ({...prev, action: e.target.checked}))}
+                                <input
+                                    type="checkbox"
+                                    checked={visibleColumns.action}
+                                    onChange={(e) => setVisibleColumns(prev => ({ ...prev, action: e.target.checked }))}
                                     className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 dark:bg-slate-700 dark:border-slate-600"
                                 />
                             </div>
                         </div>
                         <div className="flex gap-3 mt-6 justify-end">
-                            <button 
+                            <button
                                 onClick={() => setShowColumnModal(false)}
                                 className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                             >
                                 取消
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     setShowColumnModal(false);
                                 }}
@@ -417,85 +580,157 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                     </div>
                 </div>
             )}
-            
+
             {/* User Detail Panel */}
             {selectedUser && (
-                 <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setSelectedUser(null)}>
+                <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setSelectedUser(null)}>
                     <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-slate-800 shadow-2xl animate-in slide-in-from-right-1/4 duration-300 p-6 flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b pb-4 dark:border-slate-700">
                             <h2 className="text-xl font-bold dark:text-white">User Details</h2>
-                            <button onClick={() => setSelectedUser(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><X size={20}/></button>
+                            <button onClick={() => setSelectedUser(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><X size={20} /></button>
                         </div>
                         <div className="py-6 space-y-6 overflow-y-auto flex-1">
-                           {/* 基本信息 */}
-                           <div>
-                               <h3 className="text-lg font-semibold dark:text-white mb-3">基本信息</h3>
-                               <div className="space-y-3">
-                                   <p><strong className="dark:text-white">ID:</strong> {selectedUser.id}</p>
-                                   <p><strong className="dark:text-white">姓名:</strong> {selectedUser.name}</p>
-                                   <p><strong className="dark:text-white">邮箱:</strong> {selectedUser.email}</p>
-                                   <p><strong className="dark:text-white">密码:</strong> 
-                                     <span className="font-mono text-sm">
-                                       {selectedUser.password ? selectedUser.password : '未设置'}
-                                     </span>
-                                   </p>
-                                   <p><strong className="dark:text-white">手机号:</strong> {selectedUser.phone || '未设置'}</p>
-                                   <p><strong className="dark:text-white">用户类型:</strong> 
-                                     {selectedUser.roles?.includes('candidate') && selectedUser.roles?.includes('recruiter') ? '求职者和招聘者' : 
-                                      selectedUser.roles?.includes('candidate') ? '求职者' : 
-                                      selectedUser.roles?.includes('recruiter') ? '招聘者' : 
-                                      '管理员'}
-                                   </p>
-                                   <p><strong className="dark:text-white">加入时间:</strong> {selectedUser.createdAt}</p>
-                                   <p><strong className="dark:text-white">最后登录:</strong> {selectedUser.lastLogin}</p>
-                               </div>
-                           </div>
-                           
-                           {/* 个人信息 */}
-                           <div>
-                               <h3 className="text-lg font-semibold dark:text-white mb-3">个人信息</h3>
-                               <div className="space-y-3">
-                                   <p><strong className="dark:text-white">性别:</strong> {selectedUser.gender || '未设置'}</p>
-                                   <p><strong className="dark:text-white">出生日期:</strong> {selectedUser.birthDate || '未设置'}</p>
-                                   <p><strong className="dark:text-white">学历:</strong> {selectedUser.education || '未设置'}</p>
-                                   <p><strong className="dark:text-white">专业:</strong> {selectedUser.major || '未设置'}</p>
-                                   <p><strong className="dark:text-white">毕业院校:</strong> {selectedUser.school || '未设置'}</p>
-                                   <p><strong className="dark:text-white">毕业年份:</strong> {selectedUser.graduationYear || '未设置'}</p>
-                               </div>
-                           </div>
-                           
-                           {/* 职业信息 */}
-                           <div>
-                               <h3 className="text-lg font-semibold dark:text-white mb-3">职业信息</h3>
-                               <div className="space-y-3">
-                                   <p><strong className="dark:text-white">工作经验:</strong> {selectedUser.workExperienceYears || 0} 年</p>
-                                   <p><strong className="dark:text-white">期望职位:</strong> {selectedUser.desiredPosition || '未设置'}</p>
-                                   <p><strong className="dark:text-white">技能:</strong> {selectedUser.skills?.length ? selectedUser.skills.join(', ') : '未设置'}</p>
-                                   <p><strong className="dark:text-white">语言能力:</strong> {selectedUser.languages?.length ? selectedUser.languages.join(', ') : '未设置'}</p>
-                               </div>
-                           </div>
-                           
-                           {/* 联系与社交信息 */}
-                           <div>
-                               <h3 className="text-lg font-semibold dark:text-white mb-3">联系与社交信息</h3>
-                               <div className="space-y-3">
-                                   <p><strong className="dark:text-white">地址:</strong> {selectedUser.address || '未设置'}</p>
-                                   <p><strong className="dark:text-white">微信号:</strong> {selectedUser.wechat || '未设置'}</p>
-                                   <p><strong className="dark:text-white">LinkedIn:</strong> {selectedUser.linkedin || '未设置'}</p>
-                                   <p><strong className="dark:text-white">GitHub:</strong> {selectedUser.github || '未设置'}</p>
-                                   <p><strong className="dark:text-white">个人网站:</strong> {selectedUser.personalWebsite || '未设置'}</p>
-                               </div>
-                           </div>
-                           
-                           {/* 系统信息 */}
-                           <div>
-                               <h3 className="text-lg font-semibold dark:text-white mb-3">系统信息</h3>
-                               <div className="space-y-3">
-                                   <p><strong className="dark:text-white">邮箱验证:</strong> {selectedUser.emailVerified ? '已验证' : '未验证'}</p>
-                                   <p><strong className="dark:text-white">手机验证:</strong> {selectedUser.phoneVerified ? '已验证' : '未验证'}</p>
-                                   <p><strong className="dark:text-white">简历完整度:</strong> {selectedUser.resumeCompleteness || 0}%</p>
-                               </div>
-                           </div>
+                            {/* 头像展示 */}
+                            <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-700/30 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                <div className="relative h-24 w-24 flex-shrink-0">
+                                    {/* Base Layer: Initials */}
+                                    <div className={`h-full w-full rounded-full flex items-center justify-center text-3xl font-bold border-4 border-white dark:border-slate-800 shadow-lg ${selectedUser.roles?.includes('candidate')
+                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                        : selectedUser.roles?.includes('recruiter')
+                                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                                            : 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400'
+                                        }`}>
+                                        {selectedUser.name.charAt(0)}
+                                    </div>
+
+                                    {/* Top Layer: Image */}
+                                    {selectedUser.avatar && (
+                                        <img
+                                            src={selectedUser.avatar.startsWith('http') ? selectedUser.avatar : `http://localhost:3001${selectedUser.avatar}`}
+                                            alt={selectedUser.name}
+                                            className="absolute inset-0 h-full w-full rounded-full object-cover"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                                <h3 className="mt-4 text-xl font-bold dark:text-white uppercase tracking-tight">{selectedUser.name}</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedUser.email}</p>
+                            </div>
+
+                            {/* 基本信息 */}
+                            <div>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">基本信息</h3>
+                                <div className="space-y-3">
+                                    <p><strong className="dark:text-white">ID:</strong> {selectedUser.id}</p>
+                                    <p><strong className="dark:text-white">姓名:</strong> {selectedUser.name}</p>
+                                    <p><strong className="dark:text-white">邮箱:</strong> {selectedUser.email}</p>
+                                    <p><strong className="dark:text-white">密码:</strong>
+                                        <span className="font-mono text-sm">
+                                            {selectedUser.password ? selectedUser.password : '未设置'}
+                                        </span>
+                                    </p>
+                                    <p><strong className="dark:text-white">手机号:</strong> {selectedUser.phone || '未设置'}</p>
+                                    <p><strong className="dark:text-white">用户类型:</strong>
+                                        {selectedUser.roles?.includes('candidate') && selectedUser.roles?.includes('recruiter') ? '求职者和招聘者' :
+                                            selectedUser.roles?.includes('candidate') ? '求职者' :
+                                                selectedUser.roles?.includes('recruiter') ? '招聘者' :
+                                                    '管理员'}
+                                    </p>
+                                    {/* Display Company for Recruiters */}
+                                    {selectedUser.roles?.includes('recruiter') && (
+                                        <>
+                                            <p><strong className="dark:text-white">所属公司:</strong> {selectedUser.company_name || 'Loading...'}</p>
+                                            {selectedUser.company_address && (
+                                                <p><strong className="dark:text-white">公司地址:</strong> {selectedUser.company_address}</p>
+                                            )}
+                                        </>
+                                    )}
+                                    <p><strong className="dark:text-white">加入时间:</strong> {selectedUser.createdAt}</p>
+                                    <p><strong className="dark:text-white">最后登录:</strong> {selectedUser.lastLogin}</p>
+                                </div>
+                            </div>
+
+                            {/* 个人信息 */}
+                            <div>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">个人信息</h3>
+                                <div className="space-y-3">
+                                    <p><strong className="dark:text-white">性别:</strong> {selectedUser.gender || '未设置'}</p>
+                                    <p><strong className="dark:text-white">出生日期:</strong> {selectedUser.birthDate || '未设置'}</p>
+                                    <p><strong className="dark:text-white">学历:</strong> {selectedUser.education || '未设置'}</p>
+                                    <p><strong className="dark:text-white">专业:</strong> {selectedUser.major || '未设置'}</p>
+                                    <p><strong className="dark:text-white">毕业院校:</strong> {selectedUser.school || '未设置'}</p>
+                                    <p><strong className="dark:text-white">毕业年份:</strong> {selectedUser.graduationYear || '未设置'}</p>
+                                </div>
+                            </div>
+
+                            {/* 职业信息 */}
+                            <div>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">职业信息</h3>
+                                <div className="space-y-3">
+                                    <p><strong className="dark:text-white">工作经验:</strong> {selectedUser.workExperienceYears || 0} 年</p>
+                                    <p><strong className="dark:text-white">期望职位:</strong> {selectedUser.desiredPosition || '未设置'}</p>
+                                    <p><strong className="dark:text-white">技能:</strong> {selectedUser.skills?.length ? selectedUser.skills.join(', ') : '未设置'}</p>
+                                    <p><strong className="dark:text-white">语言能力:</strong> {selectedUser.languages?.length ? selectedUser.languages.join(', ') : '未设置'}</p>
+                                </div>
+                            </div>
+
+                            {/* 联系与社交信息 */}
+                            <div>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">联系与社交信息</h3>
+                                <div className="space-y-3">
+                                    <p><strong className="dark:text-white">地址:</strong> {selectedUser.address || '未设置'}</p>
+                                    <p><strong className="dark:text-white">微信号:</strong> {selectedUser.wechat || '未设置'}</p>
+                                    <p><strong className="dark:text-white">LinkedIn:</strong> {selectedUser.linkedin || '未设置'}</p>
+                                    <p><strong className="dark:text-white">GitHub:</strong> {selectedUser.github || '未设置'}</p>
+                                    <p><strong className="dark:text-white">个人网站:</strong> {selectedUser.personalWebsite || '未设置'}</p>
+                                </div>
+                            </div>
+
+                            {/* 系统信息 */}
+                            <div>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">系统信息</h3>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <p><strong className="dark:text-white">简历完整度:</strong> {selectedUser.resumeCompleteness || 0}%</p>
+                                        {selectedUser.dbResumeCompleteness !== selectedUser.resumeCompleteness && (
+                                            <button
+                                                onClick={() => syncResumeCompleteness(selectedUser)}
+                                                className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                                                title="同步到数据库"
+                                            >
+                                                同步数据
+                                            </button>
+                                        )}
+                                    </div>
+                                    {selectedUser.dbResumeCompleteness !== selectedUser.resumeCompleteness && (
+                                        <p className="text-[10px] text-amber-500 mt-1">* 实时计算值与数据库记录不符</p>
+                                    )}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                                    <h3 className="text-lg font-semibold dark:text-white mb-3">账号管理</h3>
+                                    <div className="flex gap-3">
+                                        {selectedUser.status === 'Suspended' ? (
+                                            <button
+                                                onClick={() => handleUpdateStatus(selectedUser.id, 'active')}
+                                                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <CheckCircle size={18} />
+                                                解封账号
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleUpdateStatus(selectedUser.id, 'suspended')}
+                                                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Ban size={18} />
+                                                封禁账号
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

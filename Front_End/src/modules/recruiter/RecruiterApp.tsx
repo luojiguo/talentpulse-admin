@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Routes, Route, useParams, useNavigate } from 'react-router-dom';
+import { Routes, Route, useParams, useNavigate, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Users, Briefcase, Settings, LogOut,
     Plus, PlusCircle, Search, Sparkles, MapPin, ChevronDown, User, FileText, CheckCircle, XCircle,
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { message } from 'antd';
 import { generateJobDescription, generateRecruitmentSuggestions, generateFullJobInfo } from '@/services/aiService';
-import { userAPI, jobAPI, candidateAPI, recruiterAPI, messageAPI, companyAPI } from '@/services/apiService';
+import { userAPI, jobAPI, candidateAPI, recruiterAPI, messageAPI, companyAPI, interviewAPI } from '@/services/apiService';
 import { socketService } from '@/services/socketService';
 import { UserRole, JobPosting, Conversation } from '@/types/types';
 import { processAvatarUrl } from '@/components/AvatarUploadComponent';
@@ -17,7 +17,9 @@ import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 import RecruiterMessageScreen from './components/RecruiterMessageScreen';
 import RecruiterJobDetail from './components/RecruiterJobDetail';
 import RecruiterProfileScreen from './components/RecruiterProfileScreen';
+import CertificationScreen from './screens/CertificationScreen'; // Import CertificationScreen
 import { InputField, MessageAlert } from './components/CommonComponents';
+import { CandidateDetailModal } from './components/CandidateDetailModal';
 
 // 导入布局和页面组件
 import { RecruiterLayout } from './components/RecruiterLayout';
@@ -34,20 +36,39 @@ interface RecruiterAppProps {
 }
 
 export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRole, currentUser }) => {
+    const navigate = useNavigate();
     // 初始化视图状态，检查是否需要认证
     const initialView = currentUser.needs_verification ? 'profile' : 'dashboard';
     const [jobs, setJobs] = useState<JobPosting[]>([]);
     const [candidates, setCandidates] = useState<any[]>([]);
     const [conversations, setConversations] = useState<any[]>([]);
+    const [interviews, setInterviews] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [messagesLoading, setMessagesLoading] = useState(false);
     const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const activeConversationIdRef = useRef<string | null>(null);
+    const joinedConversationIdRef = useRef<string | null>(null);
+
+    // Modals
+    const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+    // Forms & Selections
+    const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
+    const [editingJob, setEditingJob] = useState<any>(null);
 
     // Sync ref
     useEffect(() => {
         activeConversationIdRef.current = activeConversationId;
     }, [activeConversationId]);
+
+    // Function to open candidate detail modal
+    const onViewDetails = (candidate: any) => {
+        setSelectedCandidate(candidate);
+        setIsDetailModalOpen(true);
+    };
 
 
     // Profile state moved to main component so navigation bar can access it
@@ -103,6 +124,21 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
             window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
         };
     }, []);
+
+    // Sync profile with currentUser prop updates (especially avatar and other user fields)
+    useEffect(() => {
+        if (currentUser) {
+            setProfile(prev => ({
+                ...prev,
+                id: currentUser.id,
+                name: currentUser.name,
+                email: currentUser.email,
+                phone: currentUser.phone,
+                avatar: currentUser.avatar || prev.avatar,
+                position: prev.position // Keep position from profile as it may not be in currentUser
+            }));
+        }
+    }, [currentUser.id, currentUser.name, currentUser.email, currentUser.phone, currentUser.avatar]);
 
     // 获取招聘者详细信息
     const fetchRecruiterProfile = async () => {
@@ -174,13 +210,27 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     }>({});
 
     // 缓存有效期（1分钟）
+    // 缓存有效期（1分钟）
     const CACHE_DURATION = 60 * 1000;
+
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    const handleRefresh = () => {
+        setCache({}); // Clear cache
+        setRefreshTrigger(prev => prev + 1); // Trigger fetch
+    };
 
     // 获取招聘者数据 - 优化版，实现并行加载和优先级渲染
     useEffect(() => {
         const fetchRecruiterData = async () => {
             try {
                 const now = Date.now();
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    setLoading(false);
+                    return;
+                }
+
                 const isCacheValid = cache.lastUpdated && (now - cache.lastUpdated) < CACHE_DURATION;
 
                 // 1. 先使用缓存数据快速渲染页面，立即设置loading为false
@@ -196,20 +246,31 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                 const fetchJobs = recruiterAPI.getJobs(currentUser.id);
                 const fetchCandidates = recruiterAPI.getCandidates(currentUser.id);
                 const fetchConversations = messageAPI.getConversations(currentUser.id, 'recruiter');
+                const fetchInterviews = interviewAPI.getAllInterviews();
                 const fetchProfile = fetchRecruiterProfile();
 
                 // 并行处理所有请求
-                const [jobsResponse, candidatesResponse, conversationsResponse, profileData] = await Promise.all([
+                const [jobsResponse, candidatesResponse, conversationsResponse, interviewsResponse, profileData] = await Promise.all([
                     fetchJobs,
                     fetchCandidates,
                     fetchConversations,
+                    fetchInterviews,
                     fetchProfile
                 ]);
 
-                // 从响应中提取数据数组 - 响应拦截器已经将res.data赋值给了data字段
+                // 从响应中提取数据数组
                 const jobsData = jobsResponse.data || [];
                 const candidatesData = candidatesResponse.data || [];
-                const realConversations = conversationsResponse.data || []; // 后端已过滤，直接使用
+                const realConversations = conversationsResponse.data || [];
+                const allInterviews = (interviewsResponse as any).data || [];
+
+                // Get Recruiter ID from profile data (profileData includes recruiter info)
+                const currentRecruiterId = profileData ? profileData.id : null;
+
+                // Filter interviews for the current recruiter
+                const myInterviews = currentRecruiterId
+                    ? allInterviews.filter((i: any) => i.interviewerId === currentRecruiterId)
+                    : [];
 
                 // 映射职位数据
                 const filteredJobs = jobsData.map((job: any) => ({
@@ -246,11 +307,28 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
 
                 // 映射候选人数据
                 const filteredCandidates = candidatesData.map((candidate: any) => ({
-                    ...candidate,
-                    // Ensure required fields for frontend
+                    id: candidate.application_id || candidate.id, // Use application ID as unique row ID
+                    candidateId: candidate.id,
+                    userId: candidate.user_id,
+                    candidateName: candidate.name || '未知候选人',
+                    jobId: candidate.job_id,
+                    jobTitle: candidate.job_title || '未知职位',
+                    companyName: profile.company?.name || 'My Company',
                     stage: candidate.stage || 'New',
-                    appliedJob: candidate.job_title,
-                    appliedDate: new Date(candidate.applied_date).toLocaleDateString()
+                    appliedDate: candidate.applied_date ? new Date(candidate.applied_date).toLocaleDateString() : '刚刚',
+                    matchScore: Math.floor(Math.random() * 30) + 70, // Mock score for now as backend doesn't provide it
+                    skills: candidate.skills || [],
+                    experience: candidate.years_of_experience ? `${candidate.years_of_experience}年` : '经验不限',
+                    education: candidate.education || '学历不限',
+                    school: candidate.school || '',
+                    currentPosition: candidate.current_position || '',
+                    avatar: candidate.avatar,
+                    latestInterviewTime: candidate.latest_interview_date ? `${new Date(candidate.latest_interview_date).toLocaleDateString()} ${candidate.latest_interview_time?.slice(0, 5) || ''}` : null,
+                    latestInterviewStatus: candidate.latest_interview_status,
+                    applicationResume: candidate.application_resume_url ? {
+                        url: candidate.application_resume_url,
+                        name: candidate.application_resume_name
+                    } : null
                 }));
 
                 // 更新主要数据
@@ -288,7 +366,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
         };
 
         fetchRecruiterData();
-    }, [currentUser.id]); // 移除 cache 依赖，防止死循环
+    }, [currentUser.id, refreshTrigger]); // 依赖 refreshTrigger 来触发手动刷新
 
 
 
@@ -312,8 +390,8 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
 
                                 // Deduplication: Check if message ID triggers a duplicate
                                 const existingMessages = conv.messages || [];
-                                // 1. Check by ID (if optimistic update had real ID, which it won't typically)
-                                if (existingMessages.some((m: any) => m.id === message.id)) {
+                                // 1. Check by ID (string comparison for safety)
+                                if (existingMessages.some((m: any) => m.id?.toString() === message.id?.toString())) {
                                     return conv;
                                 }
                                 // 2. Check by content + time proximity (fuzzy match for optimistic updates)
@@ -361,13 +439,62 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                         });
                     } else {
                         // New conversation? Fetch everything
+                        console.log('New conversation detected, refreshing lists...');
+
+                        // 1. Refresh Candidates to show new applicant
+                        recruiterAPI.getCandidates(currentUser.id).then(res => {
+                            if ((res as any).status === 'success') {
+                                const candidatesData = res.data || [];
+                                const filteredCandidates = candidatesData.map((candidate: any) => ({
+                                    id: candidate.application_id || candidate.id,
+                                    candidateId: candidate.id,
+                                    userId: candidate.user_id,
+                                    candidateName: candidate.name || '未知候选人',
+                                    jobId: candidate.job_id,
+                                    jobTitle: candidate.job_title || '未知职位',
+                                    companyName: profile.company?.name || 'My Company',
+                                    stage: candidate.stage || 'New',
+                                    appliedDate: candidate.applied_date ? new Date(candidate.applied_date).toLocaleDateString() : '刚刚',
+                                    matchScore: Math.floor(Math.random() * 30) + 70,
+                                    skills: candidate.skills || [],
+                                    experience: candidate.years_of_experience ? `${candidate.years_of_experience}年` : '经验不限',
+                                    education: candidate.education || '学历不限',
+                                    school: candidate.school || '',
+                                    currentPosition: candidate.current_position || '',
+                                    avatar: candidate.avatar,
+                                    latestInterviewTime: candidate.latest_interview_date ? `${new Date(candidate.latest_interview_date).toLocaleDateString()} ${candidate.latest_interview_time?.slice(0, 5) || ''}` : null,
+                                    latestInterviewStatus: candidate.latest_interview_status,
+                                    applicationResume: candidate.application_resume_url ? {
+                                        url: candidate.application_resume_url,
+                                        name: candidate.application_resume_name
+                                    } : null
+                                }));
+                                setCandidates(filteredCandidates);
+                            }
+                        }).catch(err => console.error('Failed to refresh candidates:', err));
+
+                        // 2. Refresh Conversations to show new chat
+                        messageAPI.getConversations(currentUser.id, 'recruiter').then(res => {
+                            if ((res as any).status === 'success') {
+                                const realConversations = res.data || [];
+                                setConversations(prevDeps => {
+                                    return realConversations.map((newConv: any) => {
+                                        const existingConv = prevDeps.find(c => c.id === newConv.id);
+                                        return {
+                                            ...newConv,
+                                            messages: existingConv ? (existingConv.messages || []) : []
+                                        };
+                                    });
+                                });
+                            }
+                        }).catch(err => console.error('Failed to refresh conversations:', err));
+
                         return prevConversations;
                     }
                 });
             });
 
-            // Listen for message updates (e.g. exchange status change)
-            (socketService as any).socket?.on('message_updated', (updatedMessage: any) => {
+            const handleMessageUpdated = (updatedMessage: any) => {
                 console.log('Received message update (Recruiter):', updatedMessage);
                 setConversations(prevConversations => {
                     return prevConversations.map(conv => {
@@ -375,27 +502,58 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                             return {
                                 ...conv,
                                 messages: (conv.messages || []).map(m =>
-                                    m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m
+                                    m.id?.toString() === updatedMessage.id?.toString() ? { ...m, ...updatedMessage } : m
                                 )
                             };
                         }
                         return conv;
                     });
                 });
-            });
+            };
+
+            socketService.onMessageUpdated(handleMessageUpdated);
+
+            const handleConversationUpdated = (updatedConversation: any) => {
+                if (!updatedConversation?.id) return;
+                setConversations(prevConversations => {
+                    return prevConversations.map(conv => {
+                        if (conv.id.toString() !== updatedConversation.id.toString()) return conv;
+
+                        const candidateUnread = updatedConversation.candidate_unread ?? updatedConversation.candidateUnread;
+                        const recruiterUnread = updatedConversation.recruiter_unread ?? updatedConversation.recruiterUnread;
+                        const updatedAt = updatedConversation.updated_at ?? updatedConversation.updatedAt;
+
+                        return {
+                            ...conv,
+                            candidateUnread: candidateUnread ?? conv.candidateUnread,
+                            recruiterUnread: recruiterUnread ?? conv.recruiterUnread,
+                            unreadCount: recruiterUnread ?? conv.unreadCount,
+                            updated_at: updatedAt ?? conv.updated_at
+                        };
+                    });
+                });
+            };
+
+            socketService.onConversationUpdated(handleConversationUpdated);
         }
 
         return () => {
             socketService.disconnect();
             socketService.offNewMessage();
-            (socketService as any).socket?.off('message_updated');
+            socketService.offMessageUpdated();
+            socketService.offConversationUpdated();
         };
     }, [currentUser.id]);
 
     // Join conversation room
     useEffect(() => {
         if (activeConversationId) {
+            const prevJoinedId = joinedConversationIdRef.current;
+            if (prevJoinedId && prevJoinedId.toString() !== activeConversationId.toString()) {
+                socketService.leaveConversation(prevJoinedId);
+            }
             socketService.joinConversation(activeConversationId);
+            joinedConversationIdRef.current = activeConversationId;
         }
     }, [activeConversationId]);
 
@@ -464,9 +622,39 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     // 更新对话的消息
                     setConversations(prev => prev.map(conv => {
                         if (conv.id.toString() === activeConversationId.toString()) {
+                            // Merge and deduplicate
+                            const existing = conv.messages || [];
+                            const newMessages = offset === 0 ? sortedMessages : sortedMessages;
+
+                            // Create a map by ID for deduplication
+                            const mergedMap = new Map();
+
+                            if (offset > 0) {
+                                // If loading more (history), new messages come FIRST (chronologically earlier but in list view they affect top)
+                                // Actually sortedMessages are older messages. existing are newer.
+                                // We want to combine [sortedMessages (older), existing (newer)].
+                                // But handle overlap.
+                                newMessages.forEach((m: any) => mergedMap.set(m.id.toString(), m));
+                                existing.forEach((m: any) => mergedMap.set(m.id.toString(), m));
+                            } else {
+                                // If offset 0 (refresh/initial), we prefer backend results, but might want to keep some local state?
+                                // Actually offset 0 means "latest messages", so it should mostly replace.
+                                // But if we have *more* messages locally than returned (unlikely unless pagination limit < local count),
+                                // safe bet is to just use new messages OR merge carefully.
+                                // Simpler approach for now: Replace with backend source of truth for offset 0, 
+                                // BUT ensuring we don't lose anything if backend only returns 20 and we had 25.
+                                // Actually, standard behavior is reset on offset 0.
+                                newMessages.forEach((m: any) => mergedMap.set(m.id.toString(), m));
+                            }
+
+                            // Convert back to array and sort
+                            const finalMessages = Array.from(mergedMap.values()).sort((a: any, b: any) =>
+                                new Date(a.time).getTime() - new Date(b.time).getTime()
+                            );
+
                             return {
                                 ...conv,
-                                messages: offset === 0 ? sortedMessages : [...sortedMessages, ...(conv.messages || [])],
+                                messages: finalMessages,
                                 total_messages: total // 更新总消息数
                             };
                         }
@@ -534,7 +722,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     const [viewingJobId, setViewingJobId] = useState<string | number | null>(null);
 
     // Post Job Modal
-    const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+    // Post Job Modal State (newJob form)
     const [newJob, setNewJob] = useState({
         title: '',
         location: '深圳',
@@ -557,8 +745,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     const [isGeneratingFullJob, setIsGeneratingFullJob] = useState(false);
 
     // Edit Job Modal
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingJob, setEditingJob] = useState<JobPosting | null>(null);
+    // Edit Job Modal State
 
     // AI Suggestions State
     const [aiSuggestions, setAiSuggestions] = useState<string | null>(null);
@@ -711,47 +898,15 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                 // 显示成功提示
                 message.success(`职位"${mappedNewJob.title}"发布成功！`);
 
-                // 重新获取职位列表以确保数据同步
-                setTimeout(async () => {
-                    try {
-                        const jobsResponse = await recruiterAPI.getJobs(currentUser.id);
-                        const jobsData = jobsResponse.data || [];
-                        const filteredJobs = jobsData.map((job: any) => ({
-                            id: job.id,
-                            title: job.title,
-                            company: job.company || job.company_name || '未设置公司',
-                            company_name: job.company || job.company_name || '未设置公司',
-                            department: job.department || '',
-                            location: job.location,
-                            salary: job.salary || '面议',
-                            description: job.description || '',
-                            type: job.type || '全职',
-                            posterId: job.posterId || job.poster_id || job.recruiter_id,
-                            recruiter_id: job.recruiter_id,
-                            recruiter_name: job.recruiter_name || '未知发布人',
-                            recruiter_avatar: processAvatarUrl(job.recruiter_avatar),
-                            recruiter_position: job.recruiter_position || '未知职位',
-                            applicants: job.applications_count || 0,
-                            status: job.status === 'active' || job.status === 'Active' ? 'active' : 'closed',
-                            postedDate: new Date(job.publish_date || job.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }),
-                            required_skills: job.required_skills || [],
-                            preferred_skills: job.preferred_skills || [],
-                            benefits: job.benefits || [],
-                            experience: job.experience || '',
-                            degree: job.degree || '',
-                            work_mode: job.work_mode || '现场',
-                            job_level: job.job_level || '初级',
-                            hiring_count: job.hiring_count || 1,
-                            urgency: job.urgency || '普通',
-                            expire_date: job.expire_date,
-                            updated_at: job.updated_at || job.created_at,
-                            is_own_job: job.is_own_job || false
-                        }));
-                        setJobs(filteredJobs);
-                    } catch (error) {
-                        console.error('刷新职位列表失败:', error);
-                    }
-                }, 500);
+                // Update cache to prevent UI flashing when refresh triggers
+                setCache(prev => ({
+                    ...prev,
+                    jobs: [mappedNewJob, ...(prev.jobs || [])],
+                    lastUpdated: Date.now()
+                }));
+
+                // Trigger unified data refresh to ensure consistency
+                setRefreshTrigger(prev => prev + 1);
             } else {
                 // API返回失败
                 message.error('发布职位失败：' + ((response as any).message || '未知错误'));
@@ -1028,9 +1183,9 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
             if (!activeConv) return;
 
             // 发送消息到后端
-            // 确保receiverId是users表中的id，而不是recruiters表中的id
-            // 使用多种可能的字段名，确保兼容性
-            const receiverId = activeConv.candidateId || activeConv.candidate_id || activeConv.CandidateId || activeConv.candidate_user_id || activeConv.candidateUserId;
+            // 确保receiverId是users表中的id，而不是candidates表中的id
+            // 优先使用 candidateUserId 或 recruiterUserId
+            const receiverId = activeConv.candidateUserId || activeConv.candidate_user_id || activeConv.candidateId || activeConv.candidate_id;
             if (!receiverId) {
                 console.error('无法获取接收者ID');
                 return;
@@ -1271,7 +1426,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     };
 
     return (
-        <RecruiterLayout onLogout={onLogout} onSwitchRole={onSwitchRole} currentUser={currentUser}>
+        <RecruiterLayout onLogout={onLogout} onSwitchRole={onSwitchRole} currentUser={profile}>
             {loading ? (
                 <SkeletonLoader />
             ) : (
@@ -1283,6 +1438,8 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                                 currentUser={currentUser}
                                 jobs={jobs}
                                 candidates={candidates}
+                                interviews={interviews}
+                                unreadMessageCount={conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0)}
                                 profile={profile}
                                 onSetIsPostModalOpen={setIsPostModalOpen}
                                 onSetNewJob={setNewJob}
@@ -1318,7 +1475,71 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     <Route
                         path="/candidates"
                         element={
-                            <CandidatesView candidates={candidates} currentUserId={currentUser.id} />
+                            <CandidatesView
+                                candidates={candidates}
+                                currentUserId={currentUser.id}
+                                onRefresh={handleRefresh}
+                                onSendMessage={async (candidate) => {
+                                    try {
+                                        if (!candidate.userId) {
+                                            message.error('无法发起对话：缺少候选人用户ID');
+                                            return;
+                                        }
+
+                                        // 1. Check if conversation already exists with this candidate (by UserID)
+                                        // 1. Check if conversation already exists with this candidate
+                                        // We need to match existing conversation's candidateId (Candidate Table ID) with the candidate's ID
+                                        const existingConv = conversations.find(c =>
+                                            c.candidateId && c.candidateId.toString() === candidate.candidateId.toString()
+                                        );
+
+                                        if (existingConv) {
+                                            // Conversation exists, select it
+                                            setActiveConversationId(existingConv.id);
+                                            // Navigate to messages
+                                            navigate('/recruiter/messages/' + existingConv.id);
+                                        } else {
+                                            // 2. Create new conversation
+                                            message.loading({ content: '正在创建对话...', key: 'createConv' });
+
+                                            // Need to call API to create conversation
+                                            // We'll use a simple initial message or just create
+                                            const res = await messageAPI.createConversationAndSendMessage({
+                                                jobId: candidate.jobId,
+                                                candidateId: candidate.userId, // Backend expects User ID for candidate creation lookup
+                                                recruiterId: currentUser.id,
+                                                message: `您好，我对您申请的${candidate.jobTitle}职位很感兴趣。`
+                                            });
+
+                                            if ((res as any).status === 'success') {
+                                                message.success({ content: '对话创建成功', key: 'createConv' });
+                                                // Refresh conversations
+                                                const convRes = await messageAPI.getConversations(currentUser.id, 'recruiter');
+                                                if ((convRes as any).status === 'success') {
+                                                    setConversations(convRes.data);
+                                                    // Find the new conversation
+                                                    // Either from response or by filtering new list
+                                                    // The response usually contains the created conversation
+                                                    const newConvId = (res as any).data.conversation_id || (res as any).data.id;
+                                                    if (newConvId) {
+                                                        setActiveConversationId(newConvId);
+                                                        navigate('/recruiter/messages/' + newConvId);
+                                                    }
+                                                }
+                                            } else {
+                                                message.error({ content: '创建对话失败', key: 'createConv' });
+                                            }
+                                        }
+                                    } catch (err) {
+                                        console.error('发送消息失败:', err);
+                                        message.error('操作失败，请重试');
+                                    }
+                                }}
+                                onViewDetails={(candidate) => {
+                                    setSelectedCandidate(candidate);
+                                    setIsDetailModalOpen(true);
+                                }}
+                            />
                         }
                     />
                     <Route
@@ -1389,22 +1610,20 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                         }
                     />
                     {/* 默认重定向到dashboard */}
-                    <Route path="*" element={<RecruiterDashboard
-                        currentUser={currentUser}
-                        jobs={jobs}
-                        candidates={candidates}
-                        profile={profile}
-                        onSetIsPostModalOpen={setIsPostModalOpen}
-                        onSetNewJob={setNewJob}
-                        newJob={newJob}
-                        onHandleGenerateJD={handleGenerateJD}
-                        isGeneratingJD={isGeneratingJD}
-                        aiSuggestions={aiSuggestions}
-                        onHandleGetAiSuggestions={handleGetAiSuggestions}
-                        isLoadingSuggestions={isLoadingSuggestions}
-                        onHandlePostJob={handlePostJob}
-                        onSetViewingJobId={setViewingJobId}
-                    />} />
+                    {/* Catch-all route to prevent blank screen */}
+                    <Route path="*" element={<Navigate to="/recruiter/dashboard" replace />} />
+                    <Route
+                        path="/certification"
+                        element={
+                            <CertificationScreen
+                                currentUser={currentUser}
+                                onCertificationSubmitted={() => {
+                                    // Refresh profile/status logic could go here
+                                    fetchRecruiterProfile();
+                                }}
+                            />
+                        }
+                    />
                 </Routes>
             )}
 
@@ -1800,6 +2019,13 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                     </div>
                 </div>
             )}
+
+            {/* Candidate Detail Modal */}
+            <CandidateDetailModal
+                isOpen={isDetailModalOpen}
+                onClose={() => setIsDetailModalOpen(false)}
+                candidate={selectedCandidate}
+            />
         </RecruiterLayout>
     );
 };

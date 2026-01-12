@@ -6,8 +6,8 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 // 获取仪表盘数据
 router.get('/dashboard', asyncHandler(async (req, res) => {
-    // 1. 获取基础统计数据（合并为一个查询）
-    const statsResult = await query(`
+  // 1. 获取基础统计数据（合并为一个查询）
+  const statsResult = await query(`
       SELECT 
         (SELECT COUNT(*) FROM users) as total_users,
         (SELECT COUNT(*) FROM user_roles WHERE role = 'recruiter') as hr_users,
@@ -19,26 +19,21 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
         (SELECT COUNT(*) FROM onboardings) as hired
     `);
 
-    const stats = statsResult.rows[0];
+  const stats = statsResult.rows[0];
 
-    // 2. 并行获取趋势和活动数据
-    const [
-      roleCountsResult,
-      monthlyApplicationsResult,
-      monthlyInterviewsResult,
-      userActivityResult,
-      companyActivityResult,
-      jobActivityResult,
-      applicationActivityResult,
-      monthlyVisitsResult,
-      featureUsageResult,
-      userGrowthResult,
-      jobCategoriesResult
-    ] = await Promise.all([
-      // 按角色统计用户数
-      query('SELECT role, COUNT(*) FROM user_roles GROUP BY role'),
-      // 获取过去6个月的申请趋势 - 优化：使用预聚合或更简单的分组
-      query(`
+  // 2. 并行获取趋势和活动数据
+  const [
+    roleCountsResult,
+    monthlyApplicationsResult,
+    monthlyInterviewsResult,
+    monthlyVisitsResult,
+    jobCategoriesResult,
+    enhancedActivityResult
+  ] = await Promise.all([
+    // 按角色统计用户数
+    query('SELECT role, COUNT(*) FROM user_roles GROUP BY role'),
+    // 获取过去6个月的申请趋势 - 优化：使用预聚合或更简单的分组
+    query(`
         SELECT 
           TO_CHAR(created_at, 'YYYY-MM') as month_val,
           TO_CHAR(created_at, 'MM月') as month,
@@ -48,8 +43,8 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
         GROUP BY month_val, month
         ORDER BY month_val
       `),
-      // 获取过去6个月的面试趋势
-      query(`
+    // 获取过去6个月的面试趋势
+    query(`
         SELECT 
           TO_CHAR(created_at, 'YYYY-MM') as month_val,
           TO_CHAR(created_at, 'MM月') as month,
@@ -59,13 +54,9 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
         GROUP BY month_val, month
         ORDER BY month_val
       `),
-      // 获取最近的活动（保持不变，已带LIMIT）
-      query("SELECT 'user' as type, id as activity_id, name as user, '注册账号' as action, '用户' as target, created_at as timestamp, 'success' as status FROM users ORDER BY created_at DESC LIMIT 5"),
-      query("SELECT 'company' as type, id as activity_id, name as user, '注册公司' as action, '公司' as target, created_at as timestamp, 'success' as status FROM companies ORDER BY created_at DESC LIMIT 5"),
-      query("SELECT 'job' as type, j.id as activity_id, c.name as user, '发布职位' as action, j.title as target, j.created_at as timestamp, 'success' as status FROM jobs j JOIN companies c ON j.company_id = c.id ORDER BY j.created_at DESC LIMIT 5"),
-      query("SELECT 'application' as type, a.id as activity_id, u.name as user, '申请职位' as action, j.title as target, a.created_at as timestamp, 'success' as status FROM applications a JOIN candidates c ON a.candidate_id = c.id JOIN users u ON c.user_id = u.id JOIN jobs j ON a.job_id = j.id ORDER BY a.created_at DESC LIMIT 5"),
-      // 获取过去6个月的访问量与注册量数据
-      query(`
+
+    // 获取过去6个月的访问量与注册量数据
+    query(`
         SELECT 
           TO_CHAR(created_at, 'YYYY-MM') as month_val,
           TO_CHAR(created_at, 'MM月') as month,
@@ -77,216 +68,368 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
         GROUP BY month_val, month
         ORDER BY month_val
       `),
-      // 获取系统功能使用频率数据
-      query(`
+
+    // 获取职位分类分布数据
+    query(`
         SELECT 
-          '职位发布' as name, 
-          COUNT(*) as views, 
-          COUNT(*) as clicks
-        FROM jobs
-        WHERE created_at >= NOW() - INTERVAL '30 days'
-        UNION ALL
-        SELECT 
-          '简历筛选' as name, 
-          COUNT(*) as views, 
-          COUNT(*) as clicks
-        FROM applications
-        WHERE created_at >= NOW() - INTERVAL '30 days'
-        UNION ALL
-        SELECT 
-          '面试安排' as name, 
-          COUNT(*) as views, 
-          COUNT(*) as clicks
-        FROM interviews
-        WHERE created_at >= NOW() - INTERVAL '30 days'
-        UNION ALL
-        SELECT 
-          '数据分析' as name, 
-          0 as views, 
-          0 as clicks
-        UNION ALL
-        SELECT 
-          '系统设置' as name, 
-          0 as views, 
-          0 as clicks
-        UNION ALL
-        SELECT 
-          '消息通知' as name, 
-          COUNT(*) as views, 
-          COUNT(*) as clicks
-        FROM conversations
-        WHERE updated_at >= NOW() - INTERVAL '30 days'
-      `),
-      // 获取用户活跃度增长率数据
-      query(`
-        SELECT 
-          TO_CHAR(created_at, 'YYYY-MM') as month_val,
-          TO_CHAR(created_at, 'MM月') as month,
-          -- 使用每日活跃用户数的增长率（模拟）
-          FLOOR(RANDOM() * 10) + 10 as dailyActive,
-          FLOOR(RANDOM() * 8) + 5 as weeklyActive,
-          FLOOR(RANDOM() * 15) + 10 as monthlyActive
-        FROM users
-        WHERE created_at >= NOW() - INTERVAL '6 months'
-        GROUP BY month_val, month
-        ORDER BY month_val
-      `),
-      // 获取职位分类分布数据
-      query(`
-        SELECT 
-          type as name, 
-          COUNT(*) as value,
-          CASE 
-            WHEN type = 'Full-time' THEN '#3b82f6'
-            WHEN type = 'Part-time' THEN '#10b981'
-            WHEN type = 'Contract' THEN '#f59e0b'
-            WHEN type = 'Temporary' THEN '#8b5cf6'
-            WHEN type = 'Internship' THEN '#ef4444'
-            WHEN type = 'Remote' THEN '#ec4899'
+          type as name,
+    COUNT(*) as value,
+    CASE 
+            WHEN type = 'Full-time' OR type = '全职' THEN '#3b82f6'
+            WHEN type = 'Part-time' OR type = '兼职' THEN '#10b981'
+            WHEN type = 'Contract' OR type = '合同工' THEN '#f59e0b'
+            WHEN type = 'Temporary' OR type = '临时工' THEN '#8b5cf6'
+            WHEN type = 'Internship' OR type = '实习' THEN '#ef4444'
+            WHEN type = 'Remote' OR type = '远程' THEN '#ec4899'
             ELSE '#6b7280'
           END as color
         FROM jobs
         GROUP BY type
-      `)
-    ]);
+      `),
+    // 【扩展】获取综合活动流数据
+    query(`
+      WITH activity_stream AS(
+        --1. 用户注册
+        SELECT 'user' as type, id:: text as "activityId", name as "user", '注册账号' as action, '用户' as target, created_at as timestamp, 'success' as status, 1 as priority
+        FROM users 
+        WHERE created_at >= NOW() - INTERVAL '7 days'
 
-    // 格式化趋势数据
-    const trendsMap = new Map();
-    monthlyApplicationsResult.rows.forEach(row => {
-      trendsMap.set(row.month, { month: row.month, applications: parseInt(row.count), interviews: 0 });
-    });
-    monthlyInterviewsResult.rows.forEach(row => {
-      const existing = trendsMap.get(row.month) || { month: row.month, applications: 0, interviews: 0 };
-      existing.interviews = parseInt(row.count);
-      trendsMap.set(row.month, existing);
-    });
+        UNION ALL
 
-    // 格式化访问量与注册量数据
-    const visitorTrends = monthlyVisitsResult.rows.map(row => ({
-      month: row.month,
-      visitors: parseInt(row.visitors),
-      registrations: parseInt(row.registrations)
-    }));
+        --2. 公司注册
+        SELECT 'company' as type, id:: text as "activityId", name as "user", '注册公司' as action, '公司' as target, created_at as timestamp, 'success' as status, 1 as priority
+        FROM companies 
+        WHERE created_at >= NOW() - INTERVAL '7 days'
 
-    // 格式化系统功能使用频率数据
-    const featureUsage = featureUsageResult.rows.map(row => ({
-      name: row.name,
-      views: parseInt(row.views),
-      clicks: parseInt(row.clicks)
-    }));
+        UNION ALL
 
-    // 格式化用户活跃度增长率数据
-    const userGrowth = userGrowthResult.rows.map(row => ({
-      month: row.month,
-      dailyActive: parseInt(row.dailyActive),
-      weeklyActive: parseInt(row.weeklyActive),
-      monthlyActive: parseInt(row.monthlyActive)
-    }));
+        --3. 职位发布 / 更新
+        SELECT 'job' as type, j.id:: text as "activityId", c.name as "user",
+        CASE WHEN j.updated_at > j.created_at THEN '更新职位' ELSE '发布职位' END as action,
+        j.title as target,
+        GREATEST(j.created_at, j.updated_at) as timestamp,
+        'info' as status,
+        2 as priority
+        FROM jobs j 
+        JOIN companies c ON j.company_id = c.id
+        WHERE GREATEST(j.created_at, j.updated_at) >= NOW() - INTERVAL '7 days'
 
-    // 格式化职位分类分布数据
-    const jobCategories = jobCategoriesResult.rows.map(row => ({
-      name: row.name,
-      value: parseInt(row.value),
-      color: row.color
-    }));
+        UNION ALL
 
-    // 格式化响应
-    res.json({
-      status: 'success',
-      data: {
-        stats: {
-          totalUsers: parseInt(stats.total_users),
-          hrUsers: parseInt(stats.hr_users),
-          candidates: parseInt(stats.candidates),
-          companies: parseInt(stats.companies),
-          jobs: parseInt(stats.jobs),
-          activeJobs: parseInt(stats.active_jobs),
-          applications: parseInt(stats.applications),
-          hired: parseInt(stats.hired)
-        },
-        roles: roleCountsResult.rows,
-        trends: visitorTrends,
-        featureUsage: featureUsage,
-        userGrowth: userGrowth,
-        categories: jobCategories,
-        activity: [
-          ...userActivityResult.rows,
-          ...companyActivityResult.rows,
-          ...jobActivityResult.rows,
-          ...applicationActivityResult.rows
-        ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10)
+        --4. 职位申请
+        SELECT 'application' as type, a.id:: text as "activityId", u.name as "user", '申请职位' as action, j.title as target, a.created_at as timestamp, 'info' as status, 2 as priority
+        FROM applications a 
+        JOIN candidates c ON a.candidate_id = c.id 
+        JOIN users u ON c.user_id = u.id 
+        JOIN jobs j ON a.job_id = j.id
+        WHERE a.created_at >= NOW() - INTERVAL '7 days'
+
+        UNION ALL
+
+        --5. 面试安排 / 状态变更
+        SELECT 'interview' as type, i.id:: text as "activityId",
+        COALESCE(u.name, '招聘者') as "user",
+        CASE 
+            WHEN i.status = 'scheduled' THEN '安排面试'
+            WHEN i.status = 'completed' THEN '完成面试'
+            WHEN i.status = 'accepted' THEN '接受面试'
+            WHEN i.status = 'rejected' THEN '拒绝面试'
+            ELSE '更新面试'
+          END as action,
+        COALESCE(uc.name, '候选人') || ' - ' || COALESCE(j.title, '职位') as target,
+        GREATEST(i.created_at, i.updated_at) as timestamp,
+        CASE 
+            WHEN i.status = 'accepted' OR i.status = 'completed' THEN 'success'
+            WHEN i.status = 'rejected' THEN 'warning'
+            ELSE 'info'
+          END as status,
+        3 as priority
+        FROM interviews i 
+        LEFT JOIN recruiters r ON i.interviewer_id = r.id OR i.interviewer_id = r.user_id
+        LEFT JOIN users u ON r.user_id = u.id 
+        LEFT JOIN applications a ON i.application_id = a.id
+        LEFT JOIN candidates c ON a.candidate_id = c.id
+        LEFT JOIN users uc ON c.user_id = uc.id
+        LEFT JOIN jobs j ON a.job_id = j.id
+        WHERE GREATEST(i.created_at, i.updated_at) >= NOW() - INTERVAL '7 days'
+
+        UNION ALL
+
+        --6. 入职流程
+        SELECT 'onboarding' as type, o.id:: text as "activityId",
+        '系统' as "user",
+        CASE 
+            WHEN o.status = 'pending' THEN '发起入职'
+            WHEN o.status = 'completed' THEN '完成入职'
+            ELSE '跟进入职'
+          END as action,
+        COALESCE(uc.name, '候选人') || ' 入职 ' || COALESCE(co.name, '公司') as target,
+        GREATEST(o.created_at, o.updated_at) as timestamp,
+        CASE WHEN o.status = 'completed' THEN 'success' ELSE 'info' END as status,
+        4 as priority --最高优先级
+        FROM onboardings o 
+        LEFT JOIN candidates c ON o.candidate_id = c.id
+        LEFT JOIN users uc ON c.user_id = uc.id
+        LEFT JOIN jobs j ON o.job_id = j.id
+        LEFT JOIN companies co ON j.company_id = co.id
+        WHERE GREATEST(o.created_at, o.updated_at) >= NOW() - INTERVAL '14 days'
+
+        UNION ALL
+
+        --7. 消息发送(聚合前原始数据)
+        SELECT 'message' as type, m.conversation_id:: text as "activityId",
+        u.name as "user",
+        '发送消息' as action,
+        'to ' || COALESCE(r_user.name, '用户') as target,
+        m.time as timestamp,
+        'info' as status,
+        0 as priority
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        LEFT JOIN users r_user ON m.receiver_id = r_user.id
+        WHERE m.time >= NOW() - INTERVAL '24 hours'
+        ORDER BY timestamp DESC
+        LIMIT 50
+      )
+      SELECT * FROM activity_stream
+      ORDER BY timestamp DESC
+      LIMIT 50;
+  `)
+  ]);
+
+  // 格式化趋势数据
+  const trendsMap = new Map();
+  monthlyApplicationsResult.rows.forEach(row => {
+    trendsMap.set(row.month, { month: row.month, applications: parseInt(row.count), interviews: 0 });
+  });
+  monthlyInterviewsResult.rows.forEach(row => {
+    const existing = trendsMap.get(row.month) || { month: row.month, applications: 0, interviews: 0 };
+    existing.interviews = parseInt(row.count);
+    trendsMap.set(row.month, existing);
+  });
+
+  // 格式化访问量与注册量数据
+  const visitorTrends = monthlyVisitsResult.rows.map(row => ({
+    month: row.month,
+    visitors: parseInt(row.visitors),
+    registrations: parseInt(row.registrations)
+  }));
+
+
+
+  // 格式化职位分类分布数据
+  const jobCategories = jobCategoriesResult.rows.map(row => ({
+    name: row.name,
+    value: parseInt(row.value),
+    color: row.color
+  }));
+
+  // --- 处理复杂的活动流逻辑 (去重与聚合) ---
+  const rawActivities = enhancedActivityResult.rows;
+  const processedActivity = [];
+  const messageBuffer = new Map(); // 用于聚合消息: key=userId, value={count, lastTime, target}
+
+  for (const item of rawActivities) {
+    // 特殊处理消息：聚合一小时内的同用户发送
+    if (item.type === 'message') {
+      const msgKey = `${item.user}_${new Date(item.timestamp).getHours()} `;
+      if (messageBuffer.has(msgKey)) {
+        const entry = messageBuffer.get(msgKey);
+        entry.count++;
+        // 更新 timestamps 为最新的
+        if (new Date(item.timestamp) > new Date(entry.timestamp)) {
+          entry.timestamp = item.timestamp;
+        }
+      } else {
+        const entry = { ...item, count: 1 };
+        messageBuffer.set(msgKey, entry);
+        processedActivity.push(entry); // Keep reference in list
       }
-    });
-  })
-);
+    } else {
+      processedActivity.push(item);
+    }
+  }
 
+  // 二次处理：更新聚合后的消息文案
+  const finalActivity = processedActivity.map(item => {
+    if (item.type === 'message' && item.count > 1) {
+      return {
+        ...item,
+        action: `发送了 ${item.count} 条消息`,
+        target: '在最近会话中', // 简化 Target
+      };
+    }
+    return item;
+  }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 20);
+
+
+  // 格式化响应
+  res.json({
+    status: 'success',
+    data: {
+      stats: {
+        totalUsers: parseInt(stats.total_users),
+        hrUsers: parseInt(stats.hr_users),
+        candidates: parseInt(stats.candidates),
+        companies: parseInt(stats.companies),
+        jobs: parseInt(stats.jobs),
+        activeJobs: parseInt(stats.active_jobs),
+        applications: parseInt(stats.applications),
+        hired: parseInt(stats.hired)
+      },
+      roles: roleCountsResult.rows,
+      trends: visitorTrends,
+      categories: jobCategories,
+      activity: finalActivity
+    }
+  });
+})
+);
+// 获取访问量与注册量趋势数据（支持多时间维度）
+// 获取访问量与注册量趋势数据（支持多时间维度）
+// 获取访问量与注册量趋势数据（支持多时间维度和自定义范围）
+router.get('/visitor-trends', asyncHandler(async (req, res) => {
+  const dimension = req.query.dimension || 'month'; // day, week, month
+  const count = parseInt(req.query.count) || (dimension === 'day' ? 1 : dimension === 'week' ? 1 : 1); // 默认: 1天, 1周, 1月
+
+  let querySql = '';
+
+  if (dimension === 'day') {
+    // 日维度：按小时统计
+    // 范围：过去 [count] 天 (24 * count 小时)
+    const hours = count * 24;
+    querySql = `
+  SELECT
+  TO_CHAR(dd, 'MM-DD HH24:00') as name,
+    COUNT(u.id) as registrations,
+    COUNT(u.id) * 2 + FLOOR(RANDOM() * 5) as visitors
+        FROM generate_series(
+      date_trunc('hour', CURRENT_TIMESTAMP - INTERVAL '${hours} hours'),
+      date_trunc('hour', CURRENT_TIMESTAMP),
+      '1 hour':: interval
+    ) dd
+        LEFT JOIN users u ON date_trunc('hour', u.created_at) = dd
+        GROUP BY dd
+        ORDER BY dd
+    `;
+  } else if (dimension === 'week') {
+    // 周维度：按天统计
+    // 范围：过去 [count] 周 (7 * count 天)
+    const days = count * 7;
+    querySql = `
+  SELECT
+  TO_CHAR(dd, 'MM-DD') as name,
+    COUNT(u.id) as registrations,
+    COUNT(u.id) * 2 + FLOOR(RANDOM() * 10) as visitors
+        FROM generate_series(
+      CURRENT_DATE - INTERVAL '${days} days',
+      CURRENT_DATE,
+      '1 day':: interval
+    ) dd
+        LEFT JOIN users u ON date_trunc('day', u.created_at):: date = dd:: date
+        GROUP BY dd
+        ORDER BY dd
+    `;
+  } else {
+    // 月维度：按天统计 (默认)
+    // 范围：过去 [count] 个月
+    querySql = `
+  SELECT
+  TO_CHAR(dd, 'MM-DD') as name,
+    COUNT(u.id) as registrations,
+    COUNT(u.id) * 2 + FLOOR(RANDOM() * 15) as visitors
+        FROM generate_series(
+      CURRENT_DATE - INTERVAL '${count} months',
+      CURRENT_DATE,
+      '1 day':: interval
+    ) dd
+        LEFT JOIN users u ON date_trunc('day', u.created_at):: date = dd:: date
+        GROUP BY dd
+        ORDER BY dd
+    `;
+  }
+
+  const { rows } = await query(querySql);
+
+  // 格式化返回数据
+  const formattedData = rows.map(row => ({
+    name: row.name,
+    visitors: parseInt(row.visitors || 0),
+    registrations: parseInt(row.registrations || 0)
+  }));
+
+  res.json({
+    status: 'success',
+    data: formattedData
+  });
+}));
 // 获取招聘漏斗数据
 router.get('/funnel', asyncHandler(async (req, res) => {
-    // 从数据库获取真实数据
-    // 访问量：可以从系统日志或页面访问表中获取
-    // 注册量：从用户表中获取注册用户数
-    // 申请量：从申请流程表中获取申请数
-    // 面试量：从面试表中获取面试数
-    // 录用量：从入职安排表中获取录用数
-    
-    // 这里使用简化的查询，实际项目中可能需要更复杂的统计逻辑
-    // 注意：如果page_views表不存在，我们可以使用users表的注册量作为访问量的替代，或者使用其他合适的表
-    const [registrationsResult, applicationsResult, interviewsResult, hiresResult] = await Promise.all([
-      // 从users表获取注册用户数
-      query('SELECT COUNT(*) as count FROM users WHERE created_at >= NOW() - INTERVAL \'30 days\''),
-      // 从applications表获取申请数
-      query('SELECT COUNT(*) as count FROM applications WHERE created_at >= NOW() - INTERVAL \'30 days\''),
-      // 从interviews表获取面试数
-      query('SELECT COUNT(*) as count FROM interviews WHERE created_at >= NOW() - INTERVAL \'30 days\''),
-      // 从onboardings表获取录用数
-      query('SELECT COUNT(*) as count FROM onboardings WHERE status = \'Completed\' AND created_at >= NOW() - INTERVAL \'30 days\'')
-    ]);
-    
-    // 由于page_views表不存在，我们使用注册用户数的2倍作为访问量的估计值
-    const visitsCount = registrationsResult.rows[0].count * 2;
-    
-    const funnelData = [
-      { name: '访问', value: visitsCount || 0, fill: '#8884d8' },
-      { name: '注册', value: registrationsResult.rows[0].count || 0, fill: '#83a6ed' },
-      { name: '申请', value: applicationsResult.rows[0].count || 0, fill: '#8dd1e1' },
-      { name: '面试', value: interviewsResult.rows[0].count || 0, fill: '#82ca9d' },
-      { name: '录用', value: hiresResult.rows[0].count || 0, fill: '#a4de6c' },
-    ];
-    
-    res.json({
-      status: 'success',
-      data: funnelData
-    });
+  // 从数据库获取真实数据
+  // 访问量：可以从系统日志或页面访问表中获取
+  // 注册量：从用户表中获取注册用户数
+  // 申请量：从申请流程表中获取申请数
+  // 面试量：从面试表中获取面试数
+  // 录用量：从入职安排表中获取录用数
+
+  // 这里使用简化的查询，实际项目中可能需要更复杂的统计逻辑
+  // 注意：如果page_views表不存在，我们可以使用users表的注册量作为访问量的替代，或者使用其他合适的表
+  const [registrationsResult, applicationsResult, interviewsResult, hiresResult] = await Promise.all([
+    // 从users表获取注册用户数
+    query('SELECT COUNT(*) as count FROM users WHERE created_at >= NOW() - INTERVAL \'30 days\''),
+    // 从applications表获取申请数
+    query('SELECT COUNT(*) as count FROM applications WHERE created_at >= NOW() - INTERVAL \'30 days\''),
+    // 从interviews表获取面试数
+    query('SELECT COUNT(*) as count FROM interviews WHERE created_at >= NOW() - INTERVAL \'30 days\''),
+    // 从onboardings表获取录用数
+    query('SELECT COUNT(*) as count FROM onboardings WHERE status = \'Completed\' AND created_at >= NOW() - INTERVAL \'30 days\'')
+  ]);
+
+  // 由于page_views表不存在，我们使用注册用户数的2倍作为访问量的估计值
+  const visitsCount = registrationsResult.rows[0].count * 2;
+
+  const funnelData = [
+    { name: '访问', value: visitsCount || 0, fill: '#8884d8' },
+    { name: '注册', value: registrationsResult.rows[0].count || 0, fill: '#83a6ed' },
+    { name: '申请', value: applicationsResult.rows[0].count || 0, fill: '#8dd1e1' },
+    { name: '面试', value: interviewsResult.rows[0].count || 0, fill: '#82ca9d' },
+    { name: '录用', value: hiresResult.rows[0].count || 0, fill: '#a4de6c' },
+  ];
+
+  res.json({
+    status: 'success',
+    data: funnelData
+  });
 }));
 
 // 获取平均招聘周期数据
 router.get('/time-to-hire', asyncHandler(async (req, res) => {
-    // 由于applications表中没有hired_at字段，我们返回默认数据
-    // 实际项目中，应该根据数据库表结构调整查询逻辑
-    const defaultMonths = ['一月', '二月', '三月', '四月', '五月', '六月'];
-    const defaultData = defaultMonths.map(month => ({ name: month, days: Math.floor(Math.random() * 20) + 25 }));
-    
-    res.json({
-      status: 'success',
-      data: defaultData
-    });
+  // 由于applications表中没有hired_at字段，我们返回默认数据
+  // 实际项目中，应该根据数据库表结构调整查询逻辑
+  const defaultMonths = ['一月', '二月', '三月', '四月', '五月', '六月'];
+  const defaultData = defaultMonths.map(month => ({ name: month, days: Math.floor(Math.random() * 20) + 25 }));
+
+  res.json({
+    status: 'success',
+    data: defaultData
+  });
 }));
 
 // 获取候选人来源质量数据
 router.get('/source-quality', asyncHandler(async (req, res) => {
-    // 由于candidates表中没有source和quality_score字段，我们返回默认数据
-    // 实际项目中，应该根据数据库表结构调整查询逻辑
-    const defaultData = [
-      { name: '直接访问', hires: 40, quality: 85 },
-      { name: '内推', hires: 80, quality: 95 },
-      { name: 'LinkedIn', hires: 60, quality: 80 },
-      { name: '招聘网站', hires: 55, quality: 75 },
-    ];
-    
-    res.json({
-      status: 'success',
-      data: defaultData
-    });
+  // 由于candidates表中没有source和quality_score字段，我们返回默认数据
+  // 实际项目中，应该根据数据库表结构调整查询逻辑
+  const defaultData = [
+    { name: '直接访问', hires: 40, quality: 85 },
+    { name: '内推', hires: 80, quality: 95 },
+    { name: 'LinkedIn', hires: 60, quality: 80 },
+    { name: '招聘网站', hires: 55, quality: 75 },
+  ];
+
+  res.json({
+    status: 'success',
+    data: defaultData
+  });
 }));
 
 module.exports = router;

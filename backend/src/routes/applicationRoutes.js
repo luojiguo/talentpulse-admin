@@ -3,6 +3,8 @@ const express = require('express');
 const router = express.Router();
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { notifyUser, notifyRole } = require('../services/socketService');
+const { SERVER_EVENTS } = require('../constants/socketEvents');
 
 // 获取特定候选人的所有申请
 router.get('/candidate/:candidateId', asyncHandler(async (req, res) => {
@@ -83,11 +85,19 @@ router.get('/', asyncHandler(async (req, res) => {
         a.job_id AS "jobId", 
         j.company_id AS "companyId", 
         a.status AS "stage", 
+        a.match_score AS "matchScore",
+        (SELECT COUNT(*) FROM interviews WHERE application_id = a.id) AS "interviewCount",
         a.created_at AS "appliedDate",
         a.updated_at AS "updatedDate",
         u.name AS "candidateName",
+        u.email AS "candidateEmail",
+        u.phone AS "candidatePhone",
+        u.avatar AS "candidateAvatar",
         j.title AS "jobTitle",
-        co.name AS "companyName"
+        j.location AS "jobLocation",
+        j.salary AS "jobSalary",
+        co.name AS "companyName",
+        co.logo AS "companyLogo"
       FROM applications a
       LEFT JOIN candidates c ON a.candidate_id = c.id
       LEFT JOIN users u ON c.user_id = u.id
@@ -225,9 +235,34 @@ router.post('/', asyncHandler(async (req, res) => {
       'UPDATE jobs SET applications_count = COALESCE(applications_count, 0) + 1 WHERE id = $1',
       [jobId]
     );
+
+    // 发送实时通知
+    // 1. 通知管理员
+    notifyRole('admin', SERVER_EVENTS.SYSTEM_NOTIFICATION, {
+      type: 'new_application',
+      title: '新职位申请',
+      message: `有新的候选人申请了职位 ID: ${jobId}`,
+      timestamp: new Date(),
+      data: result.rows[0]
+    });
+
+    // 2. 通知招聘者 (需要先找到职位的招聘者)
+    const jobResult = await query('SELECT recruiter_id FROM jobs WHERE id = $1', [jobId]);
+    if (jobResult.rows.length > 0) {
+      const recruiterId = jobResult.rows[0].recruiter_id;
+      const recruiterUser = await query('SELECT user_id FROM recruiters WHERE id = $1', [recruiterId]);
+      if (recruiterUser.rows.length > 0) {
+        notifyUser(recruiterUser.rows[0].user_id, SERVER_EVENTS.SYSTEM_NOTIFICATION, {
+          type: 'new_application',
+          title: '收到新申请',
+          message: '您的职位收到了一个新的申请',
+          timestamp: new Date(),
+          data: result.rows[0]
+        });
+      }
+    }
   } catch (updateError) {
-    console.error('Failed to update job application count:', updateError);
-    // Don't fail the request if just the count update fails, but log it
+    console.error('Failed to send application notifications:', updateError);
   }
 
   res.status(201).json({

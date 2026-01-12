@@ -16,6 +16,7 @@ export const activityAPI = {
     logType?: string;
     startDate?: string;
     endDate?: string;
+    search?: string;
   }): Promise<any> => {
     return request.get('/activities/logs', { params });
   },

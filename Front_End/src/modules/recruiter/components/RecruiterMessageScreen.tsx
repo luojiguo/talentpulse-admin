@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
     MessageSquare, Phone, MoreVertical, Send, Plus as PlusIcon, Image as ImageIcon,
     Camera, Mic, Trash2, MapPin, ArrowLeft, Pin, Calendar as CalendarIcon, XCircle, Copy, CheckCircle,
-    Download, Eye, FileText, X, MessageCircle
+    Download, Eye, FileText, X, MessageCircle, User
 } from 'lucide-react';
 import { Modal, message } from 'antd';
 import { formatDateTime } from '@/utils/dateUtils';
@@ -742,13 +742,51 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
             });
     }, [conversations, searchText]);
 
+    // Scroll selected conversation into view in sidebar
+    useEffect(() => {
+        if (activeConversationId && !isMobile) {
+            // Slight delay to ensure rendering
+            setTimeout(() => {
+                const elm = document.getElementById(`conversation-${activeConversationId}`);
+                if (elm) {
+                    elm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }, 100);
+        }
+    }, [activeConversationId, isMobile]);
+
     return (
         <div className={`max-w-7xl mx-auto ${containerPadding} ${containerHeight}`}>
             <div className={`flex ${isMobile ? 'flex-col' : isTablet ? 'flex-row' : 'flex-row'} gap-4 md:gap-6 h-full ${isMobile ? 'bg-white' : ''}`}>
                 {/* Sidebar List (Left) - 联系人列表 */}
                 <div className={`${listClasses} ${isMobile ? 'h-1/2' : ''} border-r border-gray-200 bg-white`}>
                     <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">候选人消息</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-xl font-bold text-gray-800">候选人消息</h2>
+                                {conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0) > 0 && (
+                                    <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                        {conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0)}
+                                    </span>
+                                )}
+                            </div>
+                            {conversations.some(c => (c.recruiterUnread || c.unreadCount || 0) > 0) && (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await messageAPI.markAllAsRead(currentUser.id, 'recruiter');
+                                            // 触发刷新
+                                            window.location.reload();
+                                        } catch (e) {
+                                            message.error('操作失败');
+                                        }
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-emerald-600 underline"
+                                >
+                                    一键已读
+                                </button>
+                            )}
+                        </div>
                         <div className="relative">
                             <input
                                 type="text"
@@ -768,7 +806,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                             const isActive = conv.id === activeConversationId;
                             // 直接从对话数据中获取候选人信息
                             const candidateName = conv.candidate_name || '候选人';
-                            const candidateAvatar = conv.candidate_avatar || '候';
+                            const candidateAvatar = conv.candidate_avatar || '';
 
                             const handleConvContextMenu = (e: React.MouseEvent, conv: any) => {
                                 e.preventDefault();
@@ -784,18 +822,22 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                             return (
                                 <div
                                     key={conv.id}
+                                    id={`conversation-${conv.id}`}
                                     onClick={() => handleConversationClick(conv)}
                                     onContextMenu={(e) => handleConvContextMenu(e, conv)}
                                     className={`relative group p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-emerald-50 ${isActive ? 'bg-emerald-50 border-l-4 border-l-emerald-600' : 'border-l-4 border-l-transparent'} ${conv.recruiterPinned ? 'bg-gray-50/50' : ''}`}
                                 >
                                     <div className="flex justify-between mb-1.5">
                                         <div className="flex items-center gap-3">
-                                            <UserAvatar
-                                                src={candidateAvatar}
-                                                name={candidateName}
-                                                size={48}
-                                                className="bg-emerald-100 text-emerald-600 border border-emerald-200"
-                                            />
+                                            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                {candidateAvatar ? (
+                                                    <img src={candidateAvatar} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold text-lg">
+                                                        {candidateName ? candidateName.charAt(0).toUpperCase() : "?"}
+                                                    </div>
+                                                )}
+                                            </div>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-1">
                                                     <h4 className={`font-bold text-sm truncate ${isActive ? 'text-emerald-900' : 'text-gray-900'}`}>{candidateName}</h4>
@@ -846,12 +888,15 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             <ArrowLeft className="w-6 h-6" />
                                         </button>
                                     )}
-                                    <UserAvatar
-                                        src={activeConv.candidate_avatar}
-                                        name={activeConv.candidate_name}
-                                        size={40}
-                                        className="bg-emerald-100 text-emerald-600 border border-emerald-200"
-                                    />
+                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                        {activeConv.candidate_avatar ? (
+                                            <img src={activeConv.candidate_avatar} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold">
+                                                {activeConv.candidate_name ? activeConv.candidate_name.charAt(0).toUpperCase() : "?"}
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="min-w-0 flex-1">
                                         <h2 className="text-lg font-bold text-gray-900 truncate">{activeConv.candidate_name || '候选人'}</h2>
                                         <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
@@ -902,165 +947,182 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             </div>
                                         </div>
                                     )}
-                                    {!activeConv.messages || activeConv.messages.length === 0 ? (
+                                    {(!activeConv?.messages || activeConv.messages.length === 0) ? (
                                         <div className="text-center py-10 text-gray-400 text-xs">
                                             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
                                             <p>暂无消息记录，开始聊天吧</p>
                                         </div>
-                                    ) : activeConv.messages.map((msg: any, index: number) => {
-                                        // 获取消息发送者的头像
-                                        const senderAvatar = msg.sender_avatar || '';
-                                        // 根据sender_id判断是否为当前用户发送的消息
-                                        const isCurrentUser = Number(msg.sender_id) === Number(currentUser.id);
-
-                                        // --- 时间分割线逻辑 (微信风格) ---
-                                        const prevMsg = activeConv.messages[index - 1];
-                                        let showTimeDivider = false;
-                                        if (index === 0) {
-                                            showTimeDivider = true;
-                                        } else if (prevMsg) {
-                                            const diff = new Date(msg.time || msg.created_at || msg.createdAt).getTime() - new Date(prevMsg.time || prevMsg.created_at || prevMsg.createdAt).getTime();
-                                            if (diff > 5 * 60 * 1000) { // 超过5分钟显示一次时间
-                                                showTimeDivider = true;
+                                    ) : (() => {
+                                        // Deduplicate messages before rendering to prevent "duplicate key" errors
+                                        const uniqueMessages = activeConv.messages.reduce((acc: any[], current: any) => {
+                                            const x = acc.find((item: any) => item.id === current.id);
+                                            if (!x) {
+                                                return acc.concat([current]);
+                                            } else {
+                                                return acc;
                                             }
-                                        }
+                                        }, []);
 
-                                        return (
-                                            <React.Fragment key={msg.id || index}>
-                                                {/* WeChat-style Time Divider */}
-                                                {showTimeDivider && (
-                                                    <div className="flex justify-center my-4">
-                                                        <span className="px-3 py-1 bg-gray-200/50 text-[10px] text-gray-500 rounded-full">
-                                                            {formatDateTime(msg.time || msg.created_at || msg.createdAt)}
-                                                        </span>
-                                                    </div>
-                                                )}
+                                        return uniqueMessages.map((msg: any, index: number) => {
+                                            // 获取消息发送者的头像
+                                            const senderAvatar = msg.sender_avatar || '';
+                                            // 根据sender_id判断是否为当前用户发送的消息
+                                            const isCurrentUser = Number(msg.sender_id) === Number(currentUser.id);
 
-                                                <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} ${msg.type === 'system' ? 'justify-center !my-4' : ''} items-end gap-2`}>
-                                                    {msg.type === 'system' ? (
-                                                        <span className="text-xs text-gray-500 bg-gray-200/80 px-3 py-1 rounded-full">{msg.text}</span>
-                                                    ) : (msg.type === 'interview_invitation' || (msg.type === 'text' && msg.text?.includes('"type":"interview_invitation"'))) ? (
-                                                        <InterviewCard
-                                                            msg={msg}
-                                                            isCurrentUser={isCurrentUser}
-                                                            isRecruiter={true}
-                                                        />
-                                                    ) : (
-                                                        <>
-                                                            {!isCurrentUser && (
-                                                                <UserAvatar
-                                                                    src={senderAvatar}
-                                                                    name={msg.sender_name}
-                                                                    size={40}
-                                                                    className="bg-emerald-100 text-emerald-600"
-                                                                />
-                                                            )}
-                                                            <div
-                                                                onContextMenu={(e) => handleContextMenu(e, msg.id, isCurrentUser, msg.text, msg.sender_name || '对方', msg.type)}
-                                                                className={`max-w-[75%] p-3.5 rounded-lg text-sm leading-relaxed cursor-pointer transition-all hover:opacity-95 shadow-sm ${isCurrentUser ? 'bg-green-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}`}
-                                                            >
+                                            // --- 时间分割线逻辑 (微信风格) ---
+                                            const prevMsg = uniqueMessages[index - 1]; // Use uniqueMessages for prevMsg
+                                            let showTimeDivider = false;
+                                            if (index === 0) {
+                                                showTimeDivider = true;
+                                            } else if (prevMsg) {
+                                                const diff = new Date(msg.time || msg.created_at || msg.createdAt).getTime() - new Date(prevMsg.time || prevMsg.created_at || prevMsg.createdAt).getTime();
+                                                if (diff > 5 * 60 * 1000) { // 超过5分钟显示一次时间
+                                                    showTimeDivider = true;
+                                                }
+                                            }
 
+                                            return (
+                                                <React.Fragment key={msg.id || index}>
+                                                    {/* WeChat-style Time Divider */}
+                                                    {showTimeDivider && (
+                                                        <div className="flex justify-center my-4">
+                                                            <span className="px-3 py-1 bg-gray-200/50 text-[10px] text-gray-500 rounded-full">
+                                                                {formatDateTime(msg.time || msg.created_at || msg.createdAt)}
+                                                            </span>
+                                                        </div>
+                                                    )}
 
-                                                                {(msg.type === 'exchange_request' || msg.type === 'wechat_card') ? (
-                                                                    <WeChatCard
-                                                                        msg={msg}
-                                                                        isMe={isCurrentUser}
-                                                                        onCopy={copyWechatToClipboard}
-                                                                        onAccept={handleAcceptWechatExchange}
-                                                                        onReject={handleRejectWechatExchange}
-                                                                    />
-                                                                ) : msg.type === 'file' ? (
-                                                                    <div className="space-y-2">
-                                                                        {/* 引用消息部分 - 微信风格引用样式 */}
-                                                                        {msg.quoted_message && (
-                                                                            <div className="mb-2 text-sm">
-                                                                                <span className="font-medium text-gray-600">
-                                                                                    {msg.quoted_message.sender_name}:
-                                                                                </span>
-                                                                                <span className="text-gray-500 ml-1">
-                                                                                    {msg.quoted_message.type === 'image' ? '[图片]' :
-                                                                                        msg.quoted_message.type === 'file' ? `[文件: ${msg.quoted_message.file_name || '附件'}]` :
-                                                                                            msg.quoted_message.text}
-                                                                                </span>
+                                                    <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} ${msg.type === 'system' ? 'justify-center !my-4' : ''} items-end gap-2`}>
+                                                        {msg.type === 'system' ? (
+                                                            <span className="text-xs text-gray-500 bg-gray-200/80 px-3 py-1 rounded-full">{msg.text}</span>
+                                                        ) : (msg.type === 'interview_invitation' || (msg.type === 'text' && msg.text?.includes('"type":"interview_invitation"'))) ? (
+                                                            <InterviewCard
+                                                                msg={msg}
+                                                                isCurrentUser={isCurrentUser}
+                                                                isRecruiter={true}
+                                                            />
+                                                        ) : (
+                                                            <>
+                                                                {!isCurrentUser && (
+                                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                                        {senderAvatar ? (
+                                                                            <img src={senderAvatar} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold">
+                                                                                {msg.sender_name ? msg.sender_name.charAt(0).toUpperCase() : "?"}
                                                                             </div>
-                                                                        )}
-                                                                        <p className="whitespace-pre-wrap">{msg.text}</p>
-                                                                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg flex items-center justify-between">
-                                                                            <div className="flex items-center gap-3">
-                                                                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
-                                                                                    <Eye className="w-5 h-5" />
-                                                                                </div>
-                                                                                <div className="truncate">
-                                                                                    <div className="font-medium text-sm truncate">{msg.file_name}</div>
-                                                                                    <div className="text-xs text-gray-500">{msg.file_size}</div>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="flex gap-2">
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        window.open(msg.file_url, '_blank');
-                                                                                    }}
-                                                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                                    title="查看文件"
-                                                                                >
-                                                                                    <Eye className="w-4 h-4" />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        const link = document.createElement('a');
-                                                                                        link.href = msg.file_url;
-                                                                                        link.download = msg.file_name;
-                                                                                        document.body.appendChild(link);
-                                                                                        link.click();
-                                                                                        document.body.removeChild(link);
-                                                                                    }}
-                                                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                                                                                    title="下载文件"
-                                                                                >
-                                                                                    <Download className="w-4 h-4" />
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className="space-y-2">
-                                                                        {/* 引用消息部分 - 微信风格引用样式 */}
-                                                                        {msg.quoted_message && (
-                                                                            <div className="mb-2 text-sm">
-                                                                                <span className="font-medium text-gray-600">
-                                                                                    {msg.quoted_message.sender_name}:
-                                                                                </span>
-                                                                                <span className="text-gray-500 ml-1">
-                                                                                    {msg.quoted_message.type === 'image' ? '[图片]' :
-                                                                                        msg.quoted_message.type === 'file' ? `[文件: ${msg.quoted_message.file_name || '附件'}]` :
-                                                                                            msg.quoted_message.text}
-                                                                                </span>
-                                                                            </div>
-                                                                        )}
-                                                                        {/* 不显示面试邀请的原始JSON文本 */}
-                                                                        {msg.type !== 'interview_invitation' && (
-                                                                            <p className="whitespace-pre-wrap">{msg.text}</p>
                                                                         )}
                                                                     </div>
                                                                 )}
-                                                            </div>
-                                                            {isCurrentUser && (
-                                                                <UserAvatar
-                                                                    src={activeConv.recruiter_avatar}
-                                                                    name={activeConv.recruiter_name}
-                                                                    size={40}
-                                                                    className="bg-indigo-100 text-indigo-600"
-                                                                />
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </React.Fragment>
-                                        );
-                                    })}
+                                                                <div
+                                                                    onContextMenu={(e) => handleContextMenu(e, msg.id, isCurrentUser, msg.text, msg.sender_name || '对方', msg.type)}
+                                                                    className={`max-w-[75%] p-3.5 rounded-lg text-sm leading-relaxed cursor-pointer transition-all hover:opacity-95 shadow-sm ${isCurrentUser ? 'bg-green-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}`}
+                                                                >
 
+
+                                                                    {(msg.type === 'exchange_request' || msg.type === 'wechat_card') ? (
+                                                                        <WeChatCard
+                                                                            msg={msg}
+                                                                            isMe={isCurrentUser}
+                                                                            onCopy={copyWechatToClipboard}
+                                                                            onAccept={handleAcceptWechatExchange}
+                                                                            onReject={handleRejectWechatExchange}
+                                                                        />
+                                                                    ) : msg.type === 'file' ? (
+                                                                        <div className="space-y-2">
+                                                                            {/* 引用消息部分 - 微信风格引用样式 */}
+                                                                            {msg.quoted_message && (
+                                                                                <div className="mb-2 text-sm">
+                                                                                    <span className="font-medium text-gray-600">
+                                                                                        {msg.quoted_message.sender_name}:
+                                                                                    </span>
+                                                                                    <span className="text-gray-500 ml-1">
+                                                                                        {msg.quoted_message.type === 'image' ? '[图片]' :
+                                                                                            msg.quoted_message.type === 'file' ? `[文件: ${msg.quoted_message.file_name || '附件'}]` :
+                                                                                                msg.quoted_message.text}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                            <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg flex items-center justify-between">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                                                                                        <Eye className="w-5 h-5" />
+                                                                                    </div>
+                                                                                    <div className="truncate">
+                                                                                        <div className="font-medium text-sm truncate">{msg.file_name}</div>
+                                                                                        <div className="text-xs text-gray-500">{msg.file_size}</div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="flex gap-2">
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            window.open(msg.file_url, '_blank');
+                                                                                        }}
+                                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                                                        title="查看文件"
+                                                                                    >
+                                                                                        <Eye className="w-4 h-4" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
+                                                                                            const link = document.createElement('a');
+                                                                                            link.href = msg.file_url;
+                                                                                            link.download = msg.file_name;
+                                                                                            document.body.appendChild(link);
+                                                                                            link.click();
+                                                                                            document.body.removeChild(link);
+                                                                                        }}
+                                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                                                        title="下载文件"
+                                                                                    >
+                                                                                        <Download className="w-4 h-4" />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="space-y-2">
+                                                                            {/* 引用消息部分 - 微信风格引用样式 */}
+                                                                            {msg.quoted_message && (
+                                                                                <div className="mb-2 text-sm">
+                                                                                    <span className="font-medium text-gray-600">
+                                                                                        {msg.quoted_message.sender_name}:
+                                                                                    </span>
+                                                                                    <span className="text-gray-500 ml-1">
+                                                                                        {msg.quoted_message.type === 'image' ? '[图片]' :
+                                                                                            msg.quoted_message.type === 'file' ? `[文件: ${msg.quoted_message.file_name || '附件'}]` :
+                                                                                                msg.quoted_message.text}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                            {/* 不显示面试邀请的原始JSON文本 */}
+                                                                            {msg.type !== 'interview_invitation' && (
+                                                                                <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {isCurrentUser && (
+                                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                                                        {activeConv.recruiter_avatar ? (
+                                                                            <img src={activeConv.recruiter_avatar} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold">
+                                                                                {activeConv.recruiter_name ? activeConv.recruiter_name.charAt(0).toUpperCase() : "?"}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </React.Fragment>
+                                            );
+                                        })
+                                    })()}
                                     <div ref={chatEndRef} />
                                 </div>
                             </div>
@@ -1193,7 +1255,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                 try {
                                                                     const hideLoading = message.loading('正在上传文件...', 0);
                                                                     // 获取接收者ID
-                                                                    const receiverId = activeConv.candidate_user_id || activeConv.candidate_userid || activeConv.candidateId;
+                                                                    const receiverId = activeConv.candidateUserId || activeConv.candidate_user_id || activeConv.candidate_userid || activeConv.candidateId || activeConv.candidate_id;
                                                                     // 调用文件上传API
                                                                     // 调用文件上传API
                                                                     const response = await messageAPI.uploadFile(

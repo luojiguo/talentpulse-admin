@@ -111,22 +111,28 @@ const optionalAuth = asyncHandler(async (req, res, next) => {
     const token = authHeader.substring(7);
 
     try {
-      const userId = parseInt(token);
-      if (!isNaN(userId)) {
-        const userResult = await query(
-          'SELECT id, name, email, phone, avatar FROM users WHERE id = $1',
-          [userId]
-        );
+      // 验证JWT token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.id;
 
-        if (userResult.rows.length > 0) {
+      const userResult = await query(
+        'SELECT id, name, email, phone, avatar, status FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (userResult.rows.length > 0) {
+        const user = userResult.rows[0];
+        // 如果账户被禁用，也不视为已认证
+        if (user.status !== 'inactive') {
           const rolesResult = await query(
             'SELECT role FROM user_roles WHERE user_id = $1',
             [userId]
           );
 
           req.user = {
-            ...userResult.rows[0],
+            ...user,
             roles: rolesResult.rows.map(row => row.role),
+            ...decoded
           };
         }
       }
@@ -143,4 +149,3 @@ module.exports = {
   authorize,
   optionalAuth,
 };
-

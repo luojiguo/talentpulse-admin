@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { StatMetric } from '@/types/types';
 
-const StatCard: React.FC<{ metric: StatMetric }> = ({ metric }) => {
+const StatCard: React.FC<{ metric: StatMetric; className?: string }> = ({ metric, className }) => {
   const isUp = metric.trend === 'up';
   const IconMap: Record<string, React.ReactNode> = {
     'users': <Users className="w-5 h-5 text-blue-600" />,
@@ -33,7 +33,7 @@ const StatCard: React.FC<{ metric: StatMetric }> = ({ metric }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:shadow-md hover:-translate-y-1">
+    <div className={`bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-all hover:shadow-md hover:-translate-y-1 ${className || ''}`}>
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-lg ${ColorMap[metric.icon] || 'bg-gray-100 dark:bg-slate-700'}`}>
           {IconMap[metric.icon]}

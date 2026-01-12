@@ -8,10 +8,10 @@ import { UserRole } from '@/types/types';
 import UserAvatar from '@/components/UserAvatar';
 
 interface RecruiterLayoutProps {
-  onLogout: () => void;
-  onSwitchRole: (role: UserRole) => void;
-  currentUser: any;
-  children: React.ReactNode;
+    onLogout: () => void;
+    onSwitchRole: (role: UserRole) => void;
+    currentUser: any;
+    children: React.ReactNode;
 }
 
 export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSwitchRole, currentUser, children }) => {
@@ -41,22 +41,9 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
         };
     }, [dropdownOpen]);
 
-    // 监听头像更新事件
+    // Debug: Monitor currentUser updates
     useEffect(() => {
-        const handleAvatarUpdate = (event: Event) => {
-            const customEvent = event as CustomEvent<{ avatar: string }>;
-            if (customEvent.detail && customEvent.detail.avatar) {
-                // 更新 currentUser 的头像
-                if (currentUser && typeof currentUser === 'object') {
-                    (currentUser as any).avatar = customEvent.detail.avatar;
-                }
-            }
-        };
-
-        window.addEventListener('userAvatarUpdated', handleAvatarUpdate);
-        return () => {
-            window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
-        };
+        console.log('RecruiterLayout received currentUser:', currentUser);
     }, [currentUser]);
 
     // 导航处理函数
@@ -68,10 +55,10 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
     // 判断导航项是否激活
     const isActive = (path: string) => {
         const currentPath = location.pathname;
-        
+
         // 精确匹配或作为前缀匹配（如 /recruiter/messages 匹配 /recruiter/messages 和 /recruiter/messages/:id）
         // 对于 dashboard，只精确匹配
-        return currentPath === path || 
+        return currentPath === path ||
             (path !== '/recruiter/dashboard' && currentPath.startsWith(path + '/'));
     };
 
@@ -84,11 +71,11 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
                     <div className="flex items-center">
                         <div className="md:hidden">
                             <button
-                            onClick={() => setSidebarOpen(!sidebarOpen)}
-                            className="p-2 bg-white rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
-                        >
-                            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                        </button>
+                                onClick={() => setSidebarOpen(!sidebarOpen)}
+                                className="p-2 bg-white rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+                            >
+                                {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                            </button>
                         </div>
                         <div className="flex items-center">
                             <Briefcase className="w-6 h-6 mr-2 text-emerald-600" />
@@ -111,11 +98,10 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
                                     <button
                                         key={item.name}
                                         onClick={() => navigate(item.path)}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                            isActive(item.path) 
-                                                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isActive(item.path)
+                                                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                                 : 'text-gray-700 hover:bg-gray-50'
-                                        }`}
+                                            }`}
                                     >
                                         {item.name}
                                     </button>
@@ -126,56 +112,55 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
 
                     {/* User Profile */}
                     <div className="relative" ref={dropdownRef}>
-                        <button 
-                            onClick={() => setDropdownOpen(!dropdownOpen)} 
+                        <button
+                            onClick={() => setDropdownOpen(!dropdownOpen)}
                             className="flex items-center space-x-3 text-gray-700 hover:text-emerald-600 transition-colors focus:outline-none py-1"
                         >
                             <div className="text-right hidden sm:block">
                                 <p className="text-sm font-bold leading-tight">{currentUser.name}</p>
                                 <p className="text-xs text-gray-500">招聘者</p>
                             </div>
-                            <UserAvatar 
-                                src={currentUser.avatar} 
-                                name={currentUser.name} 
-                                size={36} 
-                                className="bg-emerald-100 text-emerald-800 border-2 border-emerald-300" 
+                            <UserAvatar
+                                src={currentUser.avatar}
+                                name={currentUser.name}
+                                size={36}
+                                className="bg-emerald-100 text-emerald-800 border-2 border-emerald-300"
                                 alt="头像"
                             />
-                            <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                width="16" 
-                                height="16" 
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                                 className={`transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
                             >
                                 <path d="m6 9 6 6 6-6" />
                             </svg>
                         </button>
                         {/* Dropdown Menu */}
-                        <div className={`absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-1 z-50 ring-1 ring-black ring-opacity-5 transition-all duration-200 origin-top-right ${
-                            dropdownOpen 
-                                ? 'opacity-100 scale-100 translate-y-0' 
+                        <div className={`absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-1 z-50 ring-1 ring-black ring-opacity-5 transition-all duration-200 origin-top-right ${dropdownOpen
+                                ? 'opacity-100 scale-100 translate-y-0'
                                 : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
-                        }`}>
-                            <button 
+                            }`}>
+                            <button
                                 onClick={() => { navigate('/recruiter/profile'); setDropdownOpen(false); }}
                                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                             >
                                 个人中心
                             </button>
-                            <button 
+                            <button
                                 onClick={() => { onSwitchRole?.('candidate'); setDropdownOpen(false); }}
                                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                             >
                                 切换为求职者
                             </button>
                             <div className="border-t border-gray-100 my-1"></div>
-                            <button 
+                            <button
                                 onClick={() => { onLogout(); setDropdownOpen(false); }}
                                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
                             >
@@ -184,7 +169,7 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
                         </div>
                     </div>
                 </div>
-                
+
 
             </header>
 

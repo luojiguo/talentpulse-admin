@@ -9,6 +9,13 @@ export const analyticsAPI = {
     return request.get('/analytics/dashboard');
   },
 
+  // 获取访问量趋势数据 (支持自定义维度和范围)
+  getVisitorTrends: (dimension: 'day' | 'week' | 'month' = 'month', count: number = 1) => {
+    return request.get('/analytics/visitor-trends', {
+      params: { dimension, count }
+    });
+  },
+
   // 获取招聘漏斗数据
   getFunnelData: () => {
     return request.get('/analytics/funnel');

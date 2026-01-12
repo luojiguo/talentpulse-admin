@@ -17,14 +17,22 @@ export const companyAPI = {
   // 获取单个公司
   getCompanyById: (id: string | number) => request.get(`/companies/${id}`) as Promise<any>,
 
+  // 获取公司详情（包含招聘者信息等）
+  getCompanyDetails: (id: string | number) => request.get(`/companies/${id}/details`) as Promise<any>,
+
   // 通过用户ID获取公司
   getCompanyByUserId: (userId: string | number) => {
     return request.get(`/companies/user/${userId}`) as Promise<any>;
   },
 
-  // 验证公司
+  // 验证公司（申请）
   verifyCompany: (companyId: string | number, verificationData: any) => {
     return request.post(`/companies/${companyId}/verify`, verificationData) as Promise<any>;
+  },
+
+  // 审核公司认证（管理员）
+  updateCompanyVerifyStatus: (companyId: string | number, isVerified: boolean, verificationDate?: string) => {
+    return request.put(`/companies/${companyId}/verify-status`, { is_verified: isVerified, verification_date: verificationDate }) as Promise<any>;
   },
 
   // 获取用户关注的所有公司
