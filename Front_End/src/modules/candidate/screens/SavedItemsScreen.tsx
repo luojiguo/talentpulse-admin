@@ -49,14 +49,14 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
         candidateAPI.getCandidateSavedJobs(currentUser.id),
         candidateAPI.getCandidateSavedCompanies(currentUser.id)
       ]);
-      
+
       // 更新职位数据
-      if (jobsResponse?.success) {
+      if ((jobsResponse as any).data?.status === 'success' || (jobsResponse as any).status === 'success') {
         setSavedJobs(jobsResponse.data || []);
       }
-      
+
       // 更新公司数据
-      if (companiesResponse?.success) {
+      if ((companiesResponse as any).data?.status === 'success' || (companiesResponse as any).status === 'success') {
         setSavedCompanies(companiesResponse.data || []);
       }
     } catch (error: any) {
@@ -70,7 +70,7 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
     e.stopPropagation();
     try {
       const response = await candidateAPI.removeSavedJob(currentUser.id, jobId);
-      if (response?.success) {
+      if ((response as any).data?.status === 'success' || (response as any).status === 'success') {
         setSavedJobs(prev => prev.filter(job => job.id !== jobId));
       }
     } catch (error: any) {
@@ -83,7 +83,7 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
     e.stopPropagation();
     try {
       const response = await candidateAPI.removeSavedCompany(currentUser.id, companyId);
-      if (response?.success) {
+      if ((response as any).data?.status === 'success' || (response as any).status === 'success') {
         setSavedCompanies(prev => prev.filter(company => company.id !== companyId));
       }
     } catch (error: any) {
@@ -114,118 +114,128 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">我的收藏</h1>
-        <p className="text-gray-600">管理您收藏的职位和公司</p>
+      <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">我的收藏</h1>
+          <p className="text-slate-500 dark:text-slate-400">管理您收藏的职位和公司</p>
+        </div>
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder={activeTab === 'jobs' ? '搜索职位、公司或地点...' : '搜索公司名称、行业或地址...'}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all dark:text-slate-200 text-sm shadow-sm"
+          />
+        </div>
       </div>
 
       {/* 标签切换 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
-        <div className="flex border-b border-gray-200">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8 overflow-hidden">
+        <div className="flex border-b border-slate-200 dark:border-slate-700">
           <button
             onClick={() => setActiveTab('jobs')}
-            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${activeTab === 'jobs'
-                ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            className={`flex-1 px-6 py-4 text-center font-bold transition-all relative ${activeTab === 'jobs'
+              ? 'text-brand-600 dark:text-brand-400 bg-brand-50/50 dark:bg-brand-900/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/50'
               }`}
           >
-            <Briefcase className="w-5 h-5 inline-block mr-2" />
-            收藏的职位 ({savedJobs.length})
+            <div className="flex items-center justify-center gap-2">
+              <Briefcase className="w-5 h-5" />
+              <span>收藏的职位 ({savedJobs.length})</span>
+            </div>
+            {activeTab === 'jobs' && (
+              <div className="absolute bottom-0 left-0 w-full h-1 bg-brand-500 rounded-t-full"></div>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('companies')}
-            className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${activeTab === 'companies'
-                ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            className={`flex-1 px-6 py-4 text-center font-bold transition-all relative ${activeTab === 'companies'
+              ? 'text-brand-600 dark:text-brand-400 bg-brand-50/50 dark:bg-brand-900/10'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/50'
               }`}
           >
-            <Building className="w-5 h-5 inline-block mr-2" />
-            收藏的公司 ({savedCompanies.length})
+            <div className="flex items-center justify-center gap-2">
+              <Building className="w-5 h-5" />
+              <span>收藏的公司 ({savedCompanies.length})</span>
+            </div>
+            {activeTab === 'companies' && (
+              <div className="absolute bottom-0 left-0 w-full h-1 bg-brand-500 rounded-t-full"></div>
+            )}
           </button>
         </div>
 
-        {/* 搜索框 */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder={activeTab === 'jobs' ? '搜索职位、公司或地点...' : '搜索公司名称、行业或地址...'}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-            />
-          </div>
-        </div>
-
         {/* 内容区域 */}
-        <div className="p-6">
+        <div className="p-6 min-h-[400px]">
           {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-200 border-t-indigo-600"></div>
-              <p className="mt-4 text-gray-500">加载中...</p>
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-10 h-10 border-4 border-brand-100 border-t-brand-500 rounded-full animate-spin"></div>
+              <p className="mt-4 text-slate-500 dark:text-slate-400">加载中...</p>
             </div>
           ) : activeTab === 'jobs' ? (
             filteredJobs.length === 0 ? (
-              <div className="text-center py-12">
-                <Briefcase className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4">
+                  <Briefcase className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-lg font-medium">
                   {searchTerm ? '没有找到匹配的收藏职位' : '您还没有收藏任何职位'}
                 </p>
                 {!searchTerm && (
                   <button
                     onClick={() => navigate('/')}
-                    className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    className="mt-6 px-6 py-2.5 bg-brand-500 text-white rounded-xl hover:bg-brand-600 transition-all font-bold shadow-lg shadow-brand-100 dark:shadow-none active:scale-95"
                   >
                     去浏览职位
                   </button>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
                 {filteredJobs.map((job) => (
                   <div
                     key={job.id}
                     onClick={() => navigate(`/job/${job.id}`)}
-                    className="bg-gray-50 rounded-lg p-6 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200"
+                    className="bg-white dark:bg-slate-900/50 rounded-2xl p-6 hover:shadow-lg hover:shadow-brand-100/50 dark:hover:shadow-none hover:border-brand-200 dark:hover:border-brand-900 transition-all cursor-pointer border border-slate-100 dark:border-slate-700 group"
                   >
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">{job.title || '未知职位'}</h3>
-                          <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                            <Heart className="w-3 h-3 inline-block mr-1" />
+                        <div className="flex flex-wrap items-center gap-3 mb-3">
+                          <h3 className="text-xl font-black text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{job.title || '未知职位'}</h3>
+                          <span className="px-2.5 py-0.5 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-full text-xs font-bold flex items-center gap-1 border border-brand-100 dark:border-brand-800">
+                            <Heart className="w-3 h-3 fill-current" />
                             已收藏
                           </span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-3">
+                        <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-sm text-slate-600 dark:text-slate-400 mb-4">
                           {job.company_name && (
-                            <div className="flex items-center gap-1">
-                              <Building className="w-4 h-4" />
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <Building className="w-4 h-4 text-brand-500" />
                               {job.company_name}
                             </div>
                           )}
                           {job.location && (
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-4 h-4" />
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <MapPin className="w-4 h-4 text-brand-500" />
                               {job.location}
                             </div>
                           )}
                           {job.salary && (
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="w-4 h-4" />
+                            <div className="flex items-center gap-0.5 font-black text-lg" style={{ color: '#007AFF' }}>
+                              <span>¥</span>
                               {job.salary}
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <Calendar className="w-3 h-3" />
+                        <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 font-medium">
+                          <Calendar className="w-3.5 h-3.5" />
                           收藏于 {new Date(job.saved_at).toLocaleDateString('zh-CN')}
                         </div>
                       </div>
                       <button
                         onClick={(e) => handleRemoveJob(job.id, e)}
-                        className="ml-4 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-2.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all active:scale-90"
                         title="取消收藏"
                       >
                         <X className="w-5 h-5" />
@@ -237,61 +247,66 @@ const SavedItemsScreen: React.FC<SavedItemsScreenProps> = ({ currentUser }) => {
             )
           ) : (
             filteredCompanies.length === 0 ? (
-              <div className="text-center py-12">
-                <Building className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4">
+                  <Building className="w-10 h-10 text-slate-300 dark:text-slate-600" />
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 text-lg font-medium">
                   {searchTerm ? '没有找到匹配的收藏公司' : '您还没有收藏任何公司'}
                 </p>
                 {!searchTerm && (
                   <button
                     onClick={() => navigate('/')}
-                    className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    className="mt-6 px-6 py-2.5 bg-brand-500 text-white rounded-xl hover:bg-brand-600 transition-all font-bold shadow-lg shadow-brand-100 dark:shadow-none active:scale-95"
                   >
                     去浏览公司
                   </button>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredCompanies.map((company) => (
                   <div
                     key={company.id}
-                    className="bg-gray-50 rounded-lg p-6 hover:bg-gray-100 transition-colors cursor-pointer border border-gray-200 relative"
+                    className="bg-white dark:bg-slate-900/50 rounded-2xl p-6 hover:shadow-lg hover:shadow-brand-100/50 dark:hover:shadow-none hover:border-brand-200 dark:hover:border-brand-900 transition-all cursor-pointer border border-slate-100 dark:border-slate-700 relative group"
+                    onClick={() => navigate(`/company/${company.id}`)}
                   >
                     <button
                       onClick={(e) => handleRemoveCompany(company.id, e)}
-                      className="absolute top-4 right-4 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors z-10"
+                      className="absolute top-4 right-4 p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all z-10 active:scale-90"
                       title="取消收藏"
                     >
                       <X className="w-5 h-5" />
                     </button>
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-4 mb-5">
                       {company.logo ? (
-                        <img
-                          src={company.logo}
-                          alt={company.name}
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
+                        <div className="w-14 h-14 bg-white dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-700 p-2 shadow-sm">
+                          <img
+                            src={company.logo}
+                            alt={company.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
                       ) : (
-                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                          <Building className="w-6 h-6 text-indigo-600" />
+                        <div className="w-14 h-14 bg-brand-50 dark:bg-brand-900/30 rounded-xl flex items-center justify-center border border-brand-100 dark:border-brand-800">
+                          <Building className="w-7 h-7 text-brand-500" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-semibold text-gray-900 truncate">{company.name || '未知公司'}</h3>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">{company.name || '未知公司'}</h3>
                         {company.industry && (
-                          <p className="text-sm text-gray-500 truncate">{company.industry}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 truncate font-medium">{company.industry}</p>
                         )}
                       </div>
                     </div>
                     {company.address && (
-                      <div className="flex items-center gap-1 text-sm text-gray-600 mb-3">
-                        <MapPin className="w-4 h-4" />
+                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-5">
+                        <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
                         <span className="truncate">{company.address}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 text-xs text-gray-500 pt-3 border-t border-gray-200">
-                      <Calendar className="w-3 h-3" />
+                    <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                      <Calendar className="w-3.5 h-3.5" />
                       收藏于 {new Date(company.saved_at).toLocaleDateString('zh-CN')}
                     </div>
                   </div>

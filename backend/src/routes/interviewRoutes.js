@@ -4,10 +4,12 @@ const router = express.Router();
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
 
-// 获取所有面试
+// 获取所有面试，支持按照 userId 和 role 过滤
 router.get('/', asyncHandler(async (req, res) => {
-    console.log('[DEBUG] GET /interviews - Fetching all interviews');
-    const result = await query(`
+    const { userId, role } = req.query;
+    console.log(`[DEBUG] GET /interviews - Fetching interviews, role: ${role}, userId: ${userId}`);
+
+    let queryText = `
       SELECT 
         i.id,
         i.application_id AS "applicationId",
@@ -41,8 +43,21 @@ router.get('/', asyncHandler(async (req, res) => {
       LEFT JOIN users u ON c.user_id = u.id
       LEFT JOIN jobs j ON a.job_id = j.id
       LEFT JOIN companies co ON j.company_id = co.id
-      ORDER BY i.interview_date DESC, i.interview_time DESC
-    `);
+    `;
+
+    const queryParams = [];
+    if (userId && role === 'candidate') {
+        queryText += ` WHERE u.id = $1`;
+        queryParams.push(userId);
+    } else if (userId && role === 'recruiter') {
+        // 对于招聘者，还需要关联 recruiters 表来通过 user_id 过滤
+        queryText += ` JOIN recruiters r ON i.interviewer_id = r.id WHERE r.user_id = $1`;
+        queryParams.push(userId);
+    }
+
+    queryText += ` ORDER BY i.interview_date DESC, i.interview_time DESC`;
+
+    const result = await query(queryText, queryParams);
 
     console.log('[DEBUG] Interviews query returned', result.rows.length, 'rows');
 
@@ -374,19 +389,36 @@ router.patch('/:id/status', asyncHandler(async (req, res) => {
     // 发送Socket.IO事件通知招聘方
     try {
         const { getIo } = require('../services/socketService');
+        const { ROOM_PREFIXES } = require('../constants/socketEvents');
         const io = getIo();
 
-        // 获取招聘方用户ID（从面试记录中的interviewer_id）
+        // 获取招聘方用户ID（从面试记录中的interviewer_id关联的recruiters表）
         if (updatedInterview.interviewer_id) {
-            // 通知招聘方面试状态已更新
-            io.to(`user_${updatedInterview.interviewer_id}`).emit('interview_status_updated', {
-                interviewId: id,
-                status: status,
-                interview: updatedInterview,
-                message: status === 'accepted' ? '候选人已接受面试邀请' : '候选人已拒绝面试邀请'
-            });
+            // interviewer_id 存储的是 recruiters.id，需要获取对应的 user_id
+            const recruiterResult = await query('SELECT user_id FROM recruiters WHERE id = $1', [updatedInterview.interviewer_id]);
 
-            console.log(`Notified recruiter ${updatedInterview.interviewer_id} about interview ${id} status change to ${status}`);
+            if (recruiterResult.rows.length > 0) {
+                const recruiterUserId = recruiterResult.rows[0].user_id;
+
+                // 通知招聘方面试状态已更新
+                io.to(`${ROOM_PREFIXES.USER}${recruiterUserId}`).emit('interview_status_updated', {
+                    interviewId: id,
+                    status: status,
+                    interview: updatedInterview,
+                    message: status === 'accepted' ? '候选人已接受面试邀请' : '候选人已拒绝面试邀请'
+                });
+
+                console.log(`Notified recruiter user ${recruiterUserId} about interview ${id} status change to ${status}`);
+            } else {
+                // 如果找不到对应的招聘者记录，尝试回退到原始ID（兼容性处理）
+                io.to(`${ROOM_PREFIXES.USER}${updatedInterview.interviewer_id}`).emit('interview_status_updated', {
+                    interviewId: id,
+                    status: status,
+                    interview: updatedInterview,
+                    message: status === 'accepted' ? '候选人已接受面试邀请' : '候选人已拒绝面试邀请'
+                });
+                console.warn(`[WARNING] Recruiter not found for ID ${updatedInterview.interviewer_id}. Sending to fallback room.`);
+            }
         }
     } catch (socketError) {
         console.error('Failed to send Socket.IO notification:', socketError);

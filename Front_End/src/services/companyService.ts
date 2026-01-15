@@ -54,4 +54,15 @@ export const companyAPI = {
   checkFollowStatus: (companyId: string | number, userId: string | number) => {
     return request.get(`/companies/${companyId}/follow/status`, { params: { user_id: userId } }) as Promise<any>;
   },
+
+  // 上传公司Logo
+  uploadCompanyLogo: (companyId: string | number, logoFile: File) => {
+    const formData = new FormData();
+    formData.append('logo', logoFile);
+    return request.post(`/companies/${companyId}/logo`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }) as Promise<any>;
+  },
 };

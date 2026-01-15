@@ -94,7 +94,7 @@ const cleanAIGeneratedContent = (text: string): string => {
     .trim();
 };
 
-const callQianwen = async (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> => {
+export const callQianwen = async (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> => {
   try {
     // Check if API key is set
     if (!QIANWEN_API_KEY || QIANWEN_API_KEY === '') {
@@ -354,7 +354,7 @@ export const generateFullJobInfo = async (
     const prompt = `请以资深HR的口吻，根据职位名称"${title}"生成完整的职位信息，包括：
 1. 工作地点：例如：深圳
 2. 薪资范围：例如：15-25K
-3. 职位描述：3-5条要点
+3. 职位描述：3-5条要点（不要在描述中包含职位名称标题）
 4. 所需技能：3-5个核心技能，以数组形式返回
 5. 优先技能：2-3个优先技能，以数组形式返回
 6. 经验要求：例如：1-3年
@@ -426,9 +426,9 @@ export const generateJobDescription = async (
   skills: string
 ): Promise<string> => {
   try {
-    const prompt = `请以资深HR的口吻，用中文撰写职位JD：\n职位：${title}\n关键技能/要求：${skills}\n结构：\n1) 职位描述（3-5条）\n2) 任职要求（3-5条）\n3) 加分项（1-2条）\n请简洁且有吸引力。`;
+    const prompt = `请以资深HR的口吻，用中文撰写职位JD：\n职位：${title}\n关键技能/要求：${skills}\n\n要求：\n1. 不要重复标题（职位名称）。\n2. 直接输出职位描述内容。\n3. 结构：\n   - 职位描述（3-5条）\n   - 任职要求（3-5条）\n   - 加分项（1-2条）\n请简洁且有吸引力。`;
     const text = await callQianwen([
-      { role: 'system', content: 'You are an expert HR recruiter writing professional Chinese JD. CRITICAL: Always preserve the COMPLETE job title EXACTLY as provided, without any truncation or omission.' },
+      { role: 'system', content: 'You are an expert HR recruiter writing professional Chinese JD. Do not include the job title in the response. Start directly with the description sections.' },
       { role: 'user', content: prompt }
     ]);
     // Fallback if AI service returns an error message or exception
@@ -493,12 +493,12 @@ export const generateRecruitmentSuggestions = async (
   pipelineStats: string
 ): Promise<string> => {
   try {
-    const prompt = `你是战略招聘顾问。基于公司概况与当前招聘活动，给出2-3个应重点招聘/新开的职位方向，并提供1条提高转化的具体建议。\n公司：${company}\n在招：${activeJobs.join(', ')}\n管道：${pipelineStats}\n请用中文要点列举。`;
+    const prompt = `你是战略招聘顾问。基于公司概况与当前招聘活动，给出2-3个应重点招聘/新开的职位方向，并提供1条提高转化的具体建议。\n公司：${company}\n在招：${activeJobs.join(', ')}\n管道：${pipelineStats}\n请用中文要点列举。不要使用任何 Markdown 格式符号（如 **、##、*、# 等），只输出纯文本内容。`;
     const text = await callQianwen([
       { role: 'system', content: 'You are a strategic recruitment consultant.' },
       { role: 'user', content: prompt }
     ]);
-    return text || "AI 暂时无法提供建议。";
+    return cleanAIGeneratedContent(text) || "AI 暂时无法提供建议。";
   } catch (error) {
     console.error('Recruitment Suggestions Error', error);
     return "无法连接到 AI 服务。";
@@ -509,36 +509,75 @@ export const generateAnalyticsInsight = async (
   funnelData: any[],
   timeToHire: any[],
   sourceQuality: any[],
-  language: Language
+  language: Language,
+  additionalData?: {
+    stats?: any;
+    competitionData?: any[];
+    topCompaniesData?: any[];
+    categories?: any[];
+  }
 ): Promise<string> => {
   try {
-    const context = JSON.stringify({
+    // 构建更完整的上下文数据
+    const context: any = {
       funnel: funnelData,
       time_to_hire: timeToHire,
       source_quality: sourceQuality
-    });
+    };
+
+    // 添加额外数据
+    if (additionalData) {
+      if (additionalData.stats) {
+        context.overview = {
+          total_users: additionalData.stats.totalUsers,
+          active_jobs: additionalData.stats.activeJobs,
+          applications: additionalData.stats.applications,
+          hired: additionalData.stats.hired
+        };
+      }
+      if (additionalData.competitionData && additionalData.competitionData.length > 0) {
+        context.job_competition = additionalData.competitionData;
+      }
+      if (additionalData.topCompaniesData && additionalData.topCompaniesData.length > 0) {
+        context.top_companies = additionalData.topCompaniesData;
+      }
+      if (additionalData.categories && additionalData.categories.length > 0) {
+        context.job_categories = additionalData.categories;
+      }
+    }
 
     const langInstruction = language === 'zh'
-      ? '用中文输出。以专业要点列举，包含结论与建议。'
-      : 'Respond in English. Use professional bullet points with conclusions and actions.';
+      ? '用中文输出,不要使用任何Markdown格式符号(如**、##、`等),只输出纯文本。使用简洁的要点列举,每个要点用"•"开头。'
+      : 'Respond in English. Do not use any Markdown formatting (**, ##, `, etc), output plain text only. Use concise bullet points starting with "•".';
 
-    const prompt = `你是资深招聘数据分析顾问。请分析以下JSON：
-1) 漏斗关键观察（流失阶段与转化率）
-2) 招聘周期趋势与瓶颈
-3) 来源质量对比与ROI提示
-4) 2-3条行动建议
+    const prompt = `你是资深招聘数据分析顾问。请基于当前数据分析页面的数据,提供专业洞察:
 
-数据：${context}
+数据概览:${context.overview ? `
+• 总用户数: ${context.overview.total_users}
+• 在招职位: ${context.overview.active_jobs}
+• 收到简历: ${context.overview.applications}
+• 成功录用: ${context.overview.hired}` : ''}
 
-${langInstruction} 语气：高管风格、简洁...`;
+招聘漏斗数据: ${JSON.stringify(context.funnel)}
+${context.job_competition ? `职位竞争度: ${JSON.stringify(context.job_competition)}` : ''}
+${context.top_companies ? `Top招聘公司: ${JSON.stringify(context.top_companies)}` : ''}
+${context.source_quality ? `渠道质量: ${JSON.stringify(context.source_quality)}` : ''}
+
+请提供:
+1. 当前招聘数据的关键发现(2-3条)
+2. 存在的问题或风险点(1-2条)
+3. 具体可执行的优化建议(2-3条)
+
+${langInstruction} 语气要专业、简洁、直接,适合高管阅读。`;
+
     const text = await callQianwen([
-      { role: 'system', content: 'You are a senior talent analytics consultant.' },
+      { role: 'system', content: 'You are a senior talent analytics consultant. Provide insights in plain text without any markdown formatting.' },
       { role: 'user', content: prompt }
     ]);
     return text || (language === 'zh' ? '暂时无法生成分析内容。' : 'Unable to generate analytics insight.');
   } catch (error) {
     console.error('Analytics Insight Error:', error);
-    return language === 'zh' ? 'AI 服务暂不可用，请稍后再试。' : 'AI service unavailable.';
+    return language === 'zh' ? 'AI 服务暂不可用,请稍后再试。' : 'AI service unavailable.';
   }
 };
 
@@ -547,29 +586,51 @@ export const generateCompanyDescription = async (
   companyName: string,
   industry: string,
   companyType: string,
-  size: string
+  size: string,
+  keywords: string = '',
+  style: string = '专业'
 ): Promise<string> => {
   try {
-    const prompt = `你是专业的企业文案撰写师，请根据以下信息生成一段专业、吸引人的公司简介，长度控制在200-300字：
+    const stylePrompts: Record<string, string> = {
+      '专业': '语言专业、严谨、沉稳，强调商业价值和行业地位。',
+      '科技': '富有科技感、前瞻性，强调技术创新、研发实力和数字化转型。',
+      '活力': '充满激情、活力和亲和力，强调团队氛围、成长空间和创新文化。',
+      '简洁': '干练简练，直击重点，适合追求效率的求职者。',
+      '创意': '独特新颖，富有感染力，展现公司的独特性和文化底蕴。'
+    };
+
+    const selectedStylePrompt = stylePrompts[style] || stylePrompts['专业'];
+
+    const prompt = `你是专业的企业文案撰写师，请根据以下信息生成一段高质量的公司简介（约200-300字）：
+
+【基础信息】
 公司名称：${companyName}
 所属行业：${industry}
 公司类型：${companyType}
 公司规模：${size}
 
-要求：
-1. 突出公司核心业务和优势
-2. 体现行业定位和发展前景
-3. 语言专业、简洁、有吸引力
-4. 适合招聘平台展示，能吸引求职者
-5. 避免夸张和虚假信息
-6. 使用中文输出
-7. 公司名称必须使用书名号《》包裹，例如：《${companyName}》`;
+【附加上下文】
+核心关键词：${keywords || '未提供'}
+文案风格要求：${style}（${selectedStylePrompt}）
+
+【写作要求】
+1. 核心业务：清晰定义公司的主营业务与市场核心竞争力。
+2. 行业视野：体现公司在 ${industry} 行业中的定位、贡献或发展动能。
+3. 吸引力：语言优美且真实，能激发起中高级人才加盟的兴趣。
+4. 规范性：使用简体中文。公司名称首次出现时必须使用书名号《》包裹，例如：《${companyName}》。
+5. 结果纯净：只返回生成的简介文本，不要包含任何如“好的，这是为您生成的...”或“总结：”之类的提示语。
+
+请开始撰写：`;
 
     const text = await callQianwen([
-      { role: 'system', content: '你是专业的企业文案撰写师，擅长撰写简洁专业的公司简介。' },
+      { role: 'system', content: '你是专业的企业文案撰写师，擅长根据不同风格和关键词撰写高度定制化的公司简介。' },
       { role: 'user', content: prompt }
     ]);
-    return text || '暂时无法生成公司简介，请稍后重试。';
+
+    // 清理可能存在的 AI 提示性文字前缀
+    let cleanedText = text.replace(/^(好的|当然|为您生成|以下是|简介如下)[:：\n\s]*/, '').trim();
+
+    return cleanedText || '暂时无法生成公司简介，请稍后重试。';
   } catch (error) {
     console.error('Generate Company Description Error:', error);
     return 'AI服务暂不可用，请稍后重试。';

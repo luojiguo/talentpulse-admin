@@ -123,13 +123,13 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'scheduled': return 'bg-blue-100 text-blue-700';
-      case 'accepted': return 'bg-sky-100 text-sky-700';
-      case 'completed': return 'bg-green-100 text-green-700';
-      case 'cancelled': return 'bg-red-100 text-red-700';
-      case 'rejected': return 'bg-rose-100 text-rose-700';
-      case 'pending': return 'bg-amber-100 text-amber-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 'scheduled': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300';
+      case 'accepted': return 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300';
+      case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
+      case 'cancelled': return 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300';
+      case 'rejected': return 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300';
+      case 'pending': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300';
+      default: return 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300';
     }
   };
 
@@ -147,10 +147,10 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
 
   const getResultColor = (result?: string) => {
     switch (result) {
-      case '通过': return 'bg-green-100 text-green-700';
-      case '未通过': return 'bg-red-100 text-red-700';
-      case '待定': return 'bg-yellow-100 text-yellow-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case '通过': return 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
+      case '未通过': return 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300';
+      case '待定': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300';
+      default: return 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300';
     }
   };
 
@@ -166,14 +166,14 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
               placeholder="搜索候选人、职位、面试官..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="bg-transparent focus:outline-none text-sm w-full md:w-64"
+              className="bg-transparent focus:outline-none text-sm w-full md:w-64 text-slate-900 dark:text-white"
             />
           </div>
           <div className="flex gap-2">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">全部状态</option>
               <option value="scheduled">已安排</option>
@@ -204,7 +204,7 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                       <button
                         key={key}
                         onClick={() => setVisibleColumns(prev => ({ ...prev, [key]: !isVisible }))}
-                        className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group"
+                        className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group text-slate-900 dark:text-white"
                       >
                         <span className="capitalize">{
                           key === 'candidate' ? '候选人' :
@@ -293,7 +293,7 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                             {/* Top Layer: Image */}
                             {interview.candidateAvatar && (
                               <img
-                                src={interview.candidateAvatar.startsWith('http') ? interview.candidateAvatar : `http://localhost:3001${interview.candidateAvatar}`}
+                                src={interview.candidateAvatar.startsWith('http') ? interview.candidateAvatar : `http://localhost:8001${interview.candidateAvatar}`}
                                 alt={interview.candidateName}
                                 className="absolute inset-0 h-full w-full rounded-full object-cover"
                                 onError={(e) => {
@@ -306,7 +306,7 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                         </div>
                       </td>
                     )}
-                    {visibleColumns.job && <td className="px-6 py-4 text-xs">{interview.jobTitle || '未知'}</td>}
+                    {visibleColumns.job && <td className="px-6 py-4 text-xs text-slate-900 dark:text-white">{interview.jobTitle || '未知'}</td>}
                     {visibleColumns.company && (
                       <td className="px-6 py-4 text-xs">
                         <div className="flex items-center gap-3">
@@ -319,7 +319,7 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                             {/* Top Layer: Image */}
                             {interview.companyLogo && (
                               <img
-                                src={interview.companyLogo.startsWith('http') ? interview.companyLogo : `http://localhost:3001${interview.companyLogo}`}
+                                src={interview.companyLogo.startsWith('http') ? interview.companyLogo : `http://localhost:8001${interview.companyLogo}`}
                                 alt={interview.companyName}
                                 className="absolute inset-0 h-full w-full rounded object-cover"
                                 onError={(e) => {
@@ -328,15 +328,15 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                               />
                             )}
                           </div>
-                          <span>{interview.companyName || '未知'}</span>
+                          <span className="text-slate-900 dark:text-white">{interview.companyName || '未知'}</span>
                         </div>
                       </td>
                     )}
-                    {visibleColumns.email && <td className="px-6 py-4 text-xs text-slate-500">{interview.candidateEmail || '-'}</td>}
-                    {visibleColumns.phone && <td className="px-6 py-4 text-xs text-slate-500">{interview.candidatePhone || '-'}</td>}
+                    {visibleColumns.email && <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">{interview.candidateEmail || '-'}</td>}
+                    {visibleColumns.phone && <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">{interview.candidatePhone || '-'}</td>}
                     {visibleColumns.date && (
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-xs">
+                        <div className="flex items-center gap-1 text-xs text-slate-900 dark:text-white">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
                           {new Date(interview.interviewDate).toLocaleDateString('zh-CN')}
                         </div>
@@ -344,7 +344,7 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                     )}
                     {visibleColumns.time && (
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-xs">
+                        <div className="flex items-center gap-1 text-xs text-slate-900 dark:text-white">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
                           {interview.interviewTime}
                         </div>
@@ -352,23 +352,23 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                     )}
                     {visibleColumns.endTime && (
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                           <Clock className="w-3.5 h-3.5 text-slate-300" />
                           {interview.interviewTimeEnd || '-'}
                         </div>
                       </td>
                     )}
-                    {visibleColumns.type && <td className="px-6 py-4 text-xs">{interview.interviewType}</td>}
-                    {visibleColumns.round && <td className="px-6 py-4 text-xs">第 {interview.interviewRound} 轮</td>}
+                    {visibleColumns.type && <td className="px-6 py-4 text-xs text-slate-900 dark:text-white">{interview.interviewType}</td>}
+                    {visibleColumns.round && <td className="px-6 py-4 text-xs text-slate-900 dark:text-white">第 {interview.interviewRound} 轮</td>}
                     {visibleColumns.interviewer && (
                       <td className="px-6 py-4 text-xs">
-                        <div className="flex flex-col">
+                        <div className="flex flex-col text-slate-900 dark:text-white">
                           <span>{interview.interviewerName || '-'}</span>
-                          <span className="text-slate-400 scale-90 origin-left">{interview.interviewerPosition}</span>
+                          <span className="text-slate-400 dark:text-slate-500 scale-90 origin-left">{interview.interviewerPosition}</span>
                         </div>
                       </td>
                     )}
-                    {visibleColumns.location && <td className="px-6 py-4 text-xs max-w-[120px] truncate" title={interview.location}>{interview.location || '-'}</td>}
+                    {visibleColumns.location && <td className="px-6 py-4 text-xs text-slate-900 dark:text-white max-w-[120px] truncate" title={interview.location}>{interview.location || '-'}</td>}
                     {visibleColumns.status && (
                       <td className="px-6 py-4">
                         <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full whitespace-nowrap ${getStatusColor(interview.status)}`}>
@@ -387,8 +387,8 @@ const InterviewsView: React.FC<{ lang: Language }> = ({ lang }) => {
                         )}
                       </td>
                     )}
-                    {visibleColumns.notes && <td className="px-6 py-4 text-xs max-w-[150px] truncate" title={interview.notes}>{interview.notes || '-'}</td>}
-                    {visibleColumns.feedback && <td className="px-6 py-4 text-xs max-w-[150px] truncate" title={interview.interviewFeedback}>{interview.interviewFeedback || '-'}</td>}
+                    {visibleColumns.notes && <td className="px-6 py-4 text-xs text-slate-900 dark:text-white max-w-[150px] truncate" title={interview.notes}>{interview.notes || '-'}</td>}
+                    {visibleColumns.feedback && <td className="px-6 py-4 text-xs text-slate-900 dark:text-white max-w-[150px] truncate" title={interview.interviewFeedback}>{interview.interviewFeedback || '-'}</td>}
                   </tr>
                 ))
               )}

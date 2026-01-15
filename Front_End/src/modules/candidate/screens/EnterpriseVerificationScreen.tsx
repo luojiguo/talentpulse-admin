@@ -1,16 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Shield, Building2, Camera, Save, PenTool } from 'lucide-react';
+import { INDUSTRY_OPTIONS, COMPANY_SIZE_OPTIONS } from '../../../constants/constants';
 import { message as antdMessage } from 'antd';
 import InputField from '../components/InputField';
 import MessageAlert from '../components/MessageAlert';
-import { getAuthToken } from '../../../utils/auth';
+
+// Helper to get auth token from localStorage
+const getAuthToken = () => localStorage.getItem('token');
 
 // Helper to process image URLs
 const processImageUrl = (url?: string) => {
     if (!url || url === '🏢') return null;
     if (url.startsWith('data:image')) return url;
     if (url.startsWith('http')) return url;
-    return `http://localhost:3001${url.startsWith('/') ? '' : '/'}${url}`;
+    return `http://localhost:8001${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
 // Enterprise Verification Component for Candidates
@@ -385,7 +388,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                 <div className="ml-auto">
                                     <button
                                         onClick={() => setIsEditing(true)}
-                                        className="px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition shadow-sm flex items-center"
+                                        className="px-4 py-2 bg-brand-600 text-white text-sm font-bold rounded-lg hover:bg-brand-700 transition shadow-sm flex items-center"
                                     >
                                         <PenTool className="w-4 h-4 mr-2" /> 编辑信息
                                     </button>
@@ -401,7 +404,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                             <div className="space-y-8">
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
-                                        <Building2 className="w-5 h-5 mr-2 text-indigo-500" /> 公司信息
+                                        <Building2 className="w-5 h-5 mr-2 text-brand-500" /> 公司信息
                                     </h3>
 
                                     <div className="flex items-center gap-4 mb-6">
@@ -415,7 +418,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                             </div>
                                             <button
                                                 onClick={() => logoInputRef.current?.click()}
-                                                className="absolute bottom-0 right-0 bg-indigo-600 text-white p-1.5 rounded-full shadow-md hover:bg-indigo-700 transition-colors border-2 border-white"
+                                                className="absolute bottom-0 right-0 bg-brand-600 text-white p-1.5 rounded-full shadow-md hover:bg-brand-700 transition-colors border-2 border-white"
                                             >
                                                 <Camera className="w-4 h-4" />
                                             </button>
@@ -446,19 +449,9 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                                 onChange={(e) => setCompanyInfo({ ...companyInfo, industry: e.target.value })}
                                             >
                                                 <option value="">请选择行业</option>
-                                                <option value="互联网/IT/电子/通信">互联网/IT/电子/通信</option>
-                                                <option value="金融/银行/保险">金融/银行/保险</option>
-                                                <option value="房地产/建筑">房地产/建筑</option>
-                                                <option value="教育/培训/院校">教育/培训/院校</option>
-                                                <option value="消费品/零售/批发">消费品/零售/批发</option>
-                                                <option value="广告/传媒/文化">广告/传媒/文化</option>
-                                                <option value="制药/医疗/生物">制药/医疗/生物</option>
-                                                <option value="能源/矿产/环保">能源/矿产/环保</option>
-                                                <option value="制造/加工/自动化">制造/加工/自动化</option>
-                                                <option value="交通/物流/贸易">交通/物流/贸易</option>
-                                                <option value="政府/非盈利机构">政府/非盈利机构</option>
-                                                <option value="服务业">服务业</option>
-                                                <option value="其他">其他</option>
+                                                {INDUSTRY_OPTIONS.map(option => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
                                             </select>
                                         </div>
                                         <div className="space-y-1">
@@ -469,12 +462,9 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                                 onChange={(e) => setCompanyInfo({ ...companyInfo, size: e.target.value })}
                                             >
                                                 <option value="">请选择规模</option>
-                                                <option value="0-20">0-20人</option>
-                                                <option value="20-99">20-99人</option>
-                                                <option value="100-499">100-499人</option>
-                                                <option value="500-999">500-999人</option>
-                                                <option value="1000-9999">1000-9999人</option>
-                                                <option value="10000+">10000人以上</option>
+                                                {COMPANY_SIZE_OPTIONS.map(option => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
                                             </select>
                                         </div>
                                     </div>
@@ -577,7 +567,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                     </button>
                                     <button
                                         onClick={handleSubmitVerification}
-                                        className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 flex items-center"
+                                        className="px-6 py-2.5 bg-brand-600 text-white rounded-lg font-bold hover:bg-brand-700 transition shadow-lg shadow-brand-200 flex items-center"
                                     >
                                         <Save className="w-4 h-4 mr-2" /> 保存更新
                                     </button>
@@ -588,7 +578,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                             <div className="space-y-8">
                                 <div>
                                     <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
-                                        <Building2 className="w-5 h-5 mr-2 text-indigo-500" /> 公司信息
+                                        <Building2 className="w-5 h-5 mr-2 text-brand-500" /> 公司信息
                                     </h3>
 
                                     <div className="flex items-center gap-4 mb-6">
@@ -706,7 +696,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                     {/* 公司信息 */}
                     <div>
                         <h3 className="text-lg font-bold text-gray-800 flex items-center mb-6">
-                            <Building2 className="w-5 h-5 mr-2 text-indigo-500" /> 公司信息
+                            <Building2 className="w-5 h-5 mr-2 text-brand-500" /> 公司信息
                         </h3>
 
                         <div className="flex items-center gap-4 mb-6">
@@ -720,7 +710,7 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                 </div>
                                 <button
                                     onClick={() => logoInputRef.current?.click()}
-                                    className="absolute bottom-0 right-0 bg-indigo-600 text-white p-1.5 rounded-full shadow-md hover:bg-indigo-700 transition-colors border-2 border-white"
+                                    className="absolute bottom-0 right-0 bg-brand-600 text-white p-1.5 rounded-full shadow-md hover:bg-brand-700 transition-colors border-2 border-white"
                                 >
                                     <Camera className="w-4 h-4" />
                                 </button>
@@ -751,19 +741,9 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                     onChange={(e) => setCompanyInfo({ ...companyInfo, industry: e.target.value })}
                                 >
                                     <option value="">请选择行业</option>
-                                    <option value="互联网/IT/电子/通信">互联网/IT/电子/通信</option>
-                                    <option value="金融/银行/保险">金融/银行/保险</option>
-                                    <option value="房地产/建筑">房地产/建筑</option>
-                                    <option value="教育/培训/院校">教育/培训/院校</option>
-                                    <option value="消费品/零售/批发">消费品/零售/批发</option>
-                                    <option value="广告/传媒/文化">广告/传媒/文化</option>
-                                    <option value="制药/医疗/生物">制药/医疗/生物</option>
-                                    <option value="能源/矿产/环保">能源/矿产/环保</option>
-                                    <option value="制造/加工/自动化">制造/加工/自动化</option>
-                                    <option value="交通/物流/贸易">交通/物流/贸易</option>
-                                    <option value="政府/非盈利机构">政府/非盈利机构</option>
-                                    <option value="服务业">服务业</option>
-                                    <option value="其他">其他</option>
+                                    {INDUSTRY_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="space-y-1">
@@ -774,12 +754,9 @@ const EnterpriseVerificationScreen = ({ currentUser, profile, onSwitchRole }: { 
                                     onChange={(e) => setCompanyInfo({ ...companyInfo, size: e.target.value })}
                                 >
                                     <option value="">请选择规模</option>
-                                    <option value="0-20">0-20人</option>
-                                    <option value="20-99">20-99人</option>
-                                    <option value="100-499">100-499人</option>
-                                    <option value="500-999">500-999人</option>
-                                    <option value="1000-9999">1000-9999人</option>
-                                    <option value="10000+">10000人以上</option>
+                                    {COMPANY_SIZE_OPTIONS.map(option => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>

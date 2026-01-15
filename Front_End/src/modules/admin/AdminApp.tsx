@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
 import { TRANSLATIONS } from '@/constants/constants';
 import { generateDashboardInsight } from '@/services/aiService';
+import { generatePageInsight, PageType } from '@/services/pageInsightService';
 import { userAPI, jobAPI, companyAPI, analyticsAPI, applicationAPI, activityAPI } from '@/services/apiService';
 import { InsightStatus, StatMetric, Language, UserRole, ApplicationTrendData } from '@/types/types';
 import { useApi } from '@/hooks/useApi';
@@ -24,7 +25,8 @@ import OnboardingsView from './views/OnboardingsView';
 import SystemLogsView from './views/SystemLogsView';
 import AnalyticsView from './views/AnalyticsView';
 import SettingsView from './views/SettingsView';
-import CertificationReviewScreen from './views/CertificationReviewScreen';
+import CertificationReviewsView from './views/CertificationReviewsView';
+import NotificationsView from './views/NotificationsView';
 
 interface AdminAppProps {
   currentUser: any;
@@ -34,11 +36,32 @@ interface AdminAppProps {
 export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => {
   const userRole = currentUser.role;
   const location = useLocation();
-  const [lang, setLang] = useState<Language>('zh');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // Persistent language and theme settings
+  const [lang, setLang] = useState<Language>(() => {
+    return (localStorage.getItem('admin_lang') as Language) || 'zh';
+  });
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('admin_theme') as 'light' | 'dark') || 'light';
+  });
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const t = TRANSLATIONS[lang];
+
+  // Apply theme and persist preferences
+  useEffect(() => {
+    localStorage.setItem('admin_lang', lang);
+  }, [lang]);
+
+  useEffect(() => {
+    localStorage.setItem('admin_theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
   // AI Insight State
   const [insightStatus, setInsightStatus] = useState<InsightStatus>(InsightStatus.IDLE);
@@ -66,6 +89,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
     if (path === '/admin/logs' || path.startsWith('/admin/logs/')) return 'logs';
     if (path === '/admin/analytics' || path.startsWith('/admin/analytics/')) return 'analytics';
     if (path === '/admin/certifications' || path.startsWith('/admin/certifications/')) return 'certifications';
+    if (path === '/admin/notifications' || path.startsWith('/admin/notifications/')) return 'notifications';
     if (path === '/admin/settings' || path.startsWith('/admin/settings/')) return 'settings';
     return 'dashboard';
   };
@@ -123,14 +147,85 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
     setLoading(dashboardLoading && !dashboardData);
   }, [dashboardData, dashboardLoading, t]);
 
-  // Handle AI Insight Generation
+  // Handle AI Insight Generation - 根据当前页面调用对应的AI分析
   const handleGenerateInsight = async () => {
     try {
       setInsightStatus(InsightStatus.LOADING);
-      const insight = await generateDashboardInsight(stats, trends, activity, lang);
+      let insight = '';
+
+      // 根据当前视图调用对应的AI分析
+      switch (currentView) {
+        case 'dashboard':
+          // Dashboard使用原有的分析函数
+          insight = await generateDashboardInsight(stats, trends, activity, lang);
+          break;
+
+        case 'notifications':
+          // 通知页面分析
+          insight = await generatePageInsight('notifications', {
+            notifications: [], // TODO: 从NotificationsView获取数据
+            unreadCount: 0,
+            totalCount: 0
+          }, lang);
+          break;
+
+        case 'users':
+          // 用户管理分析
+          insight = await generatePageInsight('users', {
+            users: [], // TODO: 从SystemUsersView获取数据
+            totalUsers: stats.find(s => s.id === '1')?.value || 0,
+            roleDistribution: {},
+            recentGrowth: 0
+          }, lang);
+          break;
+
+        case 'jobs':
+          // 职位管理分析
+          insight = await generatePageInsight('jobs', {
+            jobs: [], // TODO: 从JobsView获取数据
+            activeJobs: stats.find(s => s.id === '6')?.value || 0,
+            totalApplications: stats.find(s => s.id === '7')?.value || 0,
+            avgApplicationsPerJob: 0
+          }, lang);
+          break;
+
+        case 'applications':
+          insight = await generatePageInsight('applications', {}, lang);
+          break;
+
+        case 'candidates':
+          insight = await generatePageInsight('candidates', {}, lang);
+          break;
+
+        case 'interviews':
+          insight = await generatePageInsight('interviews', {}, lang);
+          break;
+
+        case 'onboardings':
+          insight = await generatePageInsight('onboardings', {}, lang);
+          break;
+
+        case 'companies':
+          insight = await generatePageInsight('companies', {}, lang);
+          break;
+
+        case 'certifications':
+          insight = await generatePageInsight('certifications', {}, lang);
+          break;
+
+        case 'analytics':
+          // Analytics页面有自己的AI分析按钮,这里不处理
+          insight = lang === 'zh' ? '请在数据分析页面使用AI分析功能。' : 'Please use AI analysis on the Analytics page.';
+          break;
+
+        default:
+          insight = lang === 'zh' ? '该页面暂不支持AI分析。' : 'AI analysis not available for this page.';
+      }
+
       setInsightText(insight);
       setInsightStatus(InsightStatus.SUCCESS);
     } catch (error) {
+      console.error('AI Insight Error:', error);
       setInsightStatus(InsightStatus.ERROR);
     }
   };
@@ -166,6 +261,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
           onGenerateInsight={handleGenerateInsight}
           insightStatus={insightStatus}
           lang={lang}
+          setLang={setLang}
+          theme={theme}
+          setTheme={setTheme}
           t={t}
           currentUser={currentUser}
           onLogout={onLogout}
@@ -176,26 +274,27 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
           <InsightPanel status={insightStatus} text={insightText} onClose={() => setInsightStatus(InsightStatus.IDLE)} t={t} />
           <Routes>
             <Route
-              path="/dashboard"
+              path="dashboard"
               element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} categories={categories} activity={activity} loading={loading} />}
             />
-            <Route path="/users" element={<SystemUsersView lang={lang} />} />
-            <Route path="/companies" element={<CompaniesView lang={lang} />} />
-            <Route path="/candidates" element={<CandidatesView lang={lang} />} />
-            <Route path="/jobs" element={<JobsView lang={lang} />} />
-            <Route path="/applications" element={<ApplicationsView lang={lang} />} />
-            <Route path="/applications/:id" element={<ApplicationDetailView />} />
-            <Route path="/interviews" element={<InterviewsView lang={lang} />} />
-            <Route path="/onboardings" element={<OnboardingsView lang={lang} />} />
-            <Route path="/logs" element={<SystemLogsView lang={lang} />} />
-            <Route path="/analytics" element={<AnalyticsView lang={lang} theme={theme} />} />
+            <Route path="users" element={<SystemUsersView lang={lang} />} />
+            <Route path="companies" element={<CompaniesView lang={lang} />} />
+            <Route path="candidates" element={<CandidatesView lang={lang} />} />
+            <Route path="jobs" element={<JobsView lang={lang} />} />
+            <Route path="applications" element={<ApplicationsView lang={lang} />} />
+            <Route path="applications/:id" element={<ApplicationDetailView />} />
+            <Route path="interviews" element={<InterviewsView lang={lang} />} />
+            <Route path="onboardings" element={<OnboardingsView lang={lang} />} />
+            <Route path="logs" element={<SystemLogsView lang={lang} />} />
+            <Route path="analytics" element={<AnalyticsView lang={lang} theme={theme} />} />
             <Route
-              path="/settings"
+              path="settings"
               element={<SettingsView lang={lang} setLang={setLang} theme={theme} setTheme={setTheme} />}
             />
-            <Route path="/certifications" element={<CertificationReviewScreen />} />
+            <Route path="certifications" element={<CertificationReviewsView />} />
+            <Route path="notifications" element={<NotificationsView />} />
             {/* 默认重定向到dashboard */}
-            <Route path="/*" element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} categories={categories} activity={activity} loading={loading} />} />
+            <Route path="*" element={<DashboardHome lang={lang} t={t} stats={stats} trends={trends} categories={categories} activity={activity} loading={loading} />} />
           </Routes>
         </main>
       </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Calendar, Clock, MapPin, FileText, CheckCircle, XCircle, AlertCircle, Download, Settings, Check, User, Phone } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
-import { onboardingAPI } from '@/services/apiService';
+import { candidateAPI, jobAPI, companyAPI, userAPI, onboardingAPI } from '@/services/apiService';
 import { Language } from '@/types/types';
 import Pagination from '@/components/Pagination';
 import { exportToCSV } from '../helpers';
@@ -121,18 +121,18 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
     switch (status) {
       case 'Scheduled':
       case '已安排':
-        return 'bg-blue-100 text-blue-700';
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300';
       case 'Completed':
       case '已完成':
-        return 'bg-green-100 text-green-700';
+        return 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300';
       case 'Pending':
       case '待安排':
       case '待处理':
-        return 'bg-amber-100 text-amber-700';
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300';
       case 'Cancelled':
       case '已取消':
-        return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
+        return 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300';
+      default: return 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300';
     }
   };
 
@@ -162,14 +162,14 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
               placeholder="搜索候选人、职位、联系人..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="bg-transparent focus:outline-none text-sm w-full md:w-64"
+              className="bg-transparent focus:outline-none text-sm w-full md:w-64 text-slate-900 dark:text-white"
             />
           </div>
           <div className="flex gap-2">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">全部状态</option>
               <option value="已安排">已安排</option>
@@ -198,7 +198,7 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
                       <button
                         key={key}
                         onClick={() => setVisibleColumns(prev => ({ ...prev, [key]: !isVisible }))}
-                        className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group"
+                        className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group text-slate-900 dark:text-white"
                       >
                         <span className="capitalize">{
                           key === 'candidate' ? '候选人' :
@@ -282,7 +282,7 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
                             {/* Top Layer: Image */}
                             {onboarding.candidateAvatar && (
                               <img
-                                src={onboarding.candidateAvatar.startsWith('http') ? onboarding.candidateAvatar : `http://localhost:3001${onboarding.candidateAvatar}`}
+                                src={onboarding.candidateAvatar.startsWith('http') ? onboarding.candidateAvatar : `http://localhost:8001${onboarding.candidateAvatar}`}
                                 alt={onboarding.candidateName}
                                 className="absolute inset-0 h-full w-full rounded-full object-cover"
                                 onError={(e) => {
@@ -290,127 +290,145 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 }}
                               />
                             )}
-                          </div>
+                          </div >
                           <span>{onboarding.candidateName || '未知'}</span>
-                        </div>
-                      </td>
+                        </div >
+                      </td >
                     )}
-                    {visibleColumns.job && <td className="px-6 py-4 text-xs font-sans">{onboarding.jobTitle || '未知'}</td>}
-                    {visibleColumns.company && (
-                      <td className="px-6 py-4 text-xs font-sans">
-                        <div className="flex items-center gap-3">
-                          <div className="relative h-8 w-8 flex-shrink-0">
-                            {/* Base Layer: Initials */}
-                            <div className="h-full w-full rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold border border-white dark:border-slate-800 shadow-sm text-[10px]">
-                              {onboarding.companyName?.charAt(0) || '?'}
-                            </div>
+                    {visibleColumns.job && <td className="px-6 py-4 text-xs font-sans text-slate-900 dark:text-white">{onboarding.jobTitle || '未知'}</td>}
+                    {
+                      visibleColumns.company && (
+                        <td className="px-6 py-4 text-xs font-sans">
+                          <div className="flex items-center gap-3">
+                            <div className="relative h-8 w-8 flex-shrink-0">
+                              {/* Base Layer: Initials */}
+                              <div className="h-full w-full rounded bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold border border-white dark:border-slate-800 shadow-sm text-[10px]">
+                                {onboarding.companyName?.charAt(0) || '?'}
+                              </div>
 
-                            {/* Top Layer: Image */}
-                            {(onboarding as any).companyLogo && (
-                              <img
-                                src={(onboarding as any).companyLogo.startsWith('http') ? (onboarding as any).companyLogo : `http://localhost:3001${(onboarding as any).companyLogo}`}
-                                alt={onboarding.companyName}
-                                className="absolute inset-0 h-full w-full rounded object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            )}
+                              {/* Top Layer: Image */}
+                              {(onboarding as any).companyLogo && (
+                                <img
+                                  src={(onboarding as any).companyLogo.startsWith('http') ? (onboarding as any).companyLogo : `http://localhost:8001${(onboarding as any).companyLogo}`}
+                                  alt={onboarding.companyName}
+                                  className="absolute inset-0 h-full w-full rounded object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <span className="text-slate-900 dark:text-white">{onboarding.companyName || '未知'}</span>
                           </div>
-                          <span>{onboarding.companyName || '未知'}</span>
-                        </div>
-                      </td>
-                    )}
-                    {visibleColumns.email && <td className="px-6 py-4 text-xs text-slate-500 font-sans">{onboarding.candidateEmail || '-'}</td>}
-                    {visibleColumns.phone && <td className="px-6 py-4 text-xs text-slate-500 font-sans">{onboarding.candidatePhone || '-'}</td>}
-                    {visibleColumns.date && (
-                      <td className="px-6 py-4 font-sans">
-                        <div className="flex items-center gap-1 text-xs whitespace-nowrap">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                          {new Date(onboarding.onboardingDate).toLocaleDateString('zh-CN')}
-                        </div>
-                      </td>
-                    )}
-                    {visibleColumns.time && (
-                      <td className="px-6 py-4 font-sans">
-                        {onboarding.onboardingTime ? (
-                          <div className="flex items-center gap-1 text-xs whitespace-nowrap">
-                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            {onboarding.onboardingTime}
+                        </td>
+                      )
+                    }
+                    {visibleColumns.email && <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-sans">{onboarding.candidateEmail || '-'}</td>}
+                    {visibleColumns.phone && <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 font-sans">{onboarding.candidatePhone || '-'}</td>}
+                    {
+                      visibleColumns.date && (
+                        <td className="px-6 py-4 font-sans">
+                          <div className="flex items-center gap-1 text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            {new Date(onboarding.onboardingDate).toLocaleDateString('zh-CN')}
                           </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.location && (
-                      <td className="px-6 py-4 font-sans">
-                        {onboarding.onboardingLocation ? (
-                          <div className="flex items-center gap-1 text-xs max-w-[150px] truncate" title={onboarding.onboardingLocation}>
-                            <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            {onboarding.onboardingLocation}
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.time && (
+                        <td className="px-6 py-4 font-sans">
+                          {onboarding.onboardingTime ? (
+                            <div className="flex items-center gap-1 text-xs whitespace-nowrap text-slate-900 dark:text-white">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              {onboarding.onboardingTime}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
+                          )}
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.location && (
+                        <td className="px-6 py-4 font-sans">
+                          {onboarding.onboardingLocation ? (
+                            <div className="flex items-center gap-1 text-xs max-w-[150px] truncate text-slate-900 dark:text-white" title={onboarding.onboardingLocation}>
+                              <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              {onboarding.onboardingLocation}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
+                          )}
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.salary && (
+                        <td className="px-6 py-4 font-sans">
+                          <div className="flex flex-col text-[10px] leading-tight text-slate-600">
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400 scale-90 origin-left">试用: {onboarding.probationSalary || '-'}</span>
+                            <span className="text-slate-600 dark:text-slate-400 scale-90 origin-left">正式: {onboarding.officialSalary || '-'}</span>
                           </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.salary && (
-                      <td className="px-6 py-4 font-sans">
-                        <div className="flex flex-col text-[10px] leading-tight text-slate-600">
-                          <span className="font-bold text-indigo-600 scale-90 origin-left">试用: {onboarding.probationSalary || '-'}</span>
-                          <span className="scale-90 origin-left">正式: {onboarding.officialSalary || '-'}</span>
-                        </div>
-                      </td>
-                    )}
-                    {visibleColumns.probation && (
-                      <td className="px-6 py-4 font-sans text-xs">
-                        {onboarding.probationPeriod ? `${onboarding.probationPeriod}个月` : '-'}
-                      </td>
-                    )}
-                    {visibleColumns.contact && (
-                      <td className="px-6 py-4 font-sans">
-                        {onboarding.onboardingContact ? (
-                          <div className="flex flex-col text-xs">
-                            <span className="flex items-center gap-1"><User size={12} className="text-slate-400" />{onboarding.onboardingContact}</span>
-                            {onboarding.onboardingContactPhone && (
-                              <span className="flex items-center gap-1 text-slate-400 scale-90 origin-left"><Phone size={10} />{onboarding.onboardingContactPhone}</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs">-</span>
-                        )}
-                      </td>
-                    )}
-                    {visibleColumns.status && (
-                      <td className="px-6 py-4 font-sans">
-                        <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full whitespace-nowrap ${getStatusColor(onboarding.status)}`}>
-                          {getStatusText(onboarding.status)}
-                        </span>
-                      </td>
-                    )}
-                    {visibleColumns.notes && (
-                      <td className="px-6 py-4 font-sans text-xs text-slate-500 max-w-[150px] truncate" title={onboarding.notes}>
-                        {onboarding.notes || '-'}
-                      </td>
-                    )}
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.probation && (
+                        <td className="px-6 py-4 font-sans text-xs">
+                          {onboarding.probationPeriod ? `${onboarding.probationPeriod}个月` : '-'}
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.contact && (
+                        <td className="px-6 py-4 font-sans">
+                          {onboarding.onboardingContact ? (
+                            <div className="flex flex-col text-xs">
+                              <span className="flex items-center gap-1 text-slate-900 dark:text-white"><User size={12} className="text-slate-400" />{onboarding.onboardingContact}</span>
+                              {onboarding.onboardingContactPhone && (
+                                <span className="flex items-center gap-1 text-slate-400 dark:text-slate-500 scale-90 origin-left"><Phone size={10} />{onboarding.onboardingContactPhone}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
+                          )}
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.status && (
+                        <td className="px-6 py-4 font-sans">
+                          <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full whitespace-nowrap ${getStatusColor(onboarding.status)}`}>
+                            {getStatusText(onboarding.status)}
+                          </span>
+                        </td>
+                      )
+                    }
+                    {
+                      visibleColumns.notes && (
+                        <td className="px-6 py-4 font-sans text-xs text-slate-500 dark:text-slate-400 max-w-[150px] truncate" title={onboarding.notes}>
+                          {onboarding.notes || '-'}
+                        </td>
+                      )
+                    }
                     <td className="px-6 py-4 font-sans whitespace-nowrap">
                       <button
                         onClick={() => handleViewDetails(onboarding)}
-                        className="text-indigo-600 hover:text-indigo-700 text-xs font-medium"
+                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 text-xs font-medium"
                       >
                         详情
                       </button>
                     </td>
-                  </tr>
+                  </tr >
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </tbody >
+          </table >
+        </div >
 
         {/* 分页组件 */}
-        <div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+        < div className="px-6 py-2 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700" >
           <Pagination
             currentPage={currentPage}
             pageSize={pageSize}
@@ -421,15 +439,15 @@ const OnboardingsView: React.FC<{ lang: Language }> = ({ lang }) => {
               setCurrentPage(1); // 重置到第一页
             }}
           />
-        </div>
-      </div>
+        </div >
+      </div >
 
       <AdminOnboardingDetailModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onboarding={selectedOnboarding}
       />
-    </div>
+    </div >
   );
 };
 

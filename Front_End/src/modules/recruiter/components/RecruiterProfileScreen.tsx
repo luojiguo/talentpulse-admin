@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Camera, Building2, Shield, Settings, Save, Sparkles, ChevronDown, ChevronUp, Lock, Eye, EyeOff, Mail } from 'lucide-react';
+import { INDUSTRY_OPTIONS, COMPANY_SIZE_OPTIONS } from '@/constants/constants';
 import { UserRole } from '@/types/types';
-import { userAPI } from '@/services/apiService';
+import { userAPI, companyAPI } from '@/services/apiService';
 import { MessageAlert } from './CommonComponents';
 import { InputField } from './CommonComponents';
 import { generateCompanyDescription } from '@/services/aiService';
@@ -51,6 +52,13 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
     // Business license upload state
     const businessLicenseInputRef = useRef<HTMLInputElement>(null);
     const [isCompanyInfoExpanded, setIsCompanyInfoExpanded] = useState(false);
+
+    // AI Generation Modal States
+    const [aiModalVisible, setAiModalVisible] = useState(false);
+    const [aiKeywords, setAiKeywords] = useState('');
+    const [aiStyle, setAiStyle] = useState('专业');
+    const [generatedPreview, setGeneratedPreview] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // 倒计时逻辑
     useEffect(() => {
@@ -141,34 +149,50 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
     };
 
     // AI company description generation handler
-    const handleGenerateCompanyDescription = async () => {
+    const handleGenerateCompanyDescription = () => {
         // Check if required fields are filled
         if (!profile.company?.name || !profile.company?.industry || !profile.company?.company_type || !profile.company?.size) {
-            setAlertMessage('请先填写公司名称、所属行业、公司类型和公司规模，才能生成公司简介！');
+            setAlertMessage('请先填写公司名称、所属行业、公司类型和公司规模，才能使用AI生成！');
             setTimeout(() => setAlertMessage(''), 3000);
             return;
         }
 
+        // Reset and show modal
+        setGeneratedPreview(profile.company?.description || '');
+        setAiModalVisible(true);
+    };
+
+    const executeCompanyDescriptionGeneration = async () => {
         try {
-            setLoading(true);
+            setIsGenerating(true);
             // Generate company description using AI
             const description = await generateCompanyDescription(
                 profile.company.name,
                 profile.company.industry,
                 profile.company.company_type,
-                profile.company.size
+                profile.company.size,
+                aiKeywords,
+                aiStyle
             );
-            // Update profile with generated description
-            setProfile({ ...profile, company: { ...profile.company, description } });
-            setAlertMessage('公司简介已成功生成！');
-            setTimeout(() => setAlertMessage(''), 3000);
+            setGeneratedPreview(description);
+            message.success('已为您生成新的公司简介');
         } catch (error) {
             console.error('生成公司简介错误:', error);
-            setAlertMessage('生成公司简介失败，请稍后重试！');
-            setTimeout(() => setAlertMessage(''), 3000);
+            message.error('生成公司简介失败，请稍后重试');
         } finally {
-            setLoading(false);
+            setIsGenerating(false);
         }
+    };
+
+    const applyGeneratedDescription = () => {
+        if (!generatedPreview) {
+            message.warning('预览内容为空');
+            return;
+        }
+        setProfile({ ...profile, company: { ...profile.company, description: generatedPreview } });
+        setAiModalVisible(false);
+        setAlertMessage('公司简介已更新，请记得点击下方的“保存更改”！');
+        setTimeout(() => setAlertMessage(''), 3000);
     };
 
     // 组件挂载时获取最新信息
@@ -300,32 +324,21 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
 
             try {
                 setLoading(true);
-                // 创建FormData上传公司Logo
-                const formData = new FormData();
-                formData.append('company_logo', file);
+                // 调用后端API上传公司Logo
+                const response = await companyAPI.uploadCompanyLogo(profile.company?.id, file);
 
-                // 调用后端API上传公司Logo到companies_logo目录
-                const response = await fetch(`/api/companies/${profile.company?.id}/logo`, {
-                    method: 'POST',
-                    body: formData,
-                    credentials: 'include',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                const responseData = await response.json();
-
-                if (responseData.status === 'success') {
+                if (response.status === 'success' || response.success) {
                     // 使用后端返回的Logo路径
-                    const logoUrl = responseData.data.logo_url;
+                    // 注意：后端返回格式为 { status: 'success', data: { logo: '...' } }
+                    // request.ts 会将其包装为 { success: true, data: { logo: '...' }, status: 'success' ... }
+                    const logoUrl = response.data.logo || response.data.logo_url;
                     setProfile({ ...profile, company: { ...profile.company, logo: logoUrl } });
 
                     // 显示保存成功消息
                     setAlertMessage('公司Logo已成功上传！');
                     setTimeout(() => setAlertMessage(''), 3000);
                 } else {
-                    setAlertMessage('公司Logo上传失败：' + responseData.message);
+                    setAlertMessage('公司Logo上传失败：' + (response.message || '未知错误'));
                     setTimeout(() => setAlertMessage(''), 3000);
                 }
             } catch (error) {
@@ -444,33 +457,33 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <h2 className="text-3xl font-bold text-gray-900">个人中心</h2>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">个人中心中心</h2>
 
             {alertMessage && <MessageAlert text={alertMessage} />}
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                        <User className="w-5 h-5 mr-2 text-emerald-600" /> 个人信息
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center">
+                        <User className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" /> 个人信息
                     </h3>
                     <button
                         onClick={() => setPasswordModalVisible(true)}
-                        className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center transition-colors"
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 font-bold flex items-center transition-all hover:scale-105 active:scale-95"
                     >
-                        <Lock className="w-4 h-4 mr-1" /> 修改密码
+                        <Lock className="w-4 h-4 mr-1.5" /> 修改密码
                     </button>
                 </div>
-                <div className="p-8 flex flex-col md:flex-row items-start gap-8">
-                    <div className="relative mb-4">
+                <div className="p-8 flex flex-col md:flex-row items-center md:items-start gap-8">
+                    <div className="relative group">
                         <UserAvatar
                             src={profile.avatar}
                             name={profile.name}
-                            size={96}
-                            className="w-24 h-24 rounded-full border-4 border-white shadow-sm bg-emerald-100 text-emerald-600"
+                            size={112}
+                            className="w-28 h-28 rounded-full border-4 border-white dark:border-slate-700 shadow-lg bg-blue-100 text-blue-600 group-hover:scale-105 transition-transform duration-300"
                         />
                         <button
                             onClick={() => avatarInputRef.current?.click()}
-                            className="absolute bottom-0 right-0 bg-emerald-600 text-white p-2 rounded-full shadow-md hover:bg-emerald-700 transition-colors border-2 border-white z-10"
+                            className="absolute bottom-1 right-1 bg-blue-600 text-white p-2.5 rounded-full shadow-lg hover:bg-blue-700 transition-all border-2 border-white dark:border-slate-700 z-10 active:scale-95"
                             disabled={loading}
                         >
                             <Camera className="w-5 h-5" />
@@ -525,15 +538,15 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                 <div
-                    className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
+                    className="p-6 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"
                     onClick={() => setIsCompanyInfoExpanded(!isCompanyInfoExpanded)}
                 >
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                        <Building2 className="w-5 h-5 mr-2 text-emerald-600" /> 公司信息与认证
+                    <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center">
+                        <Building2 className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" /> 公司信息与认证
                     </h3>
-                    {isCompanyInfoExpanded ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
+                    {isCompanyInfoExpanded ? <ChevronUp className="w-5 h-5 text-slate-500" /> : <ChevronDown className="w-5 h-5 text-slate-500" />}
                 </div>
                 {isCompanyInfoExpanded && (
                     <div className="p-8">
@@ -557,16 +570,16 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         ) : null}
 
                         {/* 认证状态显示 */}
-                        <div className={`mb-6 p-4 rounded-lg ${profile.company?.is_verified
-                            ? 'bg-green-50 border border-green-200'
+                        <div className={`mb-6 p-5 rounded-2xl ${profile.company?.is_verified
+                            ? 'bg-blue-50/50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800/50'
                             : (profile.company?.status === 'active' && !profile.company?.is_verified)
-                                ? 'bg-blue-50 border border-blue-200' // Pending state
-                                : 'bg-yellow-50 border border-yellow-200' // Unverified/Rejected state
+                                ? 'bg-blue-50/50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800/50' // Pending state
+                                : 'bg-amber-50/50 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800/50' // Unverified/Rejected state
                             }`}>
                             <div className="flex items-start">
                                 <div className="flex-shrink-0">
                                     {profile.company?.is_verified ? (
-                                        <svg className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
                                     ) : (profile.company?.status === 'active' && !profile.company?.is_verified) ? (
@@ -580,13 +593,13 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                     )}
                                 </div>
                                 <div className="ml-3">
-                                    <h3 className="text-sm font-medium text-gray-800">企业认证状态</h3>
+                                    <h3 className="text-sm font-medium text-gray-800 dark:text-slate-100">企业认证状态</h3>
                                     <div className="mt-2 text-sm">
                                         <div>
                                             {profile.company?.is_verified ? (
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-green-600 font-medium">✅ 您的企业已通过认证</span>
-                                                    <span className="text-xs text-green-500">认证日期：{profile.company?.verification_date ? new Date(profile.company.verification_date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : '未知'}</span>
+                                                    <span className="text-blue-600 font-medium">✅ 您的企业已通过认证</span>
+                                                    <span className="text-xs text-blue-500">认证日期：{profile.company?.verification_date ? new Date(profile.company.verification_date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : '未知'}</span>
                                                 </div>
                                             ) : (profile.company?.status === 'active' && !profile.company?.is_verified) ? (
                                                 <div className="flex flex-col gap-2">
@@ -621,7 +634,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 </div>
                                 <button
                                     onClick={() => logoInputRef.current?.click()}
-                                    className="absolute bottom-0 right-0 bg-emerald-600 text-white p-1.5 rounded-full shadow-md hover:bg-emerald-700 transition-colors border-2 border-white"
+                                    className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-md hover:bg-blue-700 transition-all border-2 border-white dark:border-slate-800 active:scale-95"
                                     disabled={loading}
                                 >
                                     <Camera className="w-4 h-4" />
@@ -652,20 +665,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 value={profile.company?.industry}
                                 onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, industry: e.target.value } })}
                                 placeholder="请选择所属行业"
-                                options={[
-                                    { value: '互联网', label: '互联网' },
-                                    { value: '金融', label: '金融' },
-                                    { value: '电商', label: '电商' },
-                                    { value: '教育', label: '教育' },
-                                    { value: '医疗', label: '医疗' },
-                                    { value: '制造业', label: '制造业' },
-                                    { value: '房地产', label: '房地产' },
-                                    { value: '物流', label: '物流' },
-                                    { value: '科技', label: '科技' },
-                                    { value: '新能源', label: '新能源' },
-                                    { value: '人工智能', label: '人工智能' },
-                                    { value: '其他', label: '其他' }
-                                ]}
+                                options={INDUSTRY_OPTIONS}
                                 disabled={loading}
                             />
 
@@ -675,13 +675,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 value={profile.company?.size}
                                 onChange={(e: any) => setProfile({ ...profile, company: { ...profile.company, size: e.target.value } })}
                                 placeholder="请选择公司规模"
-                                options={[
-                                    { value: '10-50人', label: '10-50人' },
-                                    { value: '50-200人', label: '50-200人' },
-                                    { value: '200-500人', label: '200-500人' },
-                                    { value: '500-1000人', label: '500-1000人' },
-                                    { value: '1000人以上', label: '1000人以上' }
-                                ]}
+                                options={COMPANY_SIZE_OPTIONS}
                                 disabled={loading}
                             />
 
@@ -786,11 +780,11 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 <label className="block text-sm font-medium text-gray-700">公司简介</label>
                                 <button
                                     onClick={handleGenerateCompanyDescription}
-                                    className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 font-medium rounded-md hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed group active:scale-95 shadow-sm"
                                     disabled={loading}
                                 >
-                                    <Sparkles className="w-4 h-4" />
-                                    {loading ? '生成中...' : 'AI生成'}
+                                    <Sparkles className="w-4 h-4 group-hover:animate-pulse" />
+                                    {loading ? '生成中...' : '使用 AI 完善简介'}
                                 </button>
                             </div>
                             <InputField
@@ -804,9 +798,9 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         </div>
 
                         {/* 企业认证信息 */}
-                        <div className="mt-8 pt-6 border-t border-gray-200">
-                            <h4 className="text-md font-bold text-gray-800 flex items-center mb-4">
-                                <Shield className="w-4 h-4 mr-2 text-green-600" /> {profile.company?.is_verified ? '企业认证信息' : '企业认证申请'}
+                        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+                            <h4 className="text-md font-bold text-slate-800 dark:text-slate-100 flex items-center mb-4">
+                                <Shield className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" /> {profile.company?.is_verified ? '企业认证信息' : '企业认证申请'}
                             </h4>
 
                             {!profile.company?.is_verified && (
@@ -897,14 +891,14 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                     <button
                                         onClick={handleSubmitVerification}
                                         disabled={loading || profile.company?.is_verified || (profile.company?.status === 'active' && !profile.company?.is_verified)}
-                                        className={`px-6 py-2 rounded-lg font-medium transition-colors border shadow-sm flex items-center gap-2
+                                        className={`px-6 py-2.5 rounded-xl font-bold transition-all border shadow-md flex items-center gap-2 active:scale-95
                                             ${(loading || profile.company?.is_verified || (profile.company?.status === 'active' && !profile.company?.is_verified))
-                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                                                ? 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:text-slate-600 dark:border-slate-700 cursor-not-allowed'
+                                                : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-blue-200/50'
                                             }`}
                                     >
                                         <Shield className="w-4 h-4" />
-                                        {(profile.company?.status === 'active' && !profile.company?.is_verified) ? '审核中' : '提交认证申请'}
+                                        {(profile.company?.status === 'active' && !profile.company?.is_verified) ? '认证审核中' : '开始企业认证'}
                                     </button>
                                 </div>
                             </div>
@@ -913,43 +907,44 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 )}
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50">
-                    <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                        <Settings className="w-5 h-5 mr-2 text-emerald-600" /> 账号操作
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/50">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center">
+                        <Settings className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" /> 账号操作
                     </h3>
                 </div>
                 <div className="p-8 flex flex-col md:flex-col gap-4">
                     <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                         <button
                             onClick={handleSave}
-                            className="flex items-center justify-center w-full md:w-auto px-8 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
+                            className="flex items-center justify-center w-full md:w-auto px-10 py-3.5 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 dark:shadow-blue-900/20 active:scale-95 group"
                             disabled={loading}
                         >
                             {loading ? (
-                                <div className="animate-spin mr-2 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                                <div className="animate-spin mr-2.5 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
                             ) : (
-                                <Save className="w-5 h-5 mr-2" />
+                                <Save className="w-5 h-5 mr-2.5 group-hover:scale-110 transition-transform" />
                             )}
-                            {loading ? '保存中...' : '保存更新'}
+                            {loading ? '正在保存...' : '保存所有更改'}
                         </button>
 
-                        {/* 修改密码按钮 */}
-                        <button
-                            onClick={() => setPasswordModalVisible(true)}
-                            className="flex items-center justify-center w-full md:w-auto px-6 py-3 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition border border-blue-200"
-                            disabled={loading}
-                        >
-                            <Lock className="w-5 h-5 mr-2" /> 修改密码
-                        </button>
+                        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                            <button
+                                onClick={() => setPasswordModalVisible(true)}
+                                className="flex items-center justify-center px-6 py-3.5 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-all border border-slate-200 dark:border-slate-600 shadow-sm active:scale-95"
+                                disabled={loading}
+                            >
+                                <Lock className="w-5 h-5 mr-2.5" /> 安全设置
+                            </button>
 
-                        <button
-                            onClick={() => onSwitchRole('candidate')}
-                            className="flex items-center justify-center w-full md:w-auto px-6 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition border border-indigo-200"
-                            disabled={loading}
-                        >
-                            <User className="w-5 h-5 mr-2" /> 切换为求职者 (Candidate) 身份
-                        </button>
+                            <button
+                                onClick={() => onSwitchRole('candidate')}
+                                className="flex items-center justify-center px-6 py-3.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold rounded-2xl hover:bg-blue-600 hover:text-white transition-all border border-blue-100 dark:border-blue-800/50 shadow-sm active:scale-95"
+                                disabled={loading}
+                            >
+                                <User className="w-5 h-5 mr-2.5" /> 切换为求职者身份
+                            </button>
+                        </div>
                     </div>
 
                     {/* 注销账号功能 */}
@@ -1040,9 +1035,11 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
             {/* 修改密码模态框 */}
             <Modal
                 title={
-                    <div className="text-xl font-bold flex items-center gap-2 text-gray-800">
-                        <Shield className="w-6 h-6 text-emerald-600" />
-                        <span>修改密码</span>
+                    <div className="text-xl font-bold flex items-center gap-3 text-slate-800 dark:text-slate-100">
+                        <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+                            <Shield className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span>修改登录密码</span>
                     </div>
                 }
                 open={passwordModalVisible}
@@ -1050,19 +1047,19 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                 footer={null}
                 centered
                 maskClosable={false}
-                className="rounded-xl overflow-hidden"
+                className="rounded-xl overflow-hidden [&_.ant-modal-content]:dark:bg-slate-900 [&_.ant-modal-header]:dark:bg-slate-900 [&_.ant-modal-title]:dark:text-slate-100 [&_.ant-modal-close]:dark:text-slate-400 [&_.ant-modal-close:hover]:dark:text-slate-200"
                 width={480}
             >
                 <div className="mt-6 space-y-6">
-                    <div className="bg-emerald-50 p-4 rounded-lg flex items-start gap-3">
-                        <div className="bg-emerald-100 p-2 rounded-full mt-0.5">
-                            <Shield className="w-4 h-4 text-emerald-600" />
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-5 rounded-2xl flex items-start gap-4 border border-blue-100 dark:border-blue-800/50">
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl shadow-sm mt-0.5">
+                            <Shield className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
-                            <h4 className="font-medium text-emerald-800 text-sm">账号安全保护</h4>
-                            <p className="text-xs text-emerald-600 mt-1">
+                            <h4 className="font-bold text-blue-900 dark:text-blue-100 text-sm">账号安全保护</h4>
+                            <p className="text-xs text-blue-700/80 dark:text-blue-300/80 mt-1 leading-relaxed">
                                 为了保障您的账号安全，修改密码需要验证您的注册邮箱：<br />
-                                <span className="font-bold">{profile.email}</span>
+                                <span className="font-black text-blue-600 dark:text-blue-400">{profile.email}</span>
                             </p>
                         </div>
                     </div>
@@ -1079,13 +1076,13 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                     type={passwordVisible.old ? "text" : "password"}
                                     value={passwordForm.oldPassword}
                                     onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
-                                    className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                    className="w-full pl-10 pr-10 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500"
                                     placeholder="请输入当前使用的密码"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setPasswordVisible({ ...passwordVisible, old: !passwordVisible.old })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                                 >
                                     {passwordVisible.old ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -1103,16 +1100,16 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                     type={passwordVisible.new ? "text" : "password"}
                                     value={passwordForm.newPassword}
                                     onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                                    className={`w-full pl-10 pr-10 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all ${passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
-                                        ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
-                                        : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500'
+                                    className={`w-full pl-10 pr-10 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 ${passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
+                                        ? 'border-red-300 dark:border-red-800 focus:ring-red-200 focus:border-red-400'
+                                        : 'border-gray-300 dark:border-slate-700 focus:ring-blue-500 focus:border-blue-500'
                                         }`}
                                     placeholder="请输入新密码（至少6位）"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setPasswordVisible({ ...passwordVisible, new: !passwordVisible.new })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                                 >
                                     {passwordVisible.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -1130,16 +1127,16 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                     type={passwordVisible.confirm ? "text" : "password"}
                                     value={passwordForm.confirmPassword}
                                     onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                                    className={`w-full pl-10 pr-10 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all ${passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
-                                        ? 'border-red-300 focus:ring-red-200 focus:border-red-400'
-                                        : 'border-gray-300 focus:ring-emerald-500 focus:border-emerald-500'
+                                    className={`w-full pl-10 pr-10 py-2.5 border rounded-lg focus:ring-2 outline-none transition-all bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 ${passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword
+                                        ? 'border-red-300 dark:border-red-800 focus:ring-red-200 focus:border-red-400'
+                                        : 'border-gray-300 dark:border-slate-700 focus:ring-blue-500 focus:border-blue-500'
                                         }`}
                                     placeholder="请再次输入新密码"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setPasswordVisible({ ...passwordVisible, confirm: !passwordVisible.confirm })}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                                 >
                                     {passwordVisible.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -1161,7 +1158,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                         type="text"
                                         value={passwordForm.verificationCode}
                                         onChange={(e) => setPasswordForm({ ...passwordForm, verificationCode: e.target.value })}
-                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
+                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500"
                                         placeholder="6位数字验证码"
                                         maxLength={6}
                                     />
@@ -1171,8 +1168,8 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                     onClick={handleSendCode}
                                     disabled={countdown > 0 || sendingCode}
                                     className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all border ${countdown > 0 || sendingCode
-                                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                        : 'bg-white text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300'
+                                        ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 border-gray-200 dark:border-slate-700 cursor-not-allowed'
+                                        : 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300'
                                         }`}
                                 >
                                     {sendingCode ? '发送中...' : countdown > 0 ? `${countdown}s 后重试` : '获取验证码'}
@@ -1181,10 +1178,10 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4 border-t border-gray-100">
+                    <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-slate-700/50">
                         <button
                             onClick={() => setPasswordModalVisible(false)}
-                            className="flex-1 py-2.5 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                            className="flex-1 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 font-medium hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                         >
                             取消
                         </button>
@@ -1192,12 +1189,138 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                             onClick={handlePasswordChange}
                             disabled={loading || !passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.verificationCode}
                             className={`flex-1 py-2.5 rounded-lg text-white font-medium shadow-sm transition-all ${loading || !passwordForm.oldPassword || !passwordForm.newPassword || !passwordForm.verificationCode
-                                ? 'bg-emerald-400 cursor-not-allowed'
-                                : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow transform active:scale-95'
+                                ? 'bg-blue-400 dark:bg-blue-800 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 hover:shadow transform active:scale-95'
                                 }`}
                         >
                             {loading ? '提交中...' : '确认修改'}
                         </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* AI 公司简介生成弹窗 */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+                            <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span className="text-xl font-black text-slate-800 dark:text-slate-100">AI 智能辅助：公司简介</span>
+                    </div>
+                }
+                open={aiModalVisible}
+                onCancel={() => !isGenerating && setAiModalVisible(false)}
+                footer={null}
+                width={700}
+                centered
+                maskClosable={false}
+                className="ai-generation-modal"
+            >
+                <div className="space-y-6 py-2">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-100 dark:border-blue-800/50 p-5 rounded-2xl flex items-start gap-4">
+                        <div className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm text-blue-600">
+                            <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-blue-900 dark:text-blue-100">已提取核心信息：</p>
+                            <p className="text-xs text-blue-700/70 dark:text-blue-300/70 mt-1 font-medium">
+                                {profile.company?.name} · {profile.company?.industry} · {profile.company?.company_type} · {profile.company?.size}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-slate-400" /> 叙述风格
+                            </label>
+                            <select
+                                value={aiStyle}
+                                onChange={(e) => setAiStyle(e.target.value)}
+                                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-800 dark:text-slate-200"
+                                disabled={isGenerating}
+                            >
+                                <option value="专业">专业稳重 - 适合大型企业、国企/上市公司</option>
+                                <option value="科技">科技前沿 - 适合互联网、高新技术公司</option>
+                                <option value="活力">活力团队 - 适合创业公司、年轻化团队</option>
+                                <option value="简洁">高效简洁 - 务实高效，强调核心信息</option>
+                                <option value="创意">艺术创意 - 适合设计、传媒、文化类公司</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-slate-400" /> 特色关键词
+                            </label>
+                            <input
+                                type="text"
+                                value={aiKeywords}
+                                onChange={(e) => setAiKeywords(e.target.value)}
+                                className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-800 dark:text-slate-200"
+                                placeholder="如：极具人性化、五险一金、弹性工时"
+                                disabled={isGenerating}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                        <div className="flex justify-between items-center px-1">
+                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">生成预览与内容编辑</label>
+                            {generatedPreview && (
+                                <span className="text-xs text-slate-400 font-medium">
+                                    当前字数: {generatedPreview.length}
+                                </span>
+                            )}
+                        </div>
+                        <div className="relative group">
+                            <textarea
+                                value={generatedPreview}
+                                onChange={(e) => setGeneratedPreview(e.target.value)}
+                                className="w-full border border-slate-200 dark:border-slate-700 rounded-2xl p-5 text-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none min-h-[200px] leading-relaxed bg-white dark:bg-slate-800 dark:text-slate-200"
+                                placeholder="点击“智能生成”开启您的专属公司简介之旅..."
+                                disabled={isGenerating}
+                            />
+                            {isGenerating && (
+                                <div className="absolute inset-0 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl animate-in fade-in duration-500">
+                                    <div className="flex gap-2 mb-4">
+                                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                        <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                                    </div>
+                                    <p className="text-sm font-black text-blue-700 dark:text-blue-300 animate-pulse">AI 正在为您精心撰写...</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                        <button
+                            onClick={() => setAiModalVisible(false)}
+                            className="flex-1 py-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all active:scale-95"
+                            disabled={isGenerating}
+                        >
+                            暂时不用
+                        </button>
+                        <button
+                            onClick={executeCompanyDescriptionGeneration}
+                            disabled={isGenerating}
+                            className={`flex-1 py-3.5 rounded-2xl font-black shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 ${isGenerating
+                                ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
+                                : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50 hover:bg-blue-600 hover:text-white'
+                                }`}
+                        >
+                            <Sparkles className={`w-5 h-5 ${isGenerating ? '' : 'animate-pulse'}`} />
+                            {generatedPreview ? '重新为您生成' : '立即智能生成'}
+                        </button>
+                        {generatedPreview && !isGenerating && (
+                            <button
+                                onClick={applyGeneratedDescription}
+                                className="flex-[1.5] py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-xl shadow-blue-200 dark:shadow-blue-900/20 hover:bg-blue-700 transition-all flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                <Save className="w-5 h-5" />
+                                采纳此版本
+                            </button>
+                        )}
                     </div>
                 </div>
             </Modal>

@@ -42,36 +42,82 @@ const PersonalAdvantageSection: React.FC<PersonalAdvantageSectionProps> = ({ use
     };
 
     return (
-        <Card className="mb-0 shadow-sm rounded-lg group hover:shadow-md transition-shadow" variant="borderless">
-            <div className="flex justify-between items-center mb-6 pl-4 border-l-4 border-blue-500">
-                <Title level={4} style={{ margin: 0 }}>个人优势</Title>
+        <Card className="mb-0 shadow-sm rounded-3xl group hover:shadow-xl hover:shadow-brand-500/5 transition-all duration-500 border border-slate-100 dark:border-slate-800 dark:bg-slate-900" variant="borderless">
+            <div className="flex justify-between items-center mb-8 pl-4 border-l-4 border-brand-500 transition-all">
+                <Title level={4} style={{ margin: 0 }} className="dark:text-white !font-bold !text-xl tracking-tight">个人优势</Title>
                 {!isEditing && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Button type="link" icon={<EditOutlined />} onClick={handleEdit}>
-                            编辑
+                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-300">
+                        <Button 
+                            type="link" 
+                            icon={<EditOutlined />} 
+                            onClick={handleEdit}
+                            className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-bold flex items-center gap-1"
+                        >
+                            编辑优势
                         </Button>
                     </div>
                 )}
             </div>
 
             {isEditing ? (
-                <Form form={form} layout="vertical" onFinish={handleSave}>
+                <Form form={form} layout="vertical" onFinish={handleSave} className="profile-form">
                     <Form.Item
                         name="summary"
                         rules={[{ required: true, message: '请输入个人优势' }]}
                     >
-                        <TextArea rows={6} placeholder="用一句话介绍自己，展示你的核心竞争力..." />
+                        <TextArea 
+                            rows={6} 
+                            placeholder="用一段话介绍自己，展示你的核心竞争力、项目经验、技能特长等..." 
+                            className="rounded-2xl p-4"
+                        />
                     </Form.Item>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button onClick={() => setIsEditing(false)}>取消</Button>
-                        <Button type="primary" htmlType="submit" loading={loading}>完成</Button>
+                    <div className="flex justify-end gap-3 mt-6">
+                        <Button 
+                            onClick={() => setIsEditing(false)}
+                            className="rounded-xl px-6 h-10 font-bold text-slate-500 border-slate-200 dark:border-slate-700 dark:text-slate-400"
+                        >
+                            取消
+                        </Button>
+                        <Button 
+                            type="primary" 
+                            htmlType="submit" 
+                            loading={loading}
+                            className="rounded-xl px-8 h-10 font-bold bg-brand-500 hover:bg-brand-600 border-none shadow-lg shadow-brand-500/20"
+                        >
+                            完成保存
+                        </Button>
                     </div>
                 </Form>
             ) : (
-                <div className="text-gray-700 whitespace-pre-wrap">
-                    {summary || <span className="text-gray-400">暂无个人优势，请添加...</span>}
+                <div className="bg-slate-50/50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-50 dark:border-slate-800/50">
+                    <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                        {summary || (
+                            <div className="text-center py-4">
+                                <p className="text-slate-400 dark:text-slate-500">暂无个人优势，点击右上角编辑添加</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
+            <style dangerouslySetInnerHTML={{ __html: `
+                .profile-form .ant-input {
+                    border-radius: 16px !important;
+                    border: none !important;
+                    background-color: #f8fafc !important;
+                    box-shadow: none !important;
+                }
+                .dark .profile-form .ant-input {
+                    background-color: #0f172a !important;
+                    color: #f1f5f9 !important;
+                }
+                .profile-form .ant-input:focus {
+                    background-color: #ffffff !important;
+                    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1) !important;
+                }
+                .dark .profile-form .ant-input:focus {
+                    background-color: #1e293b !important;
+                }
+            ` }} />
         </Card>
     );
 };

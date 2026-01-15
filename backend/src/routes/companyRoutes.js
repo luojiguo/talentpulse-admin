@@ -604,7 +604,8 @@ router.post('/:id/logo', authenticate, handleMulterError(upload.single('logo')),
     status: 'success',
     message: 'Logo上传成功',
     data: {
-      logo: logoPath
+      logo: logoPath,
+      logo_url: logoPath
     }
   });
 }));

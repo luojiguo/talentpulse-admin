@@ -163,35 +163,35 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
 
     return (
         <Card
-            className={`mb-0 shadow-sm rounded-lg group hover:shadow-md transition-shadow ${isEditing ? 'border-2 border-blue-500 bg-blue-50' : ''}`}
+            className={`mb-0 shadow-sm rounded-[2.5rem] group hover:shadow-2xl hover:shadow-brand-500/5 transition-all duration-500 border border-slate-100 dark:border-slate-800 dark:bg-slate-900 ${isEditing ? 'ring-4 ring-brand-500/10 bg-brand-50/5 dark:bg-brand-500/5' : ''}`}
             variant="borderless"
         >
-            <div className="flex justify-between items-center mb-6 pl-4 border-l-4 border-blue-500">
-                <div className="flex items-center gap-4">
-                    <Title level={4} style={{ margin: 0 }}>个人信息</Title>
+            <div className="flex justify-between items-center mb-10 pl-5 border-l-4 border-brand-500 transition-all">
+                <div className="flex items-center gap-6">
+                    <Title level={4} style={{ margin: 0 }} className="dark:text-white !font-black !text-2xl tracking-tight">个人信息</Title>
                     {isEditing && (
-                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
-                            编辑中
+                        <span className="text-[10px] px-3 py-1 bg-brand-50 text-brand-600 dark:bg-brand-500/20 dark:text-brand-400 rounded-full font-black uppercase tracking-widest border border-brand-100 dark:border-brand-900/30">
+                            正在编辑
                         </span>
                     )}
                     {renderExtraHeader && renderExtraHeader()}
                 </div>
                 {!isEditing && (
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <div className="opacity-0 group-hover:opacity-100 transition-all duration-300">
                         <Button
                             type="link"
                             icon={<EditOutlined />}
                             onClick={handleEdit}
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-black flex items-center gap-2 bg-brand-50 dark:bg-brand-900/20 px-4 py-2 rounded-xl border border-brand-100 dark:border-brand-900/30"
                         >
-                            编辑
+                            编辑资料
                         </Button>
                     </div>
                 )}
             </div>
 
-            <div className="flex items-start">
-                <div className="mr-8 text-center">
+            <div className="flex flex-col md:flex-row items-start gap-12">
+                <div className="mx-auto md:mx-0 text-center relative">
                     {isEditing ? (
                         <Upload
                             name="avatar"
@@ -200,39 +200,43 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                             accept="image/*"
                         >
                             <div className="cursor-pointer relative group">
+                                <div className="absolute -inset-1 bg-gradient-to-tr from-brand-400 to-emerald-400 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
                                 <UserAvatar
-                                    size={80}
+                                    size={120}
                                     src={user.avatar}
                                     name={user.name}
-                                    className="mb-2 group-hover:opacity-70 transition-opacity border-2 border-gray-100"
+                                    className="relative mb-2 group-hover:opacity-70 transition-all border-4 border-white dark:border-slate-800 shadow-2xl"
                                 />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black bg-opacity-30 rounded-full h-[80px] w-[80px] mx-auto text-white text-xs">
-                                    更换
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-brand-900/40 rounded-full h-[120px] w-[120px] mx-auto text-white text-[10px] font-black uppercase tracking-widest">
+                                    更换头像
                                 </div>
                             </div>
                         </Upload>
                     ) : (
-                        <UserAvatar
-                            size={80}
-                            src={user.avatar}
-                            name={user.name}
-                            className="mb-2 border-2 border-gray-100"
-                        />
+                        <div className="relative group">
+                            <div className="absolute -inset-1 bg-gradient-to-tr from-brand-400 to-emerald-400 rounded-full blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                            <UserAvatar
+                                size={120}
+                                src={user.avatar}
+                                name={user.name}
+                                className="relative mb-2 border-4 border-white dark:border-slate-800 shadow-2xl"
+                            />
+                        </div>
                     )}
                 </div>
 
-                <div className="flex-1">
+                <div className="flex-1 w-full">
                     {isEditing ? (
-                        <Form form={form} layout="vertical" onFinish={handleSave}>
-                            <Row gutter={16}>
+                        <Form form={form} layout="vertical" onFinish={handleSave} className="profile-form">
+                            <Row gutter={24}>
                                 <Col span={12}>
                                     <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
-                                        <Input placeholder="请输入您的姓名" />
+                                        <Input placeholder="请输入您的姓名" className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-brand-500/20 transition-all" />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
                                     <Form.Item name="availability_status" label="当前求职状态" rules={[{ required: true, message: '请选择求职状态' }]}>
-                                        <Select placeholder="请选择求职状态">
+                                        <Select placeholder="请选择求职状态" className="rounded-2xl h-12" popupClassName="dark:bg-slate-800">
                                             {STATUS_OPTIONS.map(opt => (
                                                 <Option key={opt.value} value={opt.value}>{opt.label}</Option>
                                             ))}
@@ -240,10 +244,10 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                     </Form.Item>
                                 </Col>
                             </Row>
-                            <Row gutter={16}>
+                            <Row gutter={24}>
                                 <Col span={12}>
                                     <Form.Item name="gender" label="性别" rules={[{ required: true, message: '请选择性别' }]}>
-                                        <Select placeholder="请选择性别">
+                                        <Select placeholder="请选择性别" className="rounded-2xl h-12" popupClassName="dark:bg-slate-800">
                                             <Option value="男">男</Option>
                                             <Option value="女">女</Option>
                                             <Option value="其他">其他</Option>
@@ -254,11 +258,11 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                     <Form.Item name="work_experience_years" label="工作经验" rules={[
                                         { type: 'number', transform: (value) => Number(value), min: 0, max: 50, message: '工作经验范围应为0-50年' }
                                     ]}>
-                                        <Input type="number" suffix="年" placeholder="请输入工作经验" />
+                                        <Input type="number" suffix="年" placeholder="请输入工作经验" className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-brand-500/20 transition-all" />
                                     </Form.Item>
                                 </Col>
                             </Row>
-                            <Row gutter={16}>
+                            <Row gutter={24}>
                                 <Col span={12}>
                                     <Form.Item name="birth_date" label="出生年月" rules={[
                                         { required: true, message: '请选择出生年月' },
@@ -277,16 +281,16 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                             },
                                         }),
                                     ]}>
-                                        <DatePicker className="w-full" picker="month" placeholder="请选择出生年月" />
+                                        <DatePicker className="w-full rounded-2xl h-12 bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-brand-500/20 transition-all" picker="month" placeholder="请选择出生年月" />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
                                     <Form.Item name="phone" label="电话">
-                                        <Input disabled placeholder="手机号不可修改" />
+                                        <Input disabled placeholder="手机号不可修改" className="rounded-2xl h-12 bg-slate-100 dark:bg-slate-800/50 border-none text-slate-400" />
                                     </Form.Item>
                                 </Col>
                             </Row>
-                            <Row gutter={16}>
+                            <Row gutter={24}>
                                 <Col span={12}>
                                     <Form.Item name="wechat" label="微信号 (选填)" rules={[
                                         {
@@ -294,7 +298,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                             message: '微信号格式不正确，应为6-20位字母开头，可包含数字、下划线或减号'
                                         }
                                     ]}>
-                                        <Input placeholder="请输入您的微信号" />
+                                        <Input placeholder="请输入您的微信号" className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-brand-500/20 transition-all" />
                                     </Form.Item>
                                 </Col>
                                 <Col span={12}>
@@ -304,32 +308,124 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                             message: '邮箱格式不正确'
                                         }
                                     ]}>
-                                        <Input placeholder="请输入您的邮箱" />
+                                        <Input placeholder="请输入您的邮箱" className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 focus:ring-brand-500/20 transition-all" />
                                     </Form.Item>
                                 </Col>
                             </Row>
 
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-                                <Button onClick={handleCancel} className="px-6 py-2">取消</Button>
-                                <Button type="primary" htmlType="submit" loading={loading} className="px-6 py-2 bg-blue-600 hover:bg-blue-700">
-                                    保存修改
+                            <div className="flex justify-end gap-4 mt-10 pt-8 border-t border-slate-50 dark:border-slate-800">
+                                <Button onClick={handleCancel} className="px-8 h-12 rounded-2xl border-slate-200 text-slate-600 hover:text-brand-600 hover:border-brand-400 transition-all font-bold">取消</Button>
+                                <Button type="primary" htmlType="submit" loading={loading} className="px-10 h-12 rounded-2xl bg-brand-500 hover:bg-brand-600 border-none shadow-xl shadow-brand-500/20 transition-all active:scale-95 font-black uppercase tracking-widest">
+                                    保存资料
                                 </Button>
                             </div>
                         </Form>
                     ) : (
-                        <div className="grid grid-cols-2 gap-y-4 text-gray-700">
-                            <div><span className="text-gray-400">姓名：</span> {user.name}</div>
-                            <div><span className="text-gray-400">求职状态：</span> {getStatusLabel(user.availability_status || user.jobStatus)}</div>
-                            <div><span className="text-gray-400">性别：</span> {user.gender}</div>
-                            <div><span className="text-gray-400">工作经验：</span> {user.work_experience_years}年</div>
-                            <div><span className="text-gray-400">出生年月：</span> {user.birth_date ? dayjs(user.birth_date).format('YYYY-MM') : '未填写'}</div>
-                            <div><span className="text-gray-400">电话：</span> {user.phone}</div>
-                            <div><span className="text-gray-400">微信号：</span> {user.wechat || '未填写'}</div>
-                            <div><span className="text-gray-400">邮箱：</span> {user.email || '未填写'}</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-10 text-slate-700 dark:text-slate-300">
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">姓名</span>
+                                <span className="text-xl font-black tracking-tight text-slate-900 dark:text-white">{user.name}</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">求职状态</span>
+                                <div>
+                                    <span className="px-4 py-1.5 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400 rounded-xl text-xs font-black uppercase tracking-tight border border-brand-100 dark:border-brand-900/30">
+                                        {getStatusLabel(user.availability_status || user.jobStatus)}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">性别</span>
+                                <span className="text-base font-bold text-slate-800 dark:text-slate-200">{user.gender}</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">工作经验</span>
+                                <span className="text-base font-black text-brand-600 dark:text-brand-400">{user.work_experience_years} 年经验</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">出生年月</span>
+                                <span className="text-base font-bold text-slate-800 dark:text-slate-200">{user.birth_date ? dayjs(user.birth_date).format('YYYY-MM') : '未填写'}</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">联系电话</span>
+                                <span className="text-base font-bold text-slate-800 dark:text-slate-200">{user.phone}</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">微信号码</span>
+                                <span className="text-base font-bold text-slate-800 dark:text-slate-200">{user.wechat || <span className="text-slate-300 dark:text-slate-600 italic font-normal">未填写</span>}</span>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">电子邮箱</span>
+                                <span className="font-bold">{user.email || <span className="text-slate-300 dark:text-slate-600 italic font-normal">未填写</span>}</span>
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                .profile-form .ant-form-item-label label {
+                    font-size: 11px;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: #94a3b8;
+                }
+                .dark .profile-form .ant-form-item-label label {
+                    color: #64748b;
+                }
+                .profile-form .ant-input, .profile-form .ant-select-selector, .profile-form .ant-picker {
+                    border-radius: 16px !important;
+                    border: none !important;
+                    background-color: #f8fafc !important;
+                    box-shadow: none !important;
+                }
+                .dark .profile-form .ant-input, .dark .profile-form .ant-select-selector, .dark .profile-form .ant-picker {
+                    background-color: #0f172a !important;
+                    color: #f1f5f9 !important;
+                }
+                .profile-form .ant-select-selection-item {
+                    font-weight: 600 !important;
+                }
+                .profile-form .ant-input:focus, .profile-form .ant-select-focused .ant-select-selector, .profile-form .ant-picker-focused {
+                    background-color: #ffffff !important;
+                    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1) !important;
+                }
+                .dark .profile-form .ant-input:focus, .dark .profile-form .ant-select-focused .ant-select-selector, .dark .profile-form .ant-picker-focused {
+                    background-color: #1e293b !important;
+                }
+            ` }} />
+            <style dangerouslySetInnerHTML={{ __html: `
+                .profile-form .ant-form-item-label label {
+                    font-size: 11px;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: #94a3b8;
+                }
+                .dark .profile-form .ant-form-item-label label {
+                    color: #64748b;
+                }
+                .profile-form .ant-input, .profile-form .ant-select-selector, .profile-form .ant-picker, .profile-form .ant-input-affix-wrapper {
+                    border-radius: 16px !important;
+                    border: none !important;
+                    background-color: #f8fafc !important;
+                    box-shadow: none !important;
+                    padding-left: 16px !important;
+                    padding-right: 16px !important;
+                }
+                .dark .profile-form .ant-input, .dark .profile-form .ant-select-selector, .dark .profile-form .ant-picker, .dark .profile-form .ant-input-affix-wrapper {
+                    background-color: #0f172a !important;
+                    color: #f1f5f9 !important;
+                }
+                .profile-form .ant-input:focus, .profile-form .ant-select-focused .ant-select-selector, .profile-form .ant-picker-focused, .profile-form .ant-input-affix-wrapper-focused {
+                    background-color: #ffffff !important;
+                    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1) !important;
+                }
+                .dark .profile-form .ant-input:focus, .dark .profile-form .ant-select-focused .ant-select-selector, .profile-form .ant-picker-focused, .profile-form .ant-input-affix-wrapper-focused {
+                    background-color: #1e293b !important;
+                }
+            ` }} />
         </Card>
     );
 };

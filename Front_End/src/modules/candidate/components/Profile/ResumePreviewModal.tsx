@@ -69,121 +69,180 @@ const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ visible, onClos
         <Modal
             open={visible}
             onCancel={onClose}
-            width={900}
+            width={1000}
             footer={[
-                <Button key="close" onClick={onClose}>关闭</Button>,
-                <Button key="print" type="primary" icon={<DownloadOutlined />} onClick={handlePrint}>打印/下载PDF</Button>
+                <Button key="close" onClick={onClose} className="rounded-xl px-6 h-10 font-bold border-slate-200 text-slate-500">
+                    关闭预览
+                </Button>,
+                <Button key="print" type="primary" icon={<DownloadOutlined />} onClick={handlePrint} className="rounded-xl px-8 h-10 font-black bg-brand-500 hover:bg-brand-600 border-none shadow-lg shadow-brand-500/20">
+                    导出 PDF / 打印
+                </Button>
             ]}
             className="resume-preview-modal"
             style={{ top: 20 }}
-            styles={{ body: { padding: 0 } }}
+            styles={{ 
+                body: { padding: 0, backgroundColor: '#f8fafc', borderRadius: '32px', overflow: 'hidden' }
+            }}
         >
-            <div className="bg-white p-8 md:p-12 min-h-[1000px] text-gray-800" id="resume-content">
+            <div className="bg-white mx-auto my-8 shadow-2xl min-h-[1120px] w-full max-w-[800px] text-slate-800 relative overflow-hidden" id="resume-content">
+                {/* Brand Accent */}
+                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-400 via-emerald-500 to-brand-600"></div>
+                
                 {loading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Spin size="large" />
+                    <div className="flex flex-col justify-center items-center h-[600px] gap-4">
+                        <div className="w-12 h-12 border-4 border-brand-100 border-t-brand-500 rounded-full animate-spin"></div>
+                        <span className="text-xs font-black text-brand-600 uppercase tracking-widest">正在生成精美简历...</span>
                     </div>
                 ) : (
-                    <>
-                        {/* Header */}
-                        <div className="resume-header flex flex-col md:flex-row justify-between items-start border-b-2 border-gray-800 pb-6 mb-6">
-                            <div className="flex-1 pr-8">
-                                <h1 className="text-3xl font-bold mb-2">{user.name || '未填写姓名'}</h1>
-                                <div className="text-lg text-gray-600 mb-4">{user.desired_position || '求职意向未填写'}</div>
-                                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                                    {user.phone && <div className="flex items-center"><PhoneOutlined className="mr-1" /> {user.phone}</div>}
-                                    {user.email && <div className="flex items-center"><MailOutlined className="mr-1" /> {user.email}</div>}
-                                    {user.city && <div className="flex items-center"><EnvironmentOutlined className="mr-1" /> {user.city}</div>}
-                                    {user.age && <div>{user.age}岁</div>}
-                                    {user.work_experience_years !== undefined && <div>{user.work_experience_years}年经验</div>}
+                    <div className="p-12 md:p-16">
+                        {/* Header Section */}
+                        <div className="resume-header flex flex-col md:flex-row justify-between items-start gap-8 mb-12 pb-12 border-b border-slate-100">
+                            <div className="flex-1">
+                                <h1 className="text-4xl font-black text-slate-900 mb-3 tracking-tight">{user.name || '未填写姓名'}</h1>
+                                <div className="inline-flex px-4 py-1.5 bg-brand-50 text-brand-600 rounded-xl text-sm font-black tracking-tight mb-6">
+                                    {user.desired_position || '求职意向未填写'}
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm text-slate-500 font-bold">
+                                    {user.phone && <div className="flex items-center gap-2"><PhoneOutlined className="text-brand-500" /> {user.phone}</div>}
+                                    {user.email && <div className="flex items-center gap-2"><MailOutlined className="text-brand-500" /> {user.email}</div>}
+                                    {user.city && <div className="flex items-center gap-2"><EnvironmentOutlined className="text-brand-500" /> {user.city}</div>}
+                                    <div className="flex items-center gap-2">
+                                        <UserOutlined className="text-brand-500" />
+                                        {user.age ? `${user.age}岁` : '年龄未填'} · {user.work_experience_years !== undefined ? `${user.work_experience_years}年经验` : '经验未填'}
+                                    </div>
                                 </div>
                             </div>
-                            {user.avatar && (
-                                <Avatar size={100} src={user.avatar} icon={<UserOutlined />} />
-                            )}
+                            <div className="relative group">
+                                <div className="absolute -inset-1 bg-gradient-to-tr from-brand-400 to-emerald-400 rounded-3xl blur opacity-20"></div>
+                                {user.avatar ? (
+                                    <img 
+                                        src={user.avatar} 
+                                        alt={user.name} 
+                                        className="relative w-32 h-32 rounded-3xl object-cover border-4 border-white shadow-xl"
+                                    />
+                                ) : (
+                                    <div className="relative w-32 h-32 rounded-3xl bg-slate-50 flex items-center justify-center border-4 border-white shadow-xl">
+                                        <UserOutlined className="text-4xl text-slate-200" />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
-                        {/* Summary */}
-                        {(user.summary || user.description) && (
-                            <div className="mb-6">
-                                <h2 className="text-xl font-bold border-l-4 border-blue-600 pl-3 mb-3">个人优势</h2>
-                                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                    {user.summary || user.description}
-                                </p>
-                            </div>
-                        )}
+                        <div className="grid grid-cols-1 gap-12">
+                            {/* Summary */}
+                            {(user.summary || user.description) && (
+                                <section>
+                                    <h2 className="text-lg font-black text-slate-900 flex items-center gap-3 mb-6">
+                                        <span className="w-8 h-8 bg-brand-500 text-white rounded-lg flex items-center justify-center text-xs">01</span>
+                                        个人优势
+                                        <div className="flex-1 h-px bg-slate-100 ml-2"></div>
+                                    </h2>
+                                    <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-50">
+                                        <p className="text-slate-600 whitespace-pre-wrap leading-relaxed text-sm font-medium">
+                                            {user.summary || user.description}
+                                        </p>
+                                    </div>
+                                </section>
+                            )}
 
-                        {/* Work Experience */}
-                        {works.length > 0 && (
-                            <div className="mb-6">
-                                <h2 className="text-xl font-bold border-l-4 border-blue-600 pl-3 mb-4">工作经历</h2>
-                                <div className="space-y-6">
-                                    {works.map((work: any) => (
-                                        <div key={work.id}>
-                                            <div className="flex justify-between items-baseline mb-1">
-                                                <h3 className="text-lg font-bold">{work.company_name}</h3>
-                                                <span className="text-gray-500 text-sm">{work.start_date} - {work.end_date}</span>
-                                            </div>
-                                            <div className="text-gray-700 font-medium mb-2">{work.position}</div>
-                                            <p className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed">
-                                                {work.description}
-                                            </p>
-                                            {work.tags && (
-                                                <div className="mt-2 flex gap-2 flex-wrap">
-                                                    {work.tags.split(',').map((tag: string, idx: number) => (
-                                                        <Tag key={idx} color="default" className="text-xs text-gray-500 border-gray-200">{tag.trim()}</Tag>
-                                                    ))}
+                            {/* Work Experience */}
+                            {works.length > 0 && (
+                                <section>
+                                    <h2 className="text-lg font-black text-slate-900 flex items-center gap-3 mb-8">
+                                        <span className="w-8 h-8 bg-brand-500 text-white rounded-lg flex items-center justify-center text-xs">02</span>
+                                        工作/实习经历
+                                        <div className="flex-1 h-px bg-slate-100 ml-2"></div>
+                                    </h2>
+                                    <div className="space-y-10">
+                                        {works.map((work: any, index: number) => (
+                                            <div key={work.id} className="relative pl-8 border-l-2 border-slate-100 pb-2">
+                                                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-4 border-brand-500 shadow-sm"></div>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h3 className="text-base font-black text-slate-900 tracking-tight">{work.company_name}</h3>
+                                                        <div className="text-brand-600 text-xs font-black uppercase tracking-wider mt-1">{work.position}</div>
+                                                    </div>
+                                                    <span className="px-3 py-1 bg-slate-50 text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-100">
+                                                        {work.start_date} - {work.end_date}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Projects */}
-                        {projects.length > 0 && (
-                            <div className="mb-6">
-                                <h2 className="text-xl font-bold border-l-4 border-blue-600 pl-3 mb-4">项目经历</h2>
-                                <div className="space-y-6">
-                                    {projects.map((proj: any) => (
-                                        <div key={proj.id}>
-                                            <div className="flex justify-between items-baseline mb-1">
-                                                <h3 className="text-lg font-bold">{proj.project_name}</h3>
-                                                <span className="text-gray-500 text-sm">{proj.start_date} - {proj.end_date}</span>
+                                                <p className="text-slate-600 whitespace-pre-wrap text-sm leading-relaxed font-medium mb-4">
+                                                    {work.description}
+                                                </p>
+                                                {work.tags && (
+                                                    <div className="flex gap-2 flex-wrap">
+                                                        {work.tags.split(',').map((tag: string, idx: number) => (
+                                                            <span key={idx} className="px-2 py-0.5 bg-white text-slate-500 border border-slate-100 rounded text-[10px] font-bold">{tag.trim()}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="text-gray-700 font-medium mb-2">{proj.role}</div>
-                                            <p className="text-gray-600 whitespace-pre-wrap text-sm leading-relaxed">
-                                                {proj.description}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
 
-                        {/* Education */}
-                        {educations.length > 0 && (
-                            <div className="mb-6">
-                                <h2 className="text-xl font-bold border-l-4 border-blue-600 pl-3 mb-4">教育经历</h2>
-                                <div className="space-y-4">
-                                    {educations.map((edu: any) => (
-                                        <div key={edu.id} className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className="text-lg font-bold">{edu.school}</h3>
-                                                <div className="text-gray-700">{edu.major} | {edu.degree}</div>
-                                                {edu.description && <p className="text-sm text-gray-500 mt-1">{edu.description}</p>}
+                            {/* Projects */}
+                            {projects.length > 0 && (
+                                <section>
+                                    <h2 className="text-lg font-black text-slate-900 flex items-center gap-3 mb-8">
+                                        <span className="w-8 h-8 bg-brand-500 text-white rounded-lg flex items-center justify-center text-xs">03</span>
+                                        项目经历
+                                        <div className="flex-1 h-px bg-slate-100 ml-2"></div>
+                                    </h2>
+                                    <div className="grid grid-cols-1 gap-8">
+                                        {projects.map((proj: any) => (
+                                            <div key={proj.id} className="bg-slate-50/50 p-6 rounded-2xl border border-slate-50">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <h3 className="text-base font-black text-slate-900 tracking-tight">{proj.project_name}</h3>
+                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{proj.start_date} - {proj.end_date}</span>
+                                                </div>
+                                                <div className="text-brand-600 text-[11px] font-black uppercase tracking-widest mb-3">{proj.role}</div>
+                                                <p className="text-slate-600 whitespace-pre-wrap text-sm leading-relaxed font-medium">
+                                                    {proj.description}
+                                                </p>
                                             </div>
-                                            <span className="text-gray-500 text-sm">{edu.start_date} - {edu.end_date}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+
+                            {/* Education */}
+                            {educations.length > 0 && (
+                                <section>
+                                    <h2 className="text-lg font-black text-slate-900 flex items-center gap-3 mb-8">
+                                        <span className="w-8 h-8 bg-brand-500 text-white rounded-lg flex items-center justify-center text-xs">04</span>
+                                        教育经历
+                                        <div className="flex-1 h-px bg-slate-100 ml-2"></div>
+                                    </h2>
+                                    <div className="space-y-6">
+                                        {educations.map((edu: any) => (
+                                            <div key={edu.id} className="flex flex-col md:flex-row justify-between items-start gap-4">
+                                                <div className="flex gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300">
+                                                        <EnvironmentOutlined className="text-xl" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-base font-black text-slate-900 tracking-tight">{edu.school}</h3>
+                                                        <div className="text-slate-500 text-sm font-bold">{edu.major} · {edu.degree}</div>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest pt-1">{edu.start_date} - {edu.end_date}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                        </div>
+                        
+                        {/* Footer Accent */}
+                        <div className="mt-20 pt-8 border-t border-slate-50 text-center">
+                            <div className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Generated by TalentPulse · 2026</div>
+                        </div>
+                    </div>
                 )}
             </div>
-            <style>{`
+            <style dangerouslySetInnerHTML={{ __html: `
                 @media print {
                     body * {
                         visibility: hidden;
@@ -209,17 +268,14 @@ const ResumePreviewModal: React.FC<ResumePreviewModalProps> = ({ visible, onClos
                         display: none;
                     }
                     #resume-content {
-                        box-shadow: none;
-                        padding: 0;
-                        width: 100%;
-                    }
-                    .resume-header {
-                        display: flex !important;
-                        flex-direction: row !important;
-                        justify-content: space-between !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                        width: 100% !important;
+                        max-width: none !important;
+                        margin: 0 !important;
                     }
                 }
-            `}</style>
+            ` }} />
         </Modal>
     );
 };

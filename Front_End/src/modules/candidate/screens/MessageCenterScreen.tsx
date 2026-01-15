@@ -96,12 +96,12 @@ const WeChatCard: React.FC<{
     // State 1: Rejected
     if (isRejected) {
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-[200px] opacity-80">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 p-4 min-w-[200px] opacity-80">
                 <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded bg-gray-400 flex items-center justify-center text-white text-xs font-bold">We</div>
-                    <span className="text-gray-500 font-medium text-sm">微信交换已拒绝</span>
+                    <div className="w-8 h-8 rounded bg-gray-400 dark:bg-gray-600 flex items-center justify-center text-white text-xs font-bold">We</div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium text-sm">微信交换已拒绝</span>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-gray-500">
                     {isMe
                         ? (content.initiator_wechat === wechat ? '对方拒绝了您的请求' : '您拒绝了对方的请求')
                         : '请求已被拒绝'
@@ -122,18 +122,19 @@ const WeChatCard: React.FC<{
         const displayWechat = isMe ? (receiver_wechat || '对方已同意') : (wechat || '对方已同意');
 
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-emerald-100 p-4 min-w-[240px]">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-brand-100 dark:border-brand-800 p-4 min-w-[240px]">
                 <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">We</div>
-                    <span className="text-gray-900 font-medium text-sm">微信交换成功</span>
+                    <div className="w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#007AFF' }}>We</div>
+                    <span className="text-gray-900 dark:text-slate-100 font-medium text-sm">微信交换成功</span>
                 </div>
-                <div className="bg-emerald-50/50 p-3 rounded border border-emerald-100 mb-3">
-                    <p className="text-xs text-gray-500 mb-1">对方微信号</p>
-                    <p className="text-base font-semibold text-emerald-700 select-all font-mono">{displayWechat}</p>
+                <div className="bg-brand-50/50 dark:bg-brand-900/20 p-3 rounded border border-brand-100 dark:border-brand-800 mb-3">
+                    <p className="text-xs text-brand-600 dark:text-brand-400 mb-1">对方微信号</p>
+                    <p className="text-base font-semibold text-brand-700 dark:text-brand-400 select-all font-mono">{displayWechat}</p>
                 </div>
                 <button
                     onClick={() => onCopy(displayWechat)}
-                    className="w-full py-2 bg-white border border-emerald-200 text-emerald-600 text-xs font-medium rounded hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2 bg-white dark:bg-slate-700 border border-brand-200 dark:border-brand-700 text-xs font-medium rounded hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors flex items-center justify-center gap-2"
+                    style={{ color: '#007AFF' }}
                 >
                     <Copy className="w-3.5 h-3.5" /> 复制微信号
                 </button>
@@ -145,14 +146,15 @@ const WeChatCard: React.FC<{
     if (isMe) {
         // Sender View (Pending)
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-emerald-100 p-4 min-w-[200px]">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-brand-100 dark:border-brand-800 p-4 min-w-[200px]">
                 <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">We</div>
-                    <span className="text-gray-900 font-medium text-sm">微信交换请求</span>
+                    <div className="w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#007AFF' }}>We</div>
+                    <span className="text-gray-900 dark:text-slate-100 font-medium text-sm">请求交换微信</span>
                 </div>
-                <p className="text-xs text-gray-500">已发送请求，等待对方同意...</p>
-                <div className="mt-2 text-xs text-gray-400">
-                    我的微信号: {wechat}
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">我的微信号：<span className="font-semibold font-mono text-gray-900 dark:text-slate-100">{wechat}</span></p>
+                <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                    <div className="w-3 h-3 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-400 rounded-full animate-spin mr-2"></div>
+                    等待对方回复...
                 </div>
             </div>
         );
@@ -160,27 +162,28 @@ const WeChatCard: React.FC<{
 
     // Receiver View (Pending)
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-emerald-100 p-4 min-w-[260px]">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-brand-100 dark:border-brand-800 p-4 min-w-[260px]">
             <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded bg-brand-500 flex items-center justify-center shrink-0" style={{ backgroundColor: '#007AFF' }}>
                     <span className="text-white text-xl font-bold">We</span>
                 </div>
                 <div>
-                    <p className="text-gray-900 font-medium text-sm">对方请求交换微信</p>
-                    <p className="text-xs text-gray-500 mt-0.5">同意后将互相通过，并交换微信号</p>
+                    <p className="text-gray-900 dark:text-slate-100 font-medium text-sm">对方请求交换微信</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">同意后将互相通过，并交换微信号</p>
                 </div>
             </div>
 
-            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-50">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
                 <button
                     onClick={() => onReject && onReject(msg.id)}
-                    className="flex-1 py-2 bg-gray-50 text-gray-600 text-xs font-medium rounded hover:bg-gray-100 transition-colors"
+                    className="flex-1 py-2 bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-gray-300 text-xs font-medium rounded hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
                 >
                     拒绝
                 </button>
                 <button
                     onClick={() => onAccept && onAccept(msg.id)}
-                    className="flex-1 py-2 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 transition-colors shadow-sm"
+                    className="flex-1 py-2 text-white text-xs font-medium rounded hover:opacity-90 transition-colors shadow-sm"
+                    style={{ backgroundColor: '#007AFF' }}
                 >
                     同意交换
                 </button>
@@ -247,6 +250,9 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     const [userResumes, setUserResumes] = useState<any[]>([]);
     const [selectedResume, setSelectedResume] = useState<any | null>(null);
     const [isLoadingResumes, setIsLoadingResumes] = useState(false);
+    const [isUploadingResume, setIsUploadingResume] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const resumeUploadInputRef = useRef<HTMLInputElement>(null);
 
     // 交换微信相关状态
     const [showWechatModal, setShowWechatModal] = useState(false);
@@ -421,6 +427,57 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    // Handle resume upload
+    const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!currentUser?.id) {
+            message.error('无法获取用户信息，请重新登录');
+            console.error('handleResumeUpload: currentUser.id is missing', currentUser);
+            return;
+        }
+
+        // 验证文件类型
+        const allowedExtensions = ['.pdf', '.doc', '.docx'];
+        const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+        if (!allowedExtensions.includes(extension)) {
+            message.error('只支持 PDF 或 Word 文档');
+            if (resumeUploadInputRef.current) resumeUploadInputRef.current.value = '';
+            return;
+        }
+
+        try {
+            setIsUploadingResume(true);
+            setUploadProgress(0);
+
+            console.log('Starting resume upload for user:', currentUser.id, file.name);
+
+            // 使用与个人中心相同的 API 调用方式
+            const response = await resumeAPI.uploadResume(currentUser.id, file, (progress) => {
+                setUploadProgress(progress);
+            });
+
+            console.log('Resume upload response:', response);
+
+            if (response.data && (response.data.status === 'success' || response.data.success || response.data.id)) {
+                message.success('简历上传成功');
+                await loadUserResumes();
+            } else {
+                throw new Error(response.data?.message || '上传响应不包含成功状态');
+            }
+        } catch (error) {
+            console.error('上传简历失败:', error);
+            message.error('上传失败，请重试');
+        } finally {
+            setIsUploadingResume(false);
+            setUploadProgress(0);
+            if (resumeUploadInputRef.current) {
+                resumeUploadInputRef.current.value = '';
+            }
+        }
     };
 
     // Handle send resume button click
@@ -1047,7 +1104,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             message.error('操作失败');
                                         }
                                     }}
-                                    className="text-xs text-gray-500 hover:text-indigo-600 underline"
+                                    className="text-xs text-gray-500 hover:text-brand-600 underline"
                                 >
                                     一键已读
                                 </button>
@@ -1058,7 +1115,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                             <input
                                 type="text"
                                 placeholder="搜索联系人..."
-                                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500"
                                 value={searchText}
                                 onChange={(e) => setSearchText(e.target.value)}
                             />
@@ -1108,7 +1165,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             }
                                         }}
                                         className={`relative group p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-gray-50 
-                                            ${isActive && !isMobile ? 'bg-emerald-50/60 border-l-4 border-l-emerald-600' : 'border-l-4 border-l-transparent'}`}
+                                            ${isActive && !isMobile ? 'bg-brand-50/60 border-l-4 border-l-brand-600' : 'border-l-4 border-l-transparent'}`}
                                     >
                                         <div className="flex justify-between mb-1">
                                             <div className="flex items-center gap-2">
@@ -1120,7 +1177,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 />
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1">
-                                                        <h4 className={`font-bold text-sm truncate ${isActive && !isMobile ? 'text-emerald-900' : 'text-gray-900'}`}>{recruiterName}</h4>
+                                                        <h4 className={`font-bold text-sm truncate ${isActive && !isMobile ? 'text-brand-900' : 'text-gray-900'}`}>{recruiterName}</h4>
 
                                                     </div>
                                                     <p className="text-xs text-gray-500 truncate">{displayJobTitle} • {conv.company_name || '未知公司'}</p>
@@ -1129,7 +1186,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             <div className="flex flex-col items-end gap-1">
                                                 <span className="text-xs text-gray-400">{formatDateTime(conv.lastTime).split(' ')[0]}</span>
                                                 {conv.unreadCount > 0 && (
-                                                    <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                                                    <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
                                                         {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                                                     </span>
                                                 )}
@@ -1207,7 +1264,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                     {isMobile && (
                                         <button
                                             onClick={() => navigate('/messages')}
-                                            className="p-1 -ml-2 mr-1 text-gray-600 hover:text-indigo-600 transition-colors"
+                                            className="p-1 -ml-2 mr-1 text-gray-600 hover:text-brand-600 transition-colors"
                                             aria-label="返回消息列表"
                                         >
                                             <ArrowLeft className="w-6 h-6" />
@@ -1225,7 +1282,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                             <div className="relative">
                                                 <button
                                                     onClick={() => setShowJobSelector(!showJobSelector)}
-                                                    className="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1 max-w-[200px] truncate"
+                                                    className="text-xs text-gray-500 hover:text-brand-600 flex items-center gap-1 max-w-[200px] truncate"
                                                 >
                                                     <span>{activeConv.job_title || activeConv.jobTitle || '职位'}</span>
                                                     <ChevronDown className={`w-3 h-3 transition-transform ${showJobSelector ? 'rotate-180' : ''}`} />
@@ -1244,7 +1301,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                         navigate(`/messages/${job.id}`);
                                                                         setShowJobSelector(false);
                                                                     }}
-                                                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-indigo-50 transition-colors ${isCurrentJob ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-700'
+                                                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-brand-50 transition-colors ${isCurrentJob ? 'bg-brand-50 text-brand-600 font-medium' : 'text-gray-700'
                                                                         }`}
                                                                 >
                                                                     <div className="font-medium">{job.jobTitle || '职位'}</div>
@@ -1260,25 +1317,28 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         )}
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button className="p-2 text-gray-400 hover:text-indigo-600 bg-gray-50 rounded-full"><Phone className="w-4 h-4" /></button>
-                                    <button className="p-2 text-gray-400 hover:text-indigo-600 bg-gray-50 rounded-full"><MoreVertical className="w-4 h-4" /></button>
+                                <div className="flex gap-2 items-center">
+                                    <button
+                                        onClick={handleSendResumeClick}
+                                        className="hidden md:block px-3 py-1.5 bg-brand-50 text-brand-600 text-xs rounded-full whitespace-nowrap hover:bg-brand-100 transition-colors"
+                                        style={{ backgroundColor: '#EFF6FF', color: '#007AFF' }}
+                                    >
+                                        发送简历
+                                    </button>
+                                    <button
+                                        onClick={handleExchangeWechat}
+                                        disabled={exchangeRequests[activeConversationId || ''] || isSendingRequest}
+                                        className={`hidden md:block px-3 py-1.5 bg-brand-50 text-brand-600 text-xs rounded-full whitespace-nowrap hover:bg-brand-100 transition-colors ${exchangeRequests[activeConversationId || ''] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        style={{ backgroundColor: '#EFF6FF', color: '#007AFF' }}
+                                    >
+                                        {exchangeRequests[activeConversationId || ''] ? '请求已发送' : '交换微信'}
+                                    </button>
+                                    <button className="p-2 text-gray-400 hover:text-brand-600 bg-gray-50 rounded-full"><Phone className="w-4 h-4" /></button>
+                                    <button className="p-2 text-gray-400 hover:text-brand-600 bg-gray-50 rounded-full"><MoreVertical className="w-4 h-4" /></button>
                                 </div>
                             </div>
 
-                            {/* Quick Actions - 移到顶部 */}
-                            <div className="px-4 py-2 bg-gray-50/80 flex gap-2 border-b border-gray-100">
-                                <button onClick={handleSendResumeClick} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs rounded-full whitespace-nowrap hover:bg-indigo-100 transition-colors">
-                                    发送简历
-                                </button>
-                                <button
-                                    onClick={handleExchangeWechat}
-                                    disabled={exchangeRequests[activeConversationId || ''] || isSendingRequest}
-                                    className={`px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full whitespace-nowrap hover:bg-emerald-100 transition-colors ${exchangeRequests[activeConversationId || ''] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    {exchangeRequests[activeConversationId || ''] ? '请求已发送' : '交换微信'}
-                                </button>
-                            </div>
+
 
                             {/* Messages */}
                             <div
@@ -1293,7 +1353,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                 {/* 加载更多指示器 */}
                                 {isLoadingMore && (
                                     <div className="flex justify-center py-2">
-                                        <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
                                     </div>
                                 )}
                                 {/* 消息列表 */}
@@ -1416,9 +1476,10 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                         )}
                                                         <div
                                                             className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
-                                                        ${isMe ? 'bg-green-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}
+                                                        ${isMe ? 'bg-brand-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}
                                                         hover:shadow-md transition-shadow
                                                     `}
+                                                            style={{ backgroundColor: isMe ? '#007AFF' : undefined }}
                                                             onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
                                                         >
 
@@ -1437,7 +1498,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                 // Keep legacy support or remove if fully deprecated. 
                                                                 // User asked to "Replace/Refine", but having fallback is good.
                                                                 // For now keeping it but focus on wechat_card as primary.
-                                                                <div className="bg-white rounded-lg shadow-sm border border-emerald-100 overflow-hidden min-w-[260px] max-w-[300px]">
+                                                                <div className="bg-white rounded-lg shadow-sm border border-brand-100 overflow-hidden min-w-[260px] max-w-[300px]">
                                                                     {/* Legacy exchange request rendering... */}
                                                                     {(() => {
                                                                         let status = 'pending';
@@ -1458,9 +1519,9 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                         if (status === 'pending') {
                                                                             return (
                                                                                 <div>
-                                                                                    <div className="p-4 bg-emerald-50/30">
+                                                                                    <div className="p-4 bg-brand-50/30">
                                                                                         <div className="flex items-start gap-3 mb-3">
-                                                                                            <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
+                                                                                            <div className="w-10 h-10 rounded bg-brand-500 flex items-center justify-center shrink-0" style={{ backgroundColor: '#007AFF' }}>
                                                                                                 <span className="text-white text-xl font-bold">We</span>
                                                                                             </div>
                                                                                             <p className="text-gray-900 font-medium text-[15px] leading-snug">
@@ -1483,7 +1544,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                                             <div className="w-px bg-gray-100"></div>
                                                                                             <button
                                                                                                 onClick={() => handleAcceptWechatRequest(msg.id)}
-                                                                                                className="flex-1 py-3 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors font-medium"
+                                                                                                className="flex-1 py-3 text-sm text-brand-600 hover:bg-brand-50 transition-colors font-medium"
                                                                                             >
                                                                                                 同意
                                                                                             </button>
@@ -1503,7 +1564,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                             return (
                                                                                 <div className="p-4">
                                                                                     <div className="flex items-center gap-3 mb-4">
-                                                                                        <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
+                                                                                        <div className="w-10 h-10 rounded bg-brand-500 flex items-center justify-center shrink-0" style={{ backgroundColor: '#007AFF' }}>
                                                                                             <span className="text-white text-xl font-bold">We</span>
                                                                                         </div>
                                                                                         <div>
@@ -1513,7 +1574,8 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                                     </div>
                                                                                     <button
                                                                                         onClick={() => handleCopyWechat(otherWechat)}
-                                                                                        className="w-full py-2 bg-emerald-50 text-emerald-600 text-sm font-medium rounded hover:bg-emerald-100 transition-colors"
+                                                                                        className="w-full py-2 bg-brand-50 text-brand-600 text-sm font-medium rounded hover:bg-brand-100 transition-colors"
+                                                                                        style={{ backgroundColor: '#EFF6FF', color: '#007AFF' }}
                                                                                     >
                                                                                         复制微信号
                                                                                     </button>
@@ -1548,11 +1610,11 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                     <div className="space-y-2">
                                                                         {/* 文件图标和信息 */}
                                                                         <div className="flex items-center gap-2">
-                                                                            <FileText className={`w-5 h-5 ${isMe ? 'text-green-200' : 'text-gray-400'}`} />
+                                                                            <FileText className={`w-5 h-5 ${isMe ? 'text-blue-200' : 'text-gray-400'}`} />
                                                                             <div className="flex-1">
                                                                                 <p className="font-medium">{msg.file_name || msg.text.replace('[简历] ', '').replace('[文件] ', '')}</p>
                                                                                 {msg.file_size && (
-                                                                                    <p className={`text-xs ${isMe ? 'text-green-200' : 'text-gray-500'}`}>
+                                                                                    <p className={`text-xs ${isMe ? 'text-blue-200' : 'text-gray-500'}`}>
                                                                                         {formatFileSize(msg.file_size)}
                                                                                     </p>
                                                                                 )}
@@ -1563,7 +1625,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                             {/* 查看按钮 */}
                                                                             <button
                                                                                 onClick={() => window.open(msg.file_url, '_blank')}
-                                                                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-green-400 hover:bg-green-300 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
+                                                                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-brand-400 hover:bg-brand-300 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'}`}
                                                                             >
                                                                                 <Eye className="w-3.5 h-3.5" />
                                                                                 查看
@@ -1572,7 +1634,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                             <a
                                                                                 href={msg.file_url}
                                                                                 download={msg.file_name}
-                                                                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
+                                                                                className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${isMe ? 'bg-brand-600 hover:bg-brand-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}
                                                                             >
                                                                                 <Download className="w-3.5 h-3.5" />
                                                                                 下载
@@ -1587,7 +1649,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                             <div className={`
                                                                         p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50 text-sm
                                                                         ${isMe
-                                                                                    ? 'border-green-500 bg-green-50 text-green-800'
+                                                                                    ? 'border-brand-300 bg-brand-600 text-white' // Adjusted for better contrast on dark brand background
                                                                                     : 'border-gray-300 bg-gray-50 text-gray-700'
                                                                                 }
                                                                     `}>
@@ -1607,7 +1669,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                             <div className={`
                                                                         p-3 rounded-lg border-l-4 border-gray-300 bg-gray-50 text-sm
                                                                         ${isMe
-                                                                                    ? 'border-green-500 bg-green-50 text-green-800'
+                                                                                    ? 'border-brand-300 bg-brand-600 text-white'
                                                                                     : 'border-gray-300 bg-gray-50 text-gray-700'
                                                                                 }
                                                                     `}>
@@ -1631,7 +1693,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                 src={currentUser?.avatar}
                                                                 name={currentUser?.name || '我'}
                                                                 size={32}
-                                                                className="bg-indigo-100 text-indigo-600"
+                                                                className="bg-brand-100 text-brand-600"
                                                             />
                                                         )}
                                                     </div>
@@ -1647,7 +1709,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                             {showScrollToNew && (
                                 <button
                                     onClick={() => scrollToLatest(true)}
-                                    className="absolute bottom-4 right-4 p-2 bg-white text-indigo-600 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 transition-all"
+                                    className="absolute bottom-4 right-4 p-2 bg-white text-brand-600 rounded-full shadow-lg border border-gray-100 hover:bg-gray-50 transition-all"
                                     aria-label="回到最新消息"
                                 >
                                     <ChevronDown className="w-5 h-5" />
@@ -1702,13 +1764,13 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                             <div className="shrink-0 bg-white border-t border-gray-100 z-20 pb-safe">
                                 {/* 回复预览卡片 */}
                                 {replyingTo && (
-                                    <div className="px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 animate-in slide-in-from-bottom-2 duration-200">
+                                    <div className="px-4 py-2 bg-gradient-to-r from-brand-50 to-purple-50 border-b border-brand-100 animate-in slide-in-from-bottom-2 duration-200">
                                         <div className="flex items-start gap-3">
-                                            <div className="flex-shrink-0 w-1 h-full min-h-[40px] bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></div>
+                                            <div className="flex-shrink-0 w-1 h-full min-h-[40px] bg-gradient-to-b from-brand-500 to-purple-500 rounded-full"></div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-0.5">
-                                                    <Reply className="w-3.5 h-3.5 text-indigo-500" />
-                                                    <span className="text-xs font-semibold text-indigo-600">
+                                                    <Reply className="w-3.5 h-3.5 text-brand-500" />
+                                                    <span className="text-xs font-semibold text-brand-600">
                                                         回复 {replyingTo.isMe ? '自己' : replyingTo.senderName}
                                                     </span>
                                                 </div>
@@ -1729,43 +1791,47 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                     </div>
                                 )}
                                 {/* Input Area - 上下布局 */}
-                                <div className="p-3 space-y-2">
-                                    {/* 输入框区域 */}
-                                    <div className="w-full">
+                                {/* Input Area - 单行布局 */}
+                                <div className="p-4 bg-white border-t border-gray-100 flex items-end gap-3">
+                                    <button
+                                        onClick={() => setShowExtrasMenu(!showExtrasMenu)}
+                                        className="mb-1.5 p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                                        aria-label="更多功能"
+                                    >
+                                        <Plus className={`w-6 h-6 transition-transform ${showExtrasMenu ? 'rotate-45' : ''}`} />
+                                    </button>
+
+                                    <div className="flex-1 min-w-0 bg-gray-50 rounded-[20px] focus-within:ring-1 focus-within:ring-brand-500/50 transition-all">
                                         <textarea
-                                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl resize-none text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all max-h-32"
-                                            rows={3}
+                                            className="w-full px-4 py-3 bg-transparent border-none outline-none focus:ring-0 shadow-none text-sm resize-none max-h-32 min-h-[44px] placeholder-gray-400"
+                                            rows={1}
                                             value={input}
-                                            onChange={(e) => setInput(e.target.value)}
+                                            onChange={(e) => {
+                                                setInput(e.target.value);
+                                                // Auto-resize
+                                                e.target.style.height = 'auto';
+                                                e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px';
+                                            }}
                                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                            placeholder="输入消息... (Shift+Enter 换行)"
+                                            placeholder="输入消息..."
+                                            style={{ height: '44px' }}
                                         />
                                     </div>
 
-                                    {/* 按钮区域 */}
-                                    <div className="flex items-center justify-between">
-                                        <button
-                                            onClick={() => setShowExtrasMenu(!showExtrasMenu)}
-                                            className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
-                                            aria-label="更多功能"
-                                        >
-                                            <Plus className={`w-6 h-6 transition-transform ${showExtrasMenu ? 'rotate-45' : ''}`} />
-                                        </button>
-
-                                        <button
-                                            onClick={() => handleSend()}
-                                            disabled={!input.trim()}
-                                            className={`px-6 py-2.5 rounded-xl transition-all font-medium ${input.trim()
-                                                ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700 hover:shadow-lg'
-                                                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <SendIcon className="w-5 h-5" />
-                                                <span>发送</span>
-                                            </div>
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => handleSend()}
+                                        disabled={!input.trim()}
+                                        className={`mb-0.5 flex-shrink-0 px-4 py-2 rounded-xl transition-all font-medium ${input.trim()
+                                            ? 'bg-brand-600 text-white shadow-md hover:bg-brand-700 hover:shadow-lg'
+                                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            }`}
+                                        style={{ backgroundColor: input.trim() ? '#007AFF' : undefined }}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <SendIcon className="w-5 h-5" />
+                                            <span>发送</span>
+                                        </div>
+                                    </button>
                                 </div>
                                 {showExtrasMenu && (
                                     <div className="p-4 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-2">
@@ -1800,36 +1866,64 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                         {/* Modal Header */}
                                         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                                             <div className="flex items-center gap-2">
-                                                <FileText className="w-5 h-5 text-indigo-600" />
+                                                <FileText className="w-5 h-5 text-brand-600" />
                                                 <h3 className="font-semibold text-gray-900">选择要发送的简历</h3>
                                             </div>
-                                            <button
-                                                onClick={() => setShowResumeModal(false)}
-                                                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-                                            >
-                                                <X className="w-5 h-5" />
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => resumeUploadInputRef.current?.click()}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-600 text-xs font-medium rounded-lg hover:bg-brand-100 transition-colors"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    上传简历
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowResumeModal(false)}
+                                                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                                                >
+                                                    <X className="w-5 h-5" />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Modal Content */}
                                         <div className="p-4 overflow-y-auto max-h-[60vh]">
                                             {isLoadingResumes ? (
                                                 <div className="flex flex-col items-center justify-center py-8">
-                                                    <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
+                                                    <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mb-3"></div>
                                                     <p className="text-sm text-gray-500">加载中...</p>
                                                 </div>
                                             ) : userResumes.length === 0 ? (
-                                                <div className="text-center py-8">
-                                                    <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                                    <p className="text-gray-500 text-sm mb-3">您还没有上传任何简历</p>
-                                                    <button
-                                                        onClick={() => {
-                                                            setShowResumeModal(false);
-                                                        }}
-                                                        className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
-                                                    >
-                                                        关闭
-                                                    </button>
+                                                <div className="text-center py-10">
+                                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                        <FileText className="w-8 h-8 text-gray-300" />
+                                                    </div>
+                                                    <p className="text-gray-500 text-sm mb-6">您还没有上传任何简历</p>
+                                                    <div className="flex flex-col gap-2 px-6">
+                                                        <button
+                                                            onClick={() => resumeUploadInputRef.current?.click()}
+                                                            disabled={isUploadingResume}
+                                                            className={`w-full py-2.5 bg-brand-600 text-white text-sm font-medium rounded-xl hover:bg-brand-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${isUploadingResume ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            {isUploadingResume ? (
+                                                                <>
+                                                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                                    <span>上传中 {uploadProgress}%</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Plus className="w-4 h-4" />
+                                                                    <span>立即上传</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setShowResumeModal(false)}
+                                                            className="w-full py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
+                                                        >
+                                                            关闭
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <div className="space-y-2">
@@ -1845,18 +1939,18 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                 key={resume.id || index}
                                                                 onClick={() => setSelectedResume(resume)}
                                                                 className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isSelected
-                                                                    ? 'border-indigo-500 bg-indigo-50'
+                                                                    ? 'border-brand-500 bg-brand-50'
                                                                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                                                     }`}
                                                             >
                                                                 <div className="flex items-center gap-3 flex-1 min-w-0">
                                                                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected
-                                                                        ? 'border-indigo-500 bg-indigo-500'
+                                                                        ? 'border-brand-500 bg-brand-500'
                                                                         : 'border-gray-300'
                                                                         }`}>
                                                                         {isSelected && <Check className="w-4 h-4 text-white" />}
                                                                     </div>
-                                                                    <div className="text-indigo-600 flex-shrink-0">
+                                                                    <div className="text-brand-600 flex-shrink-0">
                                                                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                                                             <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1-3a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                                                                         </svg>
@@ -1886,7 +1980,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 onClick={handleConfirmSendResume}
                                                 disabled={!selectedResume}
                                                 className={`w-full py-2.5 rounded-xl font-medium transition-all ${selectedResume
-                                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md'
+                                                    ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-md'
                                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                                                     }`}
                                             >
@@ -1908,7 +2002,13 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                 </div>
             </div>
             {/* WeChat Input Modal */}
-
+            <input
+                type="file"
+                ref={resumeUploadInputRef}
+                onChange={handleResumeUpload}
+                accept=".pdf,.doc,.docx"
+                className="hidden"
+            />
         </div>
     );
 };

@@ -4,6 +4,7 @@ import { onboardingAPI, Onboarding } from '@/services/onboardingService';
 import { message, Modal, Select } from 'antd';
 import moment from 'moment';
 import OnboardingModal from '../components/OnboardingModal';
+import { useI18n } from '@/contexts/i18nContext';
 
 const { Option } = Select;
 
@@ -12,6 +13,7 @@ interface OnboardingsViewProps {
 }
 
 const OnboardingsView: React.FC<OnboardingsViewProps> = ({ currentUserId }) => {
+  const { language, t } = useI18n();
   const [onboardings, setOnboardings] = useState<Onboarding[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,176 +73,190 @@ const OnboardingsView: React.FC<OnboardingsViewProps> = ({ currentUserId }) => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Scheduled': return 'bg-blue-100 text-blue-700';
-      case 'In Progress': return 'bg-purple-100 text-purple-700';
-      case 'Completed': return 'bg-green-100 text-green-700';
-      case 'Pending': return 'bg-yellow-100 text-yellow-700';
-      case 'Cancelled': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
+      case 'Scheduled': return 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+      case 'In Progress': return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300';
+      case 'Completed': return 'bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-300';
+      case 'Pending': return 'bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+      case 'Cancelled': return 'bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+      default: return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-500';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'Scheduled': return '已安排';
-      case 'Completed': return '已完成';
-      case 'Pending': return '待安排';
-      case 'In Progress': return '进行中';
-      case 'Cancelled': return '已取消';
+      case 'Scheduled': return t.recruiter.statusScheduled;
+      case 'Completed': return t.recruiter.statusCompleted;
+      case 'Pending': return t.recruiter.pending;
+      case 'In Progress': return language === 'zh' ? '进行中' : 'In Progress';
+      case 'Cancelled': return t.recruiter.statusCancelled;
       default: return status;
     }
   };
 
   const statusOptions = [
-    { label: '全部状态', value: 'all' },
-    { label: '已安排', value: '已安排' },
-    { label: '进行中', value: '进行中' },
-    { label: '已完成', value: '已完成' },
-    { label: '待安排', value: '待安排' },
-    { label: '已取消', value: '已取消' },
+    { label: language === 'zh' ? '全部状态' : 'All Status', value: 'all' },
+    { label: language === 'zh' ? '已安排' : 'Scheduled', value: '已安排' },
+    { label: language === 'zh' ? '进行中' : 'In Progress', value: '进行中' },
+    { label: language === 'zh' ? '已完成' : 'Completed', value: '已完成' },
+    { label: language === 'zh' ? '待安排' : 'Pending', value: '待安排' },
+    { label: language === 'zh' ? '已取消' : 'Cancelled', value: '已取消' },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">入职管理</h1>
-        {/* Creation requires selecting candidate/job, effectively usually done from Candidate list or Job Application list. 
-            Direct creation here is complex without selectors. Hidden for now or implemented with manual ID input for MVP */}
-        <button onClick={handleCreate} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2">
-          <Plus className="w-4 h-4" />
-          安排入职
+    <div className="space-y-6 p-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-2">
+        <div>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{t.recruiter.onboardTitle}</h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">{t.recruiter.onboardSubtitle}</p>
+        </div>
+        <button
+          onClick={handleCreate}
+          className="px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all font-bold shadow-xl shadow-blue-200 dark:shadow-blue-900/20 active:scale-95 flex items-center gap-2 group"
+        >
+          <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+          {t.recruiter.scheduleOnboarding}
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="p-4 border-b border-gray-200 flex gap-4 justify-between items-center flex-wrap">
-          <div className="flex gap-2 items-center w-full md:w-auto">
-            <Search className="text-gray-400 w-5 h-5" />
+      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100 dark:border-slate-700/50 flex flex-col lg:flex-row gap-5 justify-between items-center">
+          <div className="flex gap-3 items-center w-full lg:w-1/2 relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-blue-500 transition-colors" />
             <input
               type="text"
-              placeholder="搜索候选人、职位..."
+              placeholder="搜索入职员工姓名或职位..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="bg-transparent focus:outline-none text-sm w-full md:w-64"
+              className="w-full pl-12 pr-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/50 focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all font-medium text-slate-700 dark:text-slate-200"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-3 w-full lg:w-auto">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm font-bold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer w-full lg:w-48"
             >
-              <option value="all">全部状态</option>
-              <option value="Scheduled">已安排</option>
-              <option value="In Progress">进行中</option>
-              <option value="Completed">已完成</option>
-              <option value="Pending">待安排</option>
-              <option value="Cancelled">已取消</option>
+              <option value="all">{t.recruiter.allPhases}</option>
+              <option value="Scheduled">📋 {t.recruiter.statusScheduled}</option>
+              <option value="In Progress">⚡ {language === 'zh' ? '进行中...' : 'In Progress...'}</option>
+              <option value="Completed">✨ {t.recruiter.statusCompleted}</option>
+              <option value="Pending">⌛ {t.recruiter.pending}</option>
+              <option value="Cancelled">🚫 {t.recruiter.statusCancelled}</option>
             </select>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left">候选人</th>
-                <th className="px-6 py-3 text-left">职位</th>
-                <th className="px-6 py-3 text-left">入职日期</th>
-                <th className="px-6 py-3 text-left">入职详情</th>
-                <th className="px-6 py-3 text-left">联系信息</th>
-                <th className="px-6 py-3 text-left">状态</th>
-                <th className="px-6 py-3 text-left">操作</th>
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
+                <th className="px-6 py-4 text-left font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">入职伙伴</th>
+                <th className="px-6 py-4 text-left font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">归属职位</th>
+                <th className="px-6 py-4 text-left font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">入职时间</th>
+                <th className="px-6 py-4 text-left font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">办公地点及待遇</th>
+                <th className="px-6 py-4 text-left font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">入职联络人</th>
+                <th className="px-6 py-4 text-left font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">当前状态</th>
+                <th className="px-6 py-4 text-right font-black text-slate-400 dark:text-slate-500 text-xs uppercase tracking-widest">管理操作</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {loading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    加载中...
+                    {t.common.loading}
                   </td>
                 </tr>
               ) : filteredOnboardings.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    {onboardings.length === 0 ? '暂无入职安排记录' : '没有找到匹配的记录'}
+                    {onboardings.length === 0 ? t.recruiter.noOnboardingRecords : t.common.noData}
                   </td>
                 </tr>
               ) : (
                 filteredOnboardings.map(onboarding => (
-                  <tr key={onboarding.id} className="border-b hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                  <tr key={onboarding.id} className="group hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-all duration-300">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shadow-sm transition-transform group-hover:scale-105">
                           {onboarding.candidateAvatar ? (
                             <img src={onboarding.candidateAvatar} alt="" className="w-full h-full object-cover" />
                           ) : (
-                            <User className="w-4 h-4 text-gray-500" />
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-black text-lg">
+                              {onboarding.candidateName ? onboarding.candidateName.charAt(0).toUpperCase() : '?'}
+                            </div>
                           )}
                         </div>
-                        <div className="font-medium text-gray-900">{onboarding.candidateName || '未知'}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{onboarding.jobTitle || '未知职位'}</span>
-                        <span className="text-xs text-gray-500">{onboarding.companyName}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        {moment(onboarding.onboardingDate).format('YYYY-MM-DD')}
-                      </div>
-                      {onboarding.onboardingTime && (
-                        <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
-                          <Clock className="w-3 h-3" />
-                          {onboarding.onboardingTime}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 max-w-xs">
-                      {onboarding.onboardingLocation && (
-                        <div className="flex items-start gap-1 mb-1" title={onboarding.onboardingLocation}>
-                          <MapPin className="w-3 h-3 text-gray-400 mt-0.5 shrink-0" />
-                          <span className="truncate">{onboarding.onboardingLocation}</span>
-                        </div>
-                      )}
-                      {onboarding.officialSalary && (
-                        <div className="text-xs text-gray-500">
-                          薪资: {onboarding.officialSalary}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {onboarding.onboardingContact ? (
                         <div>
-                          <div className="text-sm">{onboarding.onboardingContact}</div>
+                          <div className="font-bold text-slate-900 dark:text-slate-100">{onboarding.candidateName || '未知'}</div>
+                          <div className="text-[10px] text-slate-400 font-bold mt-0.5">EMP-ID: {onboarding.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{onboarding.jobTitle || '未知职位'}</span>
+                        <div className="flex items-center text-[10px] text-slate-500 font-bold">
+                          <Building2 className="w-3 h-3 mr-1 text-slate-400" />
+                          {onboarding.companyName}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2 font-black text-slate-700 dark:text-slate-300 text-sm">
+                          <Calendar className="w-4 h-4 text-blue-500" />
+                          {moment(onboarding.onboardingDate).format('YYYY年MM月DD日')}
+                        </div>
+                        {onboarding.onboardingTime && (
+                          <div className="flex items-center gap-2 mt-1.5 text-[10px] font-bold text-slate-400">
+                            <Clock className="w-3.5 h-3.5" />
+                            {t.recruiter.onboardingCheckinTime} {onboarding.onboardingTime}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex flex-col gap-1.5 max-w-xs">
+                        {onboarding.onboardingLocation && (
+                          <div className="flex items-start gap-1.5 group/loc" title={onboarding.onboardingLocation}>
+                            <MapPin className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 truncate">{onboarding.onboardingLocation}</span>
+                          </div>
+                        )}
+                        {onboarding.officialSalary && (
+                          <div className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-lg w-fit">
+                            {t.recruiter.officialSalaryPrefix}{onboarding.officialSalary}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      {onboarding.onboardingContact ? (
+                        <div className="flex flex-col gap-1">
+                          <div className="text-sm font-bold text-slate-700 dark:text-slate-200">{onboarding.onboardingContact}</div>
                           {onboarding.onboardingContactPhone && (
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                               <Phone className="w-3 h-3" />
                               {onboarding.onboardingContactPhone}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-400 text-xs">-</span>
+                        <span className="text-slate-300 italic text-[10px] font-bold">{t.recruiter.noContact}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(onboarding.status)}`}>
+                    <td className="px-6 py-5">
+                      <span className={`px-3 py-1 text-[10px] font-black rounded-full w-fit uppercase tracking-widest ${getStatusColor(onboarding.status)}`}>
                         {getStatusText(onboarding.status)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(onboarding)}
-                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                        >
-                          查看详情
-                        </button>
-                      </div>
+                    <td className="px-6 py-5 text-right">
+                      <button
+                        onClick={() => handleEdit(onboarding)}
+                        className="px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl text-xs font-black transition-all active:scale-90"
+                      >
+                        {t.recruiter.editDetails}
+                      </button>
                     </td>
                   </tr>
                 ))

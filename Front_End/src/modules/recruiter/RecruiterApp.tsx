@@ -29,6 +29,10 @@ import { CandidatesView } from './views/CandidatesView';
 import InterviewsView from './views/InterviewsView';
 import OnboardingsView from './views/OnboardingsView';
 
+// 导入主题和国际化Provider
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { I18nProvider } from '@/contexts/i18nContext';
+
 interface RecruiterAppProps {
     onLogout: () => void;
     onSwitchRole: (role: UserRole) => void;
@@ -1170,6 +1174,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     // 查看职位处理函数
     const handleViewJob = (jobId: number | string) => {
         setViewingJobId(jobId);
+        navigate(`/recruiter/jobs/${jobId}`);
     };
 
     const handleSendMessage = async (text: string, type: any = 'text', quotedMessage?: { id: string | number | null, text: string, senderName: string | null, type?: string }) => {
@@ -1393,6 +1398,10 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                 companyAddress={profile.company.address}
                 jobs={jobs}
                 onEditJob={handleEditJob}
+                onViewCandidate={(candidate) => {
+                    setSelectedCandidate(candidate);
+                    setIsDetailModalOpen(true);
+                }}
             />
         );
     };
@@ -1426,606 +1435,614 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     };
 
     return (
-        <RecruiterLayout onLogout={onLogout} onSwitchRole={onSwitchRole} currentUser={profile}>
-            {loading ? (
-                <SkeletonLoader />
-            ) : (
-                <Routes>
-                    <Route
-                        path="/dashboard"
-                        element={
-                            <RecruiterDashboard
-                                currentUser={currentUser}
-                                jobs={jobs}
-                                candidates={candidates}
-                                interviews={interviews}
-                                unreadMessageCount={conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0)}
-                                profile={profile}
-                                onSetIsPostModalOpen={setIsPostModalOpen}
-                                onSetNewJob={setNewJob}
-                                newJob={newJob}
-                                onHandleGenerateJD={handleGenerateJD}
-                                isGeneratingJD={isGeneratingJD}
-                                aiSuggestions={aiSuggestions}
-                                onHandleGetAiSuggestions={handleGetAiSuggestions}
-                                isLoadingSuggestions={isLoadingSuggestions}
-                                onHandlePostJob={handlePostJob}
-                                onSetViewingJobId={setViewingJobId}
+        <ThemeProvider>
+            <I18nProvider>
+                <RecruiterLayout onLogout={onLogout} onSwitchRole={onSwitchRole} currentUser={profile}>
+                    {loading ? (
+                        <SkeletonLoader />
+                    ) : (
+                        <Routes>
+                            <Route
+                                path="/dashboard"
+                                element={
+                                    <RecruiterDashboard
+                                        currentUser={currentUser}
+                                        jobs={jobs}
+                                        candidates={candidates}
+                                        interviews={interviews}
+                                        unreadMessageCount={conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0)}
+                                        profile={profile}
+                                        onSetIsPostModalOpen={setIsPostModalOpen}
+                                        onSetNewJob={setNewJob}
+                                        newJob={newJob}
+                                        onHandleGenerateJD={handleGenerateJD}
+                                        isGeneratingJD={isGeneratingJD}
+                                        aiSuggestions={aiSuggestions}
+                                        onHandleGetAiSuggestions={handleGetAiSuggestions}
+                                        isLoadingSuggestions={isLoadingSuggestions}
+                                        onHandlePostJob={handlePostJob}
+                                        onSetViewingJobId={setViewingJobId}
+                                        onLogout={onLogout}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="/jobs"
-                        element={
-                            <JobsView
-                                jobs={jobs}
-                                onPostJob={() => setIsPostModalOpen(true)}
-                                onEditJob={handleEditJob}
-                                onDeleteJob={handleDeleteJob}
-                                onViewJob={handleViewJob}
-                                onToggleJobStatus={handleToggleJobStatus}
-                                currentUserId={currentUser.id}
+                            <Route
+                                path="/jobs"
+                                element={
+                                    <JobsView
+                                        jobs={jobs}
+                                        onPostJob={() => setIsPostModalOpen(true)}
+                                        onEditJob={handleEditJob}
+                                        onDeleteJob={handleDeleteJob}
+                                        onViewJob={handleViewJob}
+                                        onToggleJobStatus={handleToggleJobStatus}
+                                        currentUserId={currentUser.id}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="/jobs/:jobId"
-                        element={<JobDetailPage />}
-                    />
-                    <Route
-                        path="/candidates"
-                        element={
-                            <CandidatesView
-                                candidates={candidates}
-                                currentUserId={currentUser.id}
-                                onRefresh={handleRefresh}
-                                onSendMessage={async (candidate) => {
-                                    try {
-                                        if (!candidate.userId) {
-                                            message.error('无法发起对话：缺少候选人用户ID');
-                                            return;
-                                        }
+                            <Route
+                                path="/jobs/:jobId"
+                                element={<JobDetailPage />}
+                            />
+                            <Route
+                                path="/candidates"
+                                element={
+                                    <CandidatesView
+                                        candidates={candidates}
+                                        currentUserId={currentUser.id}
+                                        onRefresh={handleRefresh}
+                                        onSendMessage={async (candidate) => {
+                                            try {
+                                                if (!candidate.userId) {
+                                                    message.error('无法发起对话：缺少候选人用户ID');
+                                                    return;
+                                                }
 
-                                        // 1. Check if conversation already exists with this candidate (by UserID)
-                                        // 1. Check if conversation already exists with this candidate
-                                        // We need to match existing conversation's candidateId (Candidate Table ID) with the candidate's ID
-                                        const existingConv = conversations.find(c =>
-                                            c.candidateId && c.candidateId.toString() === candidate.candidateId.toString()
-                                        );
+                                                // 1. Check if conversation already exists with this candidate (by UserID)
+                                                // 1. Check if conversation already exists with this candidate
+                                                // We need to match existing conversation's candidateId (Candidate Table ID) with the candidate's ID
+                                                const existingConv = conversations.find(c =>
+                                                    c.candidateId && c.candidateId.toString() === candidate.candidateId.toString()
+                                                );
 
-                                        if (existingConv) {
-                                            // Conversation exists, select it
-                                            setActiveConversationId(existingConv.id);
-                                            // Navigate to messages
-                                            navigate('/recruiter/messages/' + existingConv.id);
-                                        } else {
-                                            // 2. Create new conversation
-                                            message.loading({ content: '正在创建对话...', key: 'createConv' });
+                                                if (existingConv) {
+                                                    // Conversation exists, select it
+                                                    setActiveConversationId(existingConv.id);
+                                                    // Navigate to messages
+                                                    navigate('/recruiter/messages/' + existingConv.id);
+                                                } else {
+                                                    // 2. Create new conversation
+                                                    message.loading({ content: '正在创建对话...', key: 'createConv' });
 
-                                            // Need to call API to create conversation
-                                            // We'll use a simple initial message or just create
-                                            const res = await messageAPI.createConversationAndSendMessage({
-                                                jobId: candidate.jobId,
-                                                candidateId: candidate.userId, // Backend expects User ID for candidate creation lookup
-                                                recruiterId: currentUser.id,
-                                                message: `您好，我对您申请的${candidate.jobTitle}职位很感兴趣。`
-                                            });
+                                                    // Need to call API to create conversation
+                                                    // We'll use a simple initial message or just create
+                                                    const res = await messageAPI.createConversationAndSendMessage({
+                                                        jobId: candidate.jobId,
+                                                        candidateId: candidate.userId, // Backend expects User ID for candidate creation lookup
+                                                        recruiterId: currentUser.id,
+                                                        message: `您好，我对您申请的${candidate.jobTitle}职位很感兴趣。`
+                                                    });
 
-                                            if ((res as any).status === 'success') {
-                                                message.success({ content: '对话创建成功', key: 'createConv' });
-                                                // Refresh conversations
-                                                const convRes = await messageAPI.getConversations(currentUser.id, 'recruiter');
-                                                if ((convRes as any).status === 'success') {
-                                                    setConversations(convRes.data);
-                                                    // Find the new conversation
-                                                    // Either from response or by filtering new list
-                                                    // The response usually contains the created conversation
-                                                    const newConvId = (res as any).data.conversation_id || (res as any).data.id;
-                                                    if (newConvId) {
-                                                        setActiveConversationId(newConvId);
-                                                        navigate('/recruiter/messages/' + newConvId);
+                                                    if ((res as any).status === 'success') {
+                                                        message.success({ content: '对话创建成功', key: 'createConv' });
+                                                        // Refresh conversations
+                                                        const convRes = await messageAPI.getConversations(currentUser.id, 'recruiter');
+                                                        if ((convRes as any).status === 'success') {
+                                                            setConversations(convRes.data);
+                                                            // Find the new conversation
+                                                            // Either from response or by filtering new list
+                                                            // The response usually contains the created conversation
+                                                            const newConvId = (res as any).data.conversation_id || (res as any).data.id;
+                                                            if (newConvId) {
+                                                                setActiveConversationId(newConvId);
+                                                                navigate('/recruiter/messages/' + newConvId);
+                                                            }
+                                                        }
+                                                    } else {
+                                                        message.error({ content: '创建对话失败', key: 'createConv' });
                                                     }
                                                 }
-                                            } else {
-                                                message.error({ content: '创建对话失败', key: 'createConv' });
+                                            } catch (err) {
+                                                console.error('发送消息失败:', err);
+                                                message.error('操作失败，请重试');
                                             }
-                                        }
-                                    } catch (err) {
-                                        console.error('发送消息失败:', err);
-                                        message.error('操作失败，请重试');
-                                    }
-                                }}
-                                onViewDetails={(candidate) => {
-                                    setSelectedCandidate(candidate);
-                                    setIsDetailModalOpen(true);
-                                }}
+                                        }}
+                                        onViewDetails={(candidate) => {
+                                            setSelectedCandidate(candidate);
+                                            setIsDetailModalOpen(true);
+                                        }}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="/messages"
-                        element={
-                            <RecruiterMessageScreen
-                                conversations={conversations}
-                                candidates={candidates}
-                                jobs={jobs}
-                                activeConversationId={activeConversationId}
-                                onSelectConversation={setActiveConversationId}
-                                onSendMessage={handleSendMessage}
-                                onDeleteMessage={handleDeleteMessage}
-                                onDeleteConversation={handleDeleteConversation}
-                                onLoadMoreMessages={handleLoadMoreMessages}
-                                currentUser={{ ...currentUser, ...profile }}
-                                isMessagesLoading={messagesLoading}
-                                onPinConversation={handlePinConversation}
-                                onHideConversation={handleHideConversation}
-                                currentUserId={Number(currentUser?.id || 0)}
-                                companyAddress={profile.company.address}
+                            <Route
+                                path="/messages"
+                                element={
+                                    <RecruiterMessageScreen
+                                        conversations={conversations}
+                                        candidates={candidates}
+                                        jobs={jobs}
+                                        activeConversationId={activeConversationId}
+                                        onSelectConversation={setActiveConversationId}
+                                        onSendMessage={handleSendMessage}
+                                        onDeleteMessage={handleDeleteMessage}
+                                        onDeleteConversation={handleDeleteConversation}
+                                        onLoadMoreMessages={handleLoadMoreMessages}
+                                        currentUser={{ ...currentUser, ...profile }}
+                                        isMessagesLoading={messagesLoading}
+                                        onPinConversation={handlePinConversation}
+                                        onHideConversation={handleHideConversation}
+                                        currentUserId={Number(currentUser?.id || 0)}
+                                        companyAddress={profile.company.address}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="/messages/:conversationId"
-                        element={
-                            <RecruiterMessageScreen
-                                conversations={conversations}
-                                candidates={candidates}
-                                jobs={jobs}
-                                activeConversationId={activeConversationId}
-                                onSelectConversation={setActiveConversationId}
-                                onSendMessage={handleSendMessage}
-                                onDeleteMessage={handleDeleteMessage}
-                                onDeleteConversation={handleDeleteConversation}
-                                onLoadMoreMessages={handleLoadMoreMessages}
-                                currentUser={{ ...currentUser, ...profile }}
-                                isMessagesLoading={messagesLoading}
-                                onPinConversation={handlePinConversation}
-                                onHideConversation={handleHideConversation}
-                                currentUserId={Number(currentUser?.id || 0)}
-                                companyAddress={profile.company.address}
+                            <Route
+                                path="/messages/:conversationId"
+                                element={
+                                    <RecruiterMessageScreen
+                                        conversations={conversations}
+                                        candidates={candidates}
+                                        jobs={jobs}
+                                        activeConversationId={activeConversationId}
+                                        onSelectConversation={setActiveConversationId}
+                                        onSendMessage={handleSendMessage}
+                                        onDeleteMessage={handleDeleteMessage}
+                                        onDeleteConversation={handleDeleteConversation}
+                                        onLoadMoreMessages={handleLoadMoreMessages}
+                                        currentUser={{ ...currentUser, ...profile }}
+                                        isMessagesLoading={messagesLoading}
+                                        onPinConversation={handlePinConversation}
+                                        onHideConversation={handleHideConversation}
+                                        currentUserId={Number(currentUser?.id || 0)}
+                                        companyAddress={profile.company.address}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="/profile"
-                        element={
-                            <RecruiterProfileScreen
-                                onSwitchRole={onSwitchRole}
-                                profile={profile}
-                                setProfile={setProfile}
-                                fetchRecruiterProfile={fetchRecruiterProfile}
+                            <Route
+                                path="/profile"
+                                element={
+                                    <RecruiterProfileScreen
+                                        onSwitchRole={onSwitchRole}
+                                        profile={profile}
+                                        setProfile={setProfile}
+                                        fetchRecruiterProfile={fetchRecruiterProfile}
+                                    />
+                                }
                             />
-                        }
-                    />
-                    <Route
-                        path="/interviews"
-                        element={
-                            <InterviewsView currentUserId={currentUser.id} />
-                        }
-                    />
-                    <Route
-                        path="/onboardings"
-                        element={
-                            <OnboardingsView currentUserId={currentUser.id} />
-                        }
-                    />
-                    {/* 默认重定向到dashboard */}
-                    {/* Catch-all route to prevent blank screen */}
-                    <Route path="*" element={<Navigate to="/recruiter/dashboard" replace />} />
-                    <Route
-                        path="/certification"
-                        element={
-                            <CertificationScreen
-                                currentUser={currentUser}
-                                onCertificationSubmitted={() => {
-                                    // Refresh profile/status logic could go here
-                                    fetchRecruiterProfile();
-                                }}
+                            <Route
+                                path="/interviews"
+                                element={
+                                    <InterviewsView currentUserId={currentUser.id} />
+                                }
                             />
-                        }
-                    />
-                </Routes>
-            )}
+                            <Route
+                                path="/onboardings"
+                                element={
+                                    <OnboardingsView currentUserId={currentUser.id} />
+                                }
+                            />
+                            {/* 默认重定向到dashboard */}
+                            {/* Catch-all route to prevent blank screen */}
+                            <Route path="*" element={<Navigate to="/recruiter/dashboard" replace />} />
+                            <Route
+                                path="/certification"
+                                element={
+                                    <CertificationScreen
+                                        currentUser={currentUser}
+                                        onCertificationSubmitted={() => {
+                                            // Refresh profile/status logic could go here
+                                            fetchRecruiterProfile();
+                                        }}
+                                    />
+                                }
+                            />
+                        </Routes>
+                    )}
 
-            {/* Post Job Modal */}
-            {(isPostModalOpen || isEditModalOpen) && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-2xl font-bold text-gray-900">{isEditModalOpen ? '编辑职位' : '发布新职位'}</h2>
+                    {/* Post Job Modal */}
+                    {(isPostModalOpen || isEditModalOpen) && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 border border-slate-200 dark:border-slate-700">
+                                <div className="p-6 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 sticky top-0 z-10">
+                                    <div className="flex items-center justify-between">
+                                        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{isEditModalOpen ? '编辑职位' : '发布新职位'}</h2>
 
-                            </div>
-                            <button
-                                onClick={() => {
-                                    if (isEditModalOpen) {
-                                        setIsEditModalOpen(false);
-                                        setEditingJob(null);
-                                    } else {
-                                        setIsPostModalOpen(false);
-                                    }
-                                    setNewJob({ title: '', location: '深圳', salary: '', description: '', skills: [''], preferredSkills: [''], experience: '1-3年', degree: '本科', type: '全职', workMode: '现场', jobLevel: '初级', hiringCount: 1, urgency: '普通', department: '', benefits: [''], expireDate: '' });
-                                }}
-                                className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                                <XCircle className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 space-y-5">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div>
-                                    <div className="flex justify-between items-center mb-1.5">
-                                        <label className="block text-sm font-medium text-gray-700">职位名称</label>
-                                        <button
-                                            onClick={handleGenerateFullJob}
-                                            disabled={isGeneratingFullJob}
-                                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-1"
-                                        >
-                                            {isGeneratingFullJob ? (
-                                                <Clock className="w-3 h-3 animate-spin" />
-                                            ) : (
-                                                <Sparkles className="w-3 h-3" />
-                                            )}
-                                            {isGeneratingFullJob ? '生成中...' : 'AI一键填写'}
-                                        </button>
                                     </div>
-                                    <input
-                                        type="text"
-                                        value={newJob.title}
-                                        onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                        placeholder="例如：前端开发工程师"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">工作地点</label>
-                                    <input
-                                        type="text"
-                                        value={newJob.location}
-                                        onChange={(e) => setNewJob({ ...newJob, location: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                        placeholder="例如：深圳"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">薪资范围</label>
-                                    <input
-                                        type="text"
-                                        value={newJob.salary}
-                                        onChange={(e) => setNewJob({ ...newJob, salary: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                        placeholder="例如：15-25K"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">所需技能</label>
-                                    <div className="space-y-2">
-                                        {newJob.skills.map((skill, index) => (
-                                            <div key={index} className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={skill}
-                                                    onChange={(e) => {
-                                                        const updatedSkills = [...newJob.skills];
-                                                        updatedSkills[index] = e.target.value;
-                                                        setNewJob({ ...newJob, skills: updatedSkills });
-                                                    }}
-                                                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                                    placeholder="例如：React"
-                                                />
-                                                {newJob.skills.length > 1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const updatedSkills = newJob.skills.filter((_, i) => i !== index);
-                                                            setNewJob({ ...newJob, skills: updatedSkills });
-                                                        }}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setNewJob({ ...newJob, skills: [...newJob.skills, ''] });
-                                            }}
-                                            className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 transition-colors"
-                                        >
-                                            <PlusCircle className="w-4 h-4" />
-                                            添加技能
-                                        </button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">优先技能</label>
-                                    <div className="space-y-2">
-                                        {newJob.preferredSkills.map((skill, index) => (
-                                            <div key={index} className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={skill}
-                                                    onChange={(e) => {
-                                                        const updatedSkills = [...newJob.preferredSkills];
-                                                        updatedSkills[index] = e.target.value;
-                                                        setNewJob({ ...newJob, preferredSkills: updatedSkills });
-                                                    }}
-                                                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                                    placeholder="例如：Next.js"
-                                                />
-                                                {newJob.preferredSkills.length > 1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const updatedSkills = newJob.preferredSkills.filter((_, i) => i !== index);
-                                                            setNewJob({ ...newJob, preferredSkills: updatedSkills });
-                                                        }}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setNewJob({ ...newJob, preferredSkills: [...newJob.preferredSkills, ''] });
-                                            }}
-                                            className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 transition-colors"
-                                        >
-                                            <PlusCircle className="w-4 h-4" />
-                                            添加优先技能
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">部门</label>
-                                    <input
-                                        type="text"
-                                        value={newJob.department}
-                                        onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                        placeholder="例如：技术部"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">招聘人数</label>
-                                    <input
-                                        type="number"
-                                        value={newJob.hiringCount}
-                                        onChange={(e) => setNewJob({ ...newJob, hiringCount: parseInt(e.target.value) || 1 })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                        placeholder="例如：1"
-                                        min="1"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">经验要求</label>
-                                    <select
-                                        value={newJob.experience}
-                                        onChange={(e) => setNewJob({ ...newJob, experience: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="应届毕业生">应届毕业生</option>
-                                        <option value="1年以内">1年以内</option>
-                                        <option value="1-3年">1-3年</option>
-                                        <option value="3-5年">3-5年</option>
-                                        <option value="5-10年">5-10年</option>
-                                        <option value="10年以上">10年以上</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">过期日期</label>
-                                    <input
-                                        type="date"
-                                        value={newJob.expireDate}
-                                        onChange={(e) => setNewJob({ ...newJob, expireDate: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                        lang="zh-CN"
-                                        title="选择过期日期"
-                                        placeholder="YYYY-MM-DD"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">学历要求</label>
-                                    <select
-                                        value={newJob.degree}
-                                        onChange={(e) => setNewJob({ ...newJob, degree: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="初中及以下">初中及以下</option>
-                                        <option value="高中/中专">高中/中专</option>
-                                        <option value="大专">大专</option>
-                                        <option value="本科">本科</option>
-                                        <option value="硕士">硕士</option>
-                                        <option value="博士">博士</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">职位类型</label>
-                                    <select
-                                        value={newJob.type}
-                                        onChange={(e) => setNewJob({ ...newJob, type: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="全职">全职</option>
-                                        <option value="兼职">兼职</option>
-                                        <option value="实习">实习</option>
-                                        <option value="临时工">临时工</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">工作模式</label>
-                                    <select
-                                        value={newJob.workMode}
-                                        onChange={(e) => setNewJob({ ...newJob, workMode: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="现场">现场</option>
-                                        <option value="远程">远程</option>
-                                        <option value="混合">混合</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">职位级别</label>
-                                    <select
-                                        value={newJob.jobLevel}
-                                        onChange={(e) => setNewJob({ ...newJob, jobLevel: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="初级">初级</option>
-                                        <option value="中级">中级</option>
-                                        <option value="高级">高级</option>
-                                        <option value="资深">资深</option>
-                                        <option value="管理">管理</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">紧急程度</label>
-                                    <select
-                                        value={newJob.urgency}
-                                        onChange={(e) => setNewJob({ ...newJob, urgency: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="普通">普通</option>
-                                        <option value="紧急">紧急</option>
-                                        <option value="非常紧急">非常紧急</option>
-                                    </select>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">公司福利</label>
-                                    <div className="space-y-2">
-                                        {newJob.benefits.map((benefit, index) => (
-                                            <div key={index} className="flex items-center gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={benefit}
-                                                    onChange={(e) => {
-                                                        const updatedBenefits = [...newJob.benefits];
-                                                        updatedBenefits[index] = e.target.value;
-                                                        setNewJob({ ...newJob, benefits: updatedBenefits });
-                                                    }}
-                                                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                                    placeholder="例如：五险一金"
-                                                />
-                                                {newJob.benefits.length > 1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const updatedBenefits = newJob.benefits.filter((_, i) => i !== index);
-                                                            setNewJob({ ...newJob, benefits: updatedBenefits });
-                                                        }}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setNewJob({ ...newJob, benefits: [...newJob.benefits, ''] });
-                                            }}
-                                            className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 transition-colors"
-                                        >
-                                            <PlusCircle className="w-4 h-4" />
-                                            添加公司福利
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <label className="block text-sm font-medium text-gray-700">职位描述</label>
                                     <button
-                                        onClick={handleGenerateJD}
-                                        disabled={isGeneratingJD || !newJob.title || !newJob.skills}
-                                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium"
+                                        onClick={() => {
+                                            if (isEditModalOpen) {
+                                                setIsEditModalOpen(false);
+                                                setEditingJob(null);
+                                            } else {
+                                                setIsPostModalOpen(false);
+                                            }
+                                            setNewJob({ title: '', location: '深圳', salary: '', description: '', skills: [''], preferredSkills: [''], experience: '1-3年', degree: '本科', type: '全职', workMode: '现场', jobLevel: '初级', hiringCount: 1, urgency: '普通', department: '', benefits: [''], expireDate: '' });
+                                        }}
+                                        className="absolute top-6 right-6 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                     >
-                                        {isGeneratingJD ? '生成中...' : 'AI生成'}
+                                        <XCircle className="w-6 h-6" />
                                     </button>
                                 </div>
-                                <textarea
-                                    value={newJob.description}
-                                    onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all min-h-[200px] resize-vertical"
-                                    placeholder="详细描述职位职责、任职要求、公司福利等"
-                                />
-                            </div>
 
-                            {/* 编辑模式下显示状态切换 */}
-                            {isEditModalOpen && editingJob && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">职位状态</label>
-                                    <select
-                                        value={editingJob.status}
-                                        onChange={(e) => setEditingJob({ ...editingJob, status: e.target.value as 'active' | 'closed' })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all"
-                                    >
-                                        <option value="active">发布中</option>
-                                        <option value="closed">已关闭</option>
-                                    </select>
+                                <div className="p-6 space-y-5">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div>
+                                            <div className="flex justify-between items-center mb-1.5">
+                                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">职位名称</label>
+                                                <button
+                                                    onClick={handleGenerateFullJob}
+                                                    disabled={isGeneratingFullJob}
+                                                    className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-1 shadow-sm shadow-blue-500/20"
+                                                >
+                                                    {isGeneratingFullJob ? (
+                                                        <Clock className="w-3 h-3 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="w-3 h-3" />
+                                                    )}
+                                                    {isGeneratingFullJob ? '生成中...' : 'AI一键填写'}
+                                                </button>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={newJob.title}
+                                                onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                placeholder="例如：前端开发工程师"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">工作地点</label>
+                                            <input
+                                                type="text"
+                                                value={newJob.location}
+                                                onChange={(e) => setNewJob({ ...newJob, location: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                placeholder="例如：深圳"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">薪资范围</label>
+                                            <input
+                                                type="text"
+                                                value={newJob.salary}
+                                                onChange={(e) => setNewJob({ ...newJob, salary: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                placeholder="例如：15-25K"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">所需技能</label>
+                                            <div className="space-y-2">
+                                                {newJob.skills.map((skill, index) => (
+                                                    <div key={index} className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={skill}
+                                                            onChange={(e) => {
+                                                                const updatedSkills = [...newJob.skills];
+                                                                updatedSkills[index] = e.target.value;
+                                                                setNewJob({ ...newJob, skills: updatedSkills });
+                                                            }}
+                                                            className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                            placeholder="例如：React"
+                                                        />
+                                                        {newJob.skills.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updatedSkills = newJob.skills.filter((_, i) => i !== index);
+                                                                    setNewJob({ ...newJob, skills: updatedSkills });
+                                                                }}
+                                                                className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNewJob({ ...newJob, skills: [...newJob.skills, ''] });
+                                                    }}
+                                                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors dark:text-blue-400 dark:hover:text-blue-300"
+                                                >
+                                                    <PlusCircle className="w-4 h-4" />
+                                                    添加技能
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">优先技能</label>
+                                            <div className="space-y-2">
+                                                {newJob.preferredSkills.map((skill, index) => (
+                                                    <div key={index} className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={skill}
+                                                            onChange={(e) => {
+                                                                const updatedSkills = [...newJob.preferredSkills];
+                                                                updatedSkills[index] = e.target.value;
+                                                                setNewJob({ ...newJob, preferredSkills: updatedSkills });
+                                                            }}
+                                                            className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                            placeholder="例如：Next.js"
+                                                        />
+                                                        {newJob.preferredSkills.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updatedSkills = newJob.preferredSkills.filter((_, i) => i !== index);
+                                                                    setNewJob({ ...newJob, preferredSkills: updatedSkills });
+                                                                }}
+                                                                className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNewJob({ ...newJob, preferredSkills: [...newJob.preferredSkills, ''] });
+                                                    }}
+                                                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors dark:text-blue-400 dark:hover:text-blue-300"
+                                                >
+                                                    <PlusCircle className="w-4 h-4" />
+                                                    添加优先技能
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">部门</label>
+                                            <input
+                                                type="text"
+                                                value={newJob.department}
+                                                onChange={(e) => setNewJob({ ...newJob, department: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                placeholder="例如：技术部"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">招聘人数</label>
+                                            <input
+                                                type="number"
+                                                value={newJob.hiringCount}
+                                                onChange={(e) => setNewJob({ ...newJob, hiringCount: parseInt(e.target.value) || 1 })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                placeholder="例如：1"
+                                                min="1"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">经验要求</label>
+                                            <select
+                                                value={newJob.experience}
+                                                onChange={(e) => setNewJob({ ...newJob, experience: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="应届毕业生">应届毕业生</option>
+                                                <option value="1年以内">1年以内</option>
+                                                <option value="1-3年">1-3年</option>
+                                                <option value="3-5年">3-5年</option>
+                                                <option value="5-10年">5-10年</option>
+                                                <option value="10年以上">10年以上</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">过期日期</label>
+                                            <input
+                                                type="date"
+                                                value={newJob.expireDate}
+                                                onChange={(e) => setNewJob({ ...newJob, expireDate: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 [color-scheme:light] dark:[color-scheme:dark]"
+                                                lang="zh-CN"
+                                                title="选择过期日期"
+                                                placeholder="YYYY-MM-DD"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">学历要求</label>
+                                            <select
+                                                value={newJob.degree}
+                                                onChange={(e) => setNewJob({ ...newJob, degree: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="初中及以下">初中及以下</option>
+                                                <option value="高中/中专">高中/中专</option>
+                                                <option value="大专">大专</option>
+                                                <option value="本科">本科</option>
+                                                <option value="硕士">硕士</option>
+                                                <option value="博士">博士</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">职位类型</label>
+                                            <select
+                                                value={newJob.type}
+                                                onChange={(e) => setNewJob({ ...newJob, type: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="全职">全职</option>
+                                                <option value="兼职">兼职</option>
+                                                <option value="实习">实习</option>
+                                                <option value="临时工">临时工</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">工作模式</label>
+                                            <select
+                                                value={newJob.workMode}
+                                                onChange={(e) => setNewJob({ ...newJob, workMode: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="现场">现场</option>
+                                                <option value="远程">远程</option>
+                                                <option value="混合">混合</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">职位级别</label>
+                                            <select
+                                                value={newJob.jobLevel}
+                                                onChange={(e) => setNewJob({ ...newJob, jobLevel: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="初级">初级</option>
+                                                <option value="中级">中级</option>
+                                                <option value="高级">高级</option>
+                                                <option value="资深">资深</option>
+                                                <option value="管理">管理</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">紧急程度</label>
+                                            <select
+                                                value={newJob.urgency}
+                                                onChange={(e) => setNewJob({ ...newJob, urgency: e.target.value })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="普通">普通</option>
+                                                <option value="紧急">紧急</option>
+                                                <option value="非常紧急">非常紧急</option>
+                                            </select>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">公司福利</label>
+                                            <div className="space-y-2">
+                                                {newJob.benefits.map((benefit, index) => (
+                                                    <div key={index} className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={benefit}
+                                                            onChange={(e) => {
+                                                                const updatedBenefits = [...newJob.benefits];
+                                                                updatedBenefits[index] = e.target.value;
+                                                                setNewJob({ ...newJob, benefits: updatedBenefits });
+                                                            }}
+                                                            className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                                            placeholder="例如：五险一金"
+                                                        />
+                                                        {newJob.benefits.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const updatedBenefits = newJob.benefits.filter((_, i) => i !== index);
+                                                                    setNewJob({ ...newJob, benefits: updatedBenefits });
+                                                                }}
+                                                                className="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setNewJob({ ...newJob, benefits: [...newJob.benefits, ''] });
+                                                    }}
+                                                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 transition-colors dark:text-blue-400 dark:hover:text-blue-300"
+                                                >
+                                                    <PlusCircle className="w-4 h-4" />
+                                                    添加公司福利
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">职位描述</label>
+                                            <button
+                                                onClick={handleGenerateJD}
+                                                disabled={isGeneratingJD || !newJob.title || !newJob.skills}
+                                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {isGeneratingJD ? '生成中...' : 'AI生成'}
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            value={newJob.description}
+                                            onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
+                                            className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all min-h-[200px] resize-vertical bg-white dark:bg-slate-700 dark:text-slate-100 placeholder-slate-400"
+                                            placeholder="详细描述职位职责、任职要求、公司福利等"
+                                        />
+                                    </div>
+
+                                    {/* 编辑模式下显示状态切换 */}
+                                    {isEditModalOpen && editingJob && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">职位状态</label>
+                                            <select
+                                                value={editingJob.status}
+                                                onChange={(e) => setEditingJob({ ...editingJob, status: e.target.value as 'active' | 'closed' })}
+                                                className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-700 dark:text-slate-100"
+                                            >
+                                                <option value="active">发布中</option>
+                                                <option value="closed">已关闭</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
 
-                        <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-                            <button
-                                onClick={() => {
-                                    if (isEditModalOpen) {
-                                        setIsEditModalOpen(false);
-                                        setEditingJob(null);
-                                    } else {
-                                        setIsPostModalOpen(false);
-                                    }
-                                    setNewJob({
-                                        title: '',
-                                        location: '深圳',
-                                        salary: '',
-                                        description: '',
-                                        skills: [''],
-                                        preferredSkills: [''],
-                                        benefits: [''],
-                                        expireDate: '',
-                                        experience: '1-3年',
-                                        degree: '本科',
-                                        type: '全职',
-                                        workMode: '现场',
-                                        jobLevel: '初级',
-                                        hiringCount: 1,
-                                        urgency: '普通',
-                                        department: ''
-                                    });
-                                }}
-                                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
-                            >
-                                取消
-                            </button>
-                            <button
-                                onClick={isEditModalOpen ? handleUpdateJob : handlePostJob}
-                                disabled={!newJob.title || !newJob.description}
-                                className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                            >
-                                {isEditModalOpen ? '更新职位' : '发布职位'}
-                            </button>
+                                <div className="p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3 sticky bottom-0 bg-white dark:bg-slate-800 z-10">
+                                    <button
+                                        onClick={() => {
+                                            if (isEditModalOpen) {
+                                                setIsEditModalOpen(false);
+                                                setEditingJob(null);
+                                            } else {
+                                                setIsPostModalOpen(false);
+                                            }
+                                            setNewJob({
+                                                title: '',
+                                                location: '深圳',
+                                                salary: '',
+                                                description: '',
+                                                skills: [''],
+                                                preferredSkills: [''],
+                                                benefits: [''],
+                                                expireDate: '',
+                                                experience: '1-3年',
+                                                degree: '本科',
+                                                type: '全职',
+                                                workMode: '现场',
+                                                jobLevel: '初级',
+                                                hiringCount: 1,
+                                                urgency: '普通',
+                                                department: ''
+                                            });
+                                        }}
+                                        className="px-5 py-2.5 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors font-medium bg-white dark:bg-slate-800"
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        onClick={isEditModalOpen ? handleUpdateJob : handlePostJob}
+                                        disabled={!newJob.title || !newJob.description}
+                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {isEditModalOpen ? '更新职位' : '发布职位'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    )}
 
-            {/* Candidate Detail Modal */}
-            <CandidateDetailModal
-                isOpen={isDetailModalOpen}
-                onClose={() => setIsDetailModalOpen(false)}
-                candidate={selectedCandidate}
-            />
-        </RecruiterLayout>
+                    {/* Candidate Detail Modal */}
+                    <CandidateDetailModal
+                        isOpen={isDetailModalOpen}
+                        onClose={() => {
+                            setIsDetailModalOpen(false);
+                            setSelectedCandidate(null);
+                        }}
+                        candidate={selectedCandidate}
+                    />
+                </RecruiterLayout>
+            </I18nProvider>
+        </ThemeProvider>
     );
 };

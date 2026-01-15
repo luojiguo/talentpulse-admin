@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Edit, Trash2, Eye, ChevronDown } from 'lucide-react';
+import { useI18n } from '@/contexts/i18nContext';
+import { Plus, Search, Filter, Edit, Trash2, Eye, ChevronDown, Briefcase } from 'lucide-react';
+import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 import { JobPosting } from '@/types/types';
 
 interface JobsViewProps {
@@ -10,6 +12,7 @@ interface JobsViewProps {
   onViewJob: (jobId: number | string) => void;
   onToggleJobStatus: (jobId: number | string, currentStatus: string) => void;
   currentUserId: number | string;
+  profile?: any;
 }
 
 export const JobsView: React.FC<JobsViewProps> = ({
@@ -19,8 +22,10 @@ export const JobsView: React.FC<JobsViewProps> = ({
   onDeleteJob,
   onViewJob,
   onToggleJobStatus,
-  currentUserId
+  currentUserId,
+  profile
 }) => {
+  const { language, t } = useI18n();
   // 状态管理
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -77,9 +82,9 @@ export const JobsView: React.FC<JobsViewProps> = ({
       return job.recruiter_name;
     }
     if (job.posterId?.toString() === currentUserId.toString()) {
-      return '我';
+      return language === 'zh' ? '我' : 'Me';
     }
-    return '未知发布人';
+    return language === 'zh' ? '未知发布人' : 'Unknown';
   };
 
   // 获取职位类型标签 - 根据需求，所有职位列表中都不显示标签
@@ -90,69 +95,80 @@ export const JobsView: React.FC<JobsViewProps> = ({
   return (
     <div className="p-6">
       {/* 页面标题和操作栏 */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold mb-1">职位管理</h1>
-          <p className="text-gray-500">管理您发布的所有职位</p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-6">
+        <div className="flex items-center gap-5">
+          {profile?.company?.logo && profile.company.logo !== 'C' && (
+            <div className="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl shadow-md border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden p-2">
+              <img
+                src={processAvatarUrl(profile.company.logo)}
+                alt="Company Logo"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          )}
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{t.recruiter.jobsTitle}</h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">{language === 'zh' ? '管理' : 'Manage'} {profile?.company?.name || (language === 'zh' ? '公司' : 'Company')} {language === 'zh' ? '发布的所有职位' : 'all posted positions'}</p>
+          </div>
         </div>
         <button
           onClick={onPostJob}
-          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium shadow-md"
+          className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all font-bold shadow-xl shadow-blue-200 dark:shadow-blue-900/20 active:scale-95 group"
         >
-          <Plus className="w-5 h-5" />
-          发布新职位
+          <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+          {t.recruiter.createJob}
         </button>
       </div>
 
       {/* 职位类型筛选标签页 */}
-      <div className="mb-6">
-        <div className="inline-flex rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="mb-8">
+        <div className="inline-flex p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
           <button
             onClick={() => setJobType('my')}
-            className={`px-5 py-2.5 text-sm font-medium transition-colors ${jobType === 'my' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+            className={`px-6 py-2.5 text-sm font-bold rounded-xl transition-all ${jobType === 'my' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
           >
-            我发布的职位
+            {t.recruiter.myJobs}
           </button>
           <button
             onClick={() => setJobType('company')}
-            className={`px-5 py-2.5 text-sm font-medium transition-colors ${jobType === 'company' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+            className={`px-6 py-2.5 text-sm font-bold rounded-xl transition-all ${jobType === 'company' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
           >
-            公司所有职位
+            {t.recruiter.allJobs}
           </button>
           <button
             onClick={() => setJobType('other')}
-            className={`px-5 py-2.5 text-sm font-medium transition-colors ${jobType === 'other' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+            className={`px-6 py-2.5 text-sm font-bold rounded-xl transition-all ${jobType === 'other' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-blue-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
           >
-            同事发布的职位
+            {t.recruiter.colleagueJobs}
           </button>
         </div>
       </div>
 
       {/* 搜索和筛选栏 */}
-      <div className="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm p-5 mb-8 border border-slate-200 dark:border-slate-700">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* 搜索框 */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-blue-600 transition-colors" />
             <input
               type="text"
-              placeholder="搜索职位名称、公司或地点"
+              placeholder={t.recruiter.searchJobsPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              className="w-full pl-12 pr-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-900 dark:text-slate-200 font-medium"
             />
           </div>
 
           {/* 状态筛选 */}
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              className="flex-1 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-900 dark:text-slate-200 font-medium cursor-pointer"
             >
-              <option value="all">所有状态</option>
-              <option value="active">发布中</option>
-              <option value="closed">已关闭</option>
+              <option value="all">{t.recruiter.anyStatus}</option>
+              <option value="active">{t.recruiter.activeStatus}</option>
+              <option value="closed">{t.recruiter.closedStatus}</option>
             </select>
 
             {/* 排序选择 */}
@@ -163,14 +179,14 @@ export const JobsView: React.FC<JobsViewProps> = ({
                 setSortBy(newSortBy as 'postedDate' | 'updatedAt' | 'applicants');
                 setSortOrder(newSortOrder as 'asc' | 'desc');
               }}
-              className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+              className="flex-1 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all bg-white dark:bg-slate-900 dark:text-slate-200 font-medium cursor-pointer"
             >
-              <option value="updatedAt-desc">最新更新</option>
-              <option value="updatedAt-asc">最早更新</option>
-              <option value="postedDate-desc">最新发布</option>
-              <option value="postedDate-asc">最早发布</option>
-              <option value="applicants-desc">申请人数最多</option>
-              <option value="applicants-asc">申请人数最少</option>
+              <option value="updatedAt-desc">按更新时间 (新-旧)</option>
+              <option value="updatedAt-asc">按更新时间 (旧-新)</option>
+              <option value="postedDate-desc">按发布时间 (新-旧)</option>
+              <option value="postedDate-asc">按发布时间 (旧-新)</option>
+              <option value="applicants-desc">申请人数 (多-少)</option>
+              <option value="applicants-asc">申请人数 (少-多)</option>
             </select>
           </div>
 
@@ -178,11 +194,11 @@ export const JobsView: React.FC<JobsViewProps> = ({
           <div className="flex justify-end">
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              className={`flex items-center gap-2 px-5 py-3 border rounded-xl transition-all font-bold active:scale-95 ${isFilterOpen ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'}`}
             >
               <Filter className="w-5 h-5" />
-              更多筛选
-              <ChevronDown className="w-4 h-4 transition-transform" style={{ transform: isFilterOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
+              {t.recruiter.filterConditions}
+              <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isFilterOpen ? 'rotate-180' : ''}`} />
             </button>
           </div>
         </div>
@@ -191,8 +207,8 @@ export const JobsView: React.FC<JobsViewProps> = ({
         {isFilterOpen && (
           <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">职位类型</label>
-              <select className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">职位类型</label>
+              <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                 <option value="all">所有类型</option>
                 <option value="fulltime">全职</option>
                 <option value="parttime">兼职</option>
@@ -200,8 +216,8 @@ export const JobsView: React.FC<JobsViewProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">薪资范围</label>
-              <select className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">薪资范围</label>
+              <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                 <option value="all">所有薪资</option>
                 <option value="0-10k">0-10K</option>
                 <option value="10k-20k">10K-20K</option>
@@ -210,8 +226,8 @@ export const JobsView: React.FC<JobsViewProps> = ({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">部门</label>
-              <select className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">部门</label>
+              <select className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
                 <option value="all">所有部门</option>
                 <option value="tech">技术部</option>
                 <option value="product">产品部</option>
@@ -224,96 +240,122 @@ export const JobsView: React.FC<JobsViewProps> = ({
       </div>
 
       {/* 职位列表 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[800px]">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">职位信息</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">地点</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">薪资</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">申请人数</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">发布日期</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden 2xl:table-cell">过期日期</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden 2xl:table-cell">更新日期</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">发布人</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+            <thead>
+              <tr className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700/50">
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">职位详情</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden sm:table-cell">城市地区</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden md:table-cell">薪酬范围</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden lg:table-cell">申请热度</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden xl:table-cell">发布日期</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden 2xl:table-cell">更新动态</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hidden lg:table-cell">发布负责人</th>
+                <th className="px-6 py-4 text-left text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">当前状态</th>
+                <th className="px-6 py-4 text-right text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
               {filteredJobs.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-10 text-center text-gray-500">
-                    暂无职位数据
+                    {t.common.noData}
                   </td>
                 </tr>
               ) : (
                 filteredJobs.map(job => (
-                  <tr key={job.id} className="hover:bg-gray-50 transition">
+                  <tr key={job.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="font-medium text-gray-900">{job.title}</div>
-                        {getJobTypeLabel(job)}
+                      <div className="flex items-center gap-3">
+                        {job.company_logo && job.company_logo !== 'C' ? (
+                          <div className="w-10 h-10 flex-shrink-0 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 flex items-center justify-center overflow-hidden p-1">
+                            <img
+                              src={processAvatarUrl(job.company_logo)}
+                              alt="Company"
+                              className="max-w-full max-h-full object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 flex-shrink-0 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center text-slate-400">
+                            <Briefcase className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <div className="font-medium text-slate-900 dark:text-slate-100">{job.title}</div>
+                            {getJobTypeLabel(job)}
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {job.company || job.company_name || '未设置公司'} · {job.department || '未设置部门'}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500">{job.company || job.company_name || '未设置公司'} · {job.department || '未设置部门'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 hidden sm:table-cell">
                       {job.location}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 hidden md:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-slate-100 hidden md:table-cell">
                       {job.salary || '面议'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 hidden lg:table-cell">
                       {job.applicants}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 hidden xl:table-cell">
                       {job.postedDate}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden 2xl:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 hidden 2xl:table-cell">
                       {job.expire_date ? new Date(job.expire_date).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : '未设置'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden 2xl:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 hidden 2xl:table-cell">
                       {job.updated_at ? new Date(job.updated_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) : '未更新'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 hidden lg:table-cell">
                       {getPosterInfo(job)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${job.status.toLowerCase() === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {job.status.toLowerCase() === 'active' ? '发布中' : '已关闭'}
+                    <td className="px-6 py-5 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wide ${job.status.toLowerCase() === 'active'
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                        {job.status.toLowerCase() === 'active' ? (
+                          <>
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mr-2 animate-pulse"></span>
+                            {t.recruiter.activeStatus}
+                          </>
+                        ) : t.recruiter.closedStatus}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         {/* 始终显示查看按钮 */}
-                        <button
-                          onClick={() => onViewJob(job.id)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="查看职位"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => onViewJob(job.id)}
+                            className="p-2.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-all active:scale-90"
+                            title="查看详情"
+                          >
+                            <Eye className="w-4.5 h-4.5" />
+                          </button>
 
-                        {/* 只有在自己发布的职位中显示编辑、删除按钮，状态切换在编辑中处理 */}
-                        {(job.is_own_job || job.posterId === currentUserId || job.recruiter_id === currentUserId) && jobType === 'my' && (
-                          <>
-                            <button
-                              onClick={() => onEditJob(job)}
-                              className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition"
-                              title="编辑职位"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => onDeleteJob(job.id)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                              title="删除职位"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
+                          {(job.is_own_job || job.posterId === currentUserId || job.recruiter_id === currentUserId) && jobType === 'my' && (
+                            <>
+                              <button
+                                onClick={() => onEditJob(job)}
+                                className="p-2.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-xl transition-all active:scale-90"
+                                title="快捷编辑"
+                              >
+                                <Edit className="w-4.5 h-4.5" />
+                              </button>
+                              <button
+                                onClick={() => onDeleteJob(job.id)}
+                                className="p-2.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl transition-all active:scale-90"
+                                title="移除职位"
+                              >
+                                <Trash2 className="w-4.5 h-4.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -331,13 +373,13 @@ export const JobsView: React.FC<JobsViewProps> = ({
             显示 <span className="font-medium">{filteredJobs.length}</span> 个职位
           </div>
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <button className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
               上一页
             </button>
-            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold rounded hover:bg-slate-50 dark:hover:bg-slate-700">
               1
             </button>
-            <button className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            <button className="px-3 py-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
               下一页
             </button>
           </div>

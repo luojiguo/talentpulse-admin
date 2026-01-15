@@ -272,4 +272,40 @@ router.post('/', asyncHandler(async (req, res) => {
   });
 }));
 
+// 更新申请状态
+router.patch('/:id/status', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, notes } = req.body; // notes 接收但不一定存入 applications 表，取决于业务需求
+
+  if (!status) {
+    const error = new Error('请提供状态');
+    error.statusCode = 400;
+    error.errorCode = 'MISSING_STATUS';
+    throw error;
+  }
+
+  // 更新申请状态 - 仅更新 status 字段，notes 理由如需存储可后续扩展日志表
+  const result = await query(
+    `UPDATE applications 
+     SET status = $1, 
+         updated_at = CURRENT_TIMESTAMP 
+     WHERE id = $2 
+     RETURNING *`,
+    [status, id]
+  );
+
+  if (result.rows.length === 0) {
+    const error = new Error('Application not found');
+    error.statusCode = 404;
+    error.errorCode = 'APPLICATION_NOT_FOUND';
+    throw error;
+  }
+
+  res.json({
+    status: 'success',
+    message: '申请状态已更新',
+    data: result.rows[0]
+  });
+}));
+
 module.exports = router;

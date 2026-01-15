@@ -36,4 +36,14 @@ export const analyticsAPI = {
   getSourceQuality: () => {
     return request.get('/analytics/source-quality');
   },
+
+  // 获取职位竞争度分析数据
+  getJobCompetition: () => {
+    return request.get('/analytics/job-competition');
+  },
+
+  // 获取Top招聘公司排行
+  getTopCompanies: () => {
+    return request.get('/analytics/top-companies');
+  },
 };

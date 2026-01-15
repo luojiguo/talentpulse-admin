@@ -20,6 +20,15 @@ import { interviewAPI, applicationAPI, api } from '@/services/apiService';
 import { messageAPI } from '@/services/messageService';
 import InterviewCard from '@/components/InterviewCard';
 
+const TIME_SLOTS = Array.from({ length: 13 }).map((_, i) => {
+    const hour = 8 + i; // 8到20点
+    const hourStr = hour.toString().padStart(2, '0');
+    return [0, 15, 30, 45].map(minute => {
+        const minuteStr = minute.toString().padStart(2, '0');
+        return `${hourStr}:${minuteStr}`;
+    });
+}).flat();
+
 interface RecruiterMessageScreenProps {
     conversations: any[];
     candidates: any[];
@@ -63,12 +72,12 @@ const WeChatCard: React.FC<{
     // State 1: Rejected
     if (isRejected) {
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 min-w-[200px] opacity-80">
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700 p-4 min-w-[200px] opacity-80">
                 <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded bg-gray-400 flex items-center justify-center text-white text-xs font-bold">We</div>
-                    <span className="text-gray-500 font-medium text-sm">微信交换已拒绝</span>
+                    <div className="w-8 h-8 rounded bg-gray-400 dark:bg-slate-600 flex items-center justify-center text-white text-xs font-bold">We</div>
+                    <span className="text-gray-500 dark:text-slate-400 font-medium text-sm">微信交换已拒绝</span>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-slate-500">
                     {isMe
                         ? (content.initiator_wechat === wechat ? '对方拒绝了您的请求' : '您拒绝了对方的请求')
                         : '请求已被拒绝'
@@ -83,18 +92,18 @@ const WeChatCard: React.FC<{
         const displayWechat = isMe ? (receiver_wechat || '对方已同意') : (content.initiator_wechat || wechat || '对方已同意');
 
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-emerald-100 p-4 min-w-[240px]">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/30 p-4 min-w-[240px]">
                 <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">We</div>
-                    <span className="text-gray-900 font-medium text-sm">微信交换成功</span>
+                    <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-200 dark:shadow-none">We</div>
+                    <span className="text-gray-900 dark:text-slate-200 font-bold text-sm">微信交换成功</span>
                 </div>
-                <div className="bg-emerald-50/50 p-3 rounded border border-emerald-100 mb-3">
-                    <p className="text-xs text-gray-500 mb-1">对方微信号</p>
-                    <p className="text-base font-semibold text-emerald-700 select-all font-mono">{displayWechat}</p>
+                <div className="bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 mb-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-bold">对方微信号</p>
+                    <p className="text-base font-black text-blue-700 dark:text-blue-400 select-all font-mono tracking-tight">{displayWechat}</p>
                 </div>
                 <button
                     onClick={() => onCopy(displayWechat)}
-                    className="w-full py-2 bg-white border border-emerald-200 text-emerald-600 text-xs font-medium rounded hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-white dark:bg-slate-700 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex items-center justify-center gap-2 active:scale-95"
                 >
                     <Copy className="w-3.5 h-3.5" /> 复制微信号
                 </button>
@@ -106,14 +115,14 @@ const WeChatCard: React.FC<{
     if (isMe) {
         // Sender View (Pending)
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-emerald-100 p-4 min-w-[200px]">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/30 p-4 min-w-[200px]">
                 <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">We</div>
-                    <span className="text-gray-900 font-medium text-sm">微信交换请求</span>
+                    <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-200 dark:shadow-none">We</div>
+                    <span className="text-gray-900 dark:text-slate-200 font-bold text-sm">微信交换请求</span>
                 </div>
-                <p className="text-xs text-gray-500">已发送请求，等待对方同意...</p>
-                <div className="mt-2 text-xs text-gray-400">
-                    我的微信号: {wechat}
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">已发送请求，等待对方同意...</p>
+                <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                    我的微信号: <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">{wechat}</span>
                 </div>
             </div>
         );
@@ -121,27 +130,27 @@ const WeChatCard: React.FC<{
 
     // Receiver View (Pending)
     return (
-        <div className="bg-white rounded-lg shadow-sm border border-emerald-100 p-4 min-w-[260px]">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/30 p-4 min-w-[260px]">
             <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded bg-emerald-500 flex items-center justify-center shrink-0">
-                    <span className="text-white text-xl font-bold">We</span>
+                <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center shrink-0 shadow-lg shadow-blue-200 dark:shadow-none">
+                    <span className="text-white text-xl font-black">We</span>
                 </div>
                 <div>
-                    <p className="text-gray-900 font-medium text-sm">对方请求交换微信</p>
-                    <p className="text-xs text-gray-500 mt-0.5">同意后将互相通过，并交换微信号</p>
+                    <p className="text-gray-900 dark:text-slate-200 font-bold text-sm">对方请求交换微信</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">同意后将互相通过，并交换微信号</p>
                 </div>
             </div>
 
-            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-50">
+            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-50 dark:border-slate-700">
                 <button
                     onClick={() => onReject && onReject(msg.id)}
-                    className="flex-1 py-2 bg-gray-50 text-gray-600 text-xs font-medium rounded hover:bg-gray-100 transition-colors"
+                    className="flex-1 py-2.5 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-600 transition-all active:scale-95"
                 >
                     拒绝
                 </button>
                 <button
                     onClick={() => onAccept && onAccept(msg.id)}
-                    className="flex-1 py-2 bg-emerald-600 text-white text-xs font-medium rounded hover:bg-emerald-700 transition-colors shadow-sm"
+                    className="flex-1 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md shadow-blue-200 dark:shadow-none active:scale-95"
                 >
                     同意交换
                 </button>
@@ -297,6 +306,11 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
 
     // 打开面试邀请模态框
     const openInterviewModal = () => {
+        // 获取当前日期的第二天
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
         // 从活跃对话中获取相关信息
         if (activeConv) {
             // 这里假设对话数据中包含以下字段，实际项目中可能需要调整
@@ -305,6 +319,10 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
             setInterviewForm(prev => ({
                 ...prev,
                 applicationId,
+                // 默认值设置
+                interviewDate: tomorrowStr, // 默认为当前日期的第二天
+                interviewTime: '12:00', // 默认开始时间 12:00
+                interviewTimeEnd: '13:00', // 默认结束时间 13:00
                 // 自动填充字段
                 interviewerName: currentUser.name || '', // 面试官自动使用当前招聘者姓名
                 interviewerPosition: currentUser.position || '', // 面试官职位自动使用当前招聘者职位
@@ -335,10 +353,31 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
     // 处理表单字段变化
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setInterviewForm(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        setInterviewForm(prev => {
+            const newState = { ...prev, [name]: value };
+
+            // 如果修改了开始时间，需要同步检查结束时间
+            if (name === 'interviewTime') {
+                const startTimeStr = value;
+                const endTimeStr = prev.interviewTimeEnd;
+
+                if (startTimeStr && endTimeStr) {
+                    const [startH, startM] = startTimeStr.split(':').map(Number);
+                    const [endH, endM] = endTimeStr.split(':').map(Number);
+                    const startTotal = startH * 60 + startM;
+                    const endTotal = endH * 60 + endM;
+
+                    // 如果结束时间早于或等于新的开始时间，自动向后推迟1小时
+                    if (endTotal <= startTotal) {
+                        const newEndTotal = startTotal + 60;
+                        const newEndH = Math.min(Math.floor(newEndTotal / 60), 23);
+                        const newEndM = newEndTotal % 60;
+                        newState.interviewTimeEnd = `${newEndH.toString().padStart(2, '0')}:${newEndM.toString().padStart(2, '0')}`;
+                    }
+                }
+            }
+            return newState;
+        });
     };
 
     // 创建面试邀请
@@ -555,7 +594,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
             // 场景2: 已设置微信号，弹出确认框
             Modal.confirm({
                 title: '确定与对方交换微信吗？',
-                icon: <MessageCircle className="text-emerald-500" />,
+                icon: <MessageCircle className="text-blue-500" />,
                 content: (
                     <div className="pt-2">
                         <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
@@ -569,7 +608,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                 ),
                 okText: '确定发送',
                 cancelText: '取消',
-                okButtonProps: { className: 'bg-emerald-500 hover:bg-emerald-600' },
+                okButtonProps: { className: 'bg-blue-500 hover:bg-blue-600' },
                 centered: true,
                 onOk: () => handleSendWechatRequest()
             });
@@ -759,13 +798,13 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
         <div className={`max-w-7xl mx-auto ${containerPadding} ${containerHeight}`}>
             <div className={`flex ${isMobile ? 'flex-col' : isTablet ? 'flex-row' : 'flex-row'} gap-4 md:gap-6 h-full ${isMobile ? 'bg-white' : ''}`}>
                 {/* Sidebar List (Left) - 联系人列表 */}
-                <div className={`${listClasses} ${isMobile ? 'h-1/2' : ''} border-r border-gray-200 bg-white`}>
-                    <div className="p-5 border-b border-gray-100 bg-gray-50 shrink-0">
+                <div className={`${listClasses} ${isMobile ? 'h-1/2' : ''} border-r border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900`}>
+                    <div className="p-5 border-b border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900 shrink-0">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
-                                <h2 className="text-xl font-bold text-gray-800">候选人消息</h2>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">候选人消息</h2>
                                 {conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0) > 0 && (
-                                    <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                    <span className="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                                         {conversations.reduce((sum, conv) => sum + (conv.recruiterUnread || conv.unreadCount || 0), 0)}
                                     </span>
                                 )}
@@ -781,7 +820,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             message.error('操作失败');
                                         }
                                     }}
-                                    className="text-xs text-gray-500 hover:text-emerald-600 underline"
+                                    className="text-xs text-gray-500 hover:text-blue-600 underline"
                                 >
                                     一键已读
                                 </button>
@@ -791,7 +830,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                             <input
                                 type="text"
                                 placeholder="搜索候选人姓名..."
-                                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                                className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400"
                                 value={searchText}
                                 onChange={(e) => setSearchText(e.target.value)}
                             />
@@ -825,23 +864,23 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                     id={`conversation-${conv.id}`}
                                     onClick={() => handleConversationClick(conv)}
                                     onContextMenu={(e) => handleConvContextMenu(e, conv)}
-                                    className={`relative group p-4 border-b border-gray-50 cursor-pointer transition-colors hover:bg-emerald-50 ${isActive ? 'bg-emerald-50 border-l-4 border-l-emerald-600' : 'border-l-4 border-l-transparent'} ${conv.recruiterPinned ? 'bg-gray-50/50' : ''}`}
+                                    className={`relative group p-4 border-b border-gray-50 dark:border-slate-800 cursor-pointer transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20 ${isActive ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'} ${conv.recruiterPinned ? 'bg-gray-50/50 dark:bg-slate-800/50' : ''}`}
                                 >
                                     <div className="flex justify-between mb-1.5">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                                                 {candidateAvatar ? (
                                                     <img src={candidateAvatar} alt="" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold text-lg">
+                                                    <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600 font-bold text-lg">
                                                         {candidateName ? candidateName.charAt(0).toUpperCase() : "?"}
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex items-center gap-1">
-                                                    <h4 className={`font-bold text-sm truncate ${isActive ? 'text-emerald-900' : 'text-gray-900'}`}>{candidateName}</h4>
-                                                    {conv.recruiterPinned && <Pin className="w-3 h-3 text-emerald-500 fill-emerald-500 transform rotate-45" />}
+                                                    <h4 className={`font-bold text-sm truncate ${isActive ? 'text-blue-900 dark:text-blue-400' : 'text-gray-900 dark:text-slate-200'}`}>{candidateName}</h4>
+                                                    {conv.recruiterPinned && <Pin className="w-3 h-3 text-blue-500 fill-blue-500 transform rotate-45" />}
                                                 </div>
                                                 <p className="text-xs text-gray-500 truncate max-w-[140px]">{job?.title || conv.job_title || '意向职位'}</p>
                                             </div>
@@ -849,13 +888,13 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                         <div className="flex flex-col items-end">
                                             <span className="text-xs text-gray-400 whitespace-nowrap">{formatDateTime(conv.lastTime || conv.updated_at || conv.updatedAt)}</span>
                                             {conv.unreadCount > 0 && (
-                                                <span className="mt-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-emerald-500 rounded-full">
+                                                <span className="mt-1 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-blue-600 rounded-full">
                                                     {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    <p className={`text-xs truncate pl-15 ${isActive ? 'text-emerald-700 font-medium' : 'text-gray-500'}`}>{formatMessagePreview(conv.lastMessage || conv.last_message || '')}</p>
+                                    <p className={`text-xs truncate pl-15 ${isActive ? 'text-blue-700 font-medium' : 'text-gray-500'}`}>{formatMessagePreview(conv.lastMessage || conv.last_message || '')}</p>
 
                                     {/* Delete Button - Shows on hover */}
                                     <button
@@ -874,15 +913,15 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                 </div>
 
                 {/* Chat Window (Right) - 聊天内容 */}
-                <div className={`${chatClasses} ${chatWidth} bg-white flex flex-col`}>
+                <div className={`${chatClasses} ${chatWidth} bg-white dark:bg-slate-900 flex flex-col`}>
                     {activeConv ? (
                         <>
-                            <div className="p-4 border-b bg-white flex justify-between items-center shadow-sm z-10 shrink-0">
+                            <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center shadow-sm z-10 shrink-0">
                                 <div className="flex items-center gap-3">
                                     {isMobile && (
                                         <button
                                             onClick={() => navigate('/recruiter/messages')}
-                                            className="p-1 -ml-2 mr-1 text-gray-600 hover:text-emerald-600 transition-colors"
+                                            className="p-1 -ml-2 mr-1 text-gray-600 hover:text-blue-600 transition-colors"
                                             aria-label="返回消息列表"
                                         >
                                             <ArrowLeft className="w-6 h-6" />
@@ -892,51 +931,49 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                         {activeConv.candidate_avatar ? (
                                             <img src={activeConv.candidate_avatar} alt="" className="w-full h-full object-cover" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold">
+                                            <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600 font-bold">
                                                 {activeConv.candidate_name ? activeConv.candidate_name.charAt(0).toUpperCase() : "?"}
                                             </div>
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h2 className="text-lg font-bold text-gray-900 truncate">{activeConv.candidate_name || '候选人'}</h2>
-                                        <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                                        <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 truncate">{activeConv.candidate_name || '候选人'}</h2>
+                                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
                                             <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">{activeConv.candidate_experience || '经验未知'}</span>
                                             <span className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">{activeConv.candidate_location || '地点未知'}</span>
-                                            <span>• 申请职位: <span className="text-emerald-600 font-medium truncate max-w-[100px] inline-block align-bottom">{activeJob?.title || activeConv.job_title || '职位已失效'}</span></span>
+                                            <span>• 申请职位: <span className="text-blue-600 font-medium truncate max-w-[100px] inline-block align-bottom">{activeJob?.title || activeConv.job_title || '职位已失效'}</span></span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition"><Phone className="w-5 h-5" /></button>
-                                    <button className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition"><MoreVertical className="w-5 h-5" /></button>
+                                <div className="flex gap-2 items-center">
+                                    <button onClick={() => handleSend("您好，对您的经历很感兴趣，能否发一份最新的附件简历？", 'text')} className="hidden md:block px-3 py-1.5 bg-blue-50 text-blue-600 text-xs rounded-full hover:bg-blue-100 transition whitespace-nowrap border border-blue-200">
+                                        索取简历
+                                    </button>
+                                    <button
+                                        onClick={handleWechatExchange}
+                                        className={`hidden md:block px-3 py-1.5 text-xs rounded-full transition whitespace-nowrap border ${exchangeRequestSent ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 border-gray-200 dark:border-slate-700 cursor-not-allowed' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800'}`}
+                                        disabled={exchangeRequestSent}
+                                    >
+                                        {exchangeRequestSent ? '请求已发送' : '交换微信'}
+                                    </button>
+                                    <button onClick={openInterviewModal} className="hidden md:block px-3 py-1.5 bg-blue-50 text-blue-600 text-xs rounded-full hover:bg-blue-100 transition whitespace-nowrap border border-blue-200">
+                                        邀请面试
+                                    </button>
+                                    <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"><Phone className="w-5 h-5" /></button>
+                                    <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition"><MoreVertical className="w-5 h-5" /></button>
                                 </div>
                             </div>
 
-                            {/* Quick Actions - 移到顶部 */}
-                            <div className="px-4 py-2 bg-gray-50/80 flex gap-2 border-b border-gray-100 overflow-x-auto no-scrollbar">
-                                <button onClick={() => handleSend("您好，对您的经历很感兴趣，能否发一份最新的附件简历？", 'text')} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs rounded-full hover:bg-emerald-100 transition whitespace-nowrap border border-emerald-200">
-                                    索取简历
-                                </button>
-                                <button
-                                    onClick={handleWechatExchange}
-                                    className={`px-3 py-1.5 text-xs rounded-full transition whitespace-nowrap border ${exchangeRequestSent ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-200'}`}
-                                    disabled={exchangeRequestSent}
-                                >
-                                    {exchangeRequestSent ? '请求已发送' : '交换微信'}
-                                </button>
-                                <button onClick={openInterviewModal} className="px-3 py-1.5 bg-purple-50 text-purple-600 text-xs rounded-full hover:bg-purple-100 transition whitespace-nowrap border border-purple-200">
-                                    邀请面试
-                                </button>
-                            </div>
+
 
                             <div
-                                className="flex-1 bg-slate-100 p-4 overflow-y-auto custom-scrollbar relative"
+                                className="flex-1 bg-slate-100 dark:bg-slate-950 p-4 overflow-y-auto custom-scrollbar relative"
                                 onScroll={handleScroll}
                             >
                                 <div className="space-y-4 max-w-4xl mx-auto">
                                     {isLoadingMore && (
                                         <div className="flex justify-center py-2">
-                                            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                         </div>
                                     )}
                                     {isMessagesLoading && (
@@ -986,7 +1023,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                     {/* WeChat-style Time Divider */}
                                                     {showTimeDivider && (
                                                         <div className="flex justify-center my-4">
-                                                            <span className="px-3 py-1 bg-gray-200/50 text-[10px] text-gray-500 rounded-full">
+                                                            <span className="px-3 py-1 bg-gray-200/50 dark:bg-slate-800/50 text-[10px] text-gray-500 dark:text-slate-400 rounded-full">
                                                                 {formatDateTime(msg.time || msg.created_at || msg.createdAt)}
                                                             </span>
                                                         </div>
@@ -1004,19 +1041,16 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                         ) : (
                                                             <>
                                                                 {!isCurrentUser && (
-                                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                                        {senderAvatar ? (
-                                                                            <img src={senderAvatar} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold">
-                                                                                {msg.sender_name ? msg.sender_name.charAt(0).toUpperCase() : "?"}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
+                                                                    <UserAvatar
+                                                                        src={senderAvatar}
+                                                                        name={msg.sender_name || '对方'}
+                                                                        size={40}
+                                                                        className="flex-shrink-0"
+                                                                    />
                                                                 )}
                                                                 <div
                                                                     onContextMenu={(e) => handleContextMenu(e, msg.id, isCurrentUser, msg.text, msg.sender_name || '对方', msg.type)}
-                                                                    className={`max-w-[75%] p-3.5 rounded-lg text-sm leading-relaxed cursor-pointer transition-all hover:opacity-95 shadow-sm ${isCurrentUser ? 'bg-green-500 text-white rounded-bl-lg' : 'bg-white text-gray-800 rounded-br-lg'}`}
+                                                                    className={`max-w-[75%] p-3.5 rounded-lg text-sm leading-relaxed cursor-pointer transition-all hover:opacity-95 shadow-sm ${isCurrentUser ? 'bg-blue-600 dark:bg-blue-600 text-white rounded-bl-lg' : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-slate-200 rounded-br-lg'}`}
                                                                 >
 
 
@@ -1046,7 +1080,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                             <p className="whitespace-pre-wrap">{msg.text}</p>
                                                                             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg flex items-center justify-between">
                                                                                 <div className="flex items-center gap-3">
-                                                                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                                                                                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                                                                                         <Eye className="w-5 h-5" />
                                                                                     </div>
                                                                                     <div className="truncate">
@@ -1060,7 +1094,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                                             e.stopPropagation();
                                                                                             window.open(msg.file_url, '_blank');
                                                                                         }}
-                                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
                                                                                         title="查看文件"
                                                                                     >
                                                                                         <Eye className="w-4 h-4" />
@@ -1075,7 +1109,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                                             link.click();
                                                                                             document.body.removeChild(link);
                                                                                         }}
-                                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                                                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
                                                                                         title="下载文件"
                                                                                     >
                                                                                         <Download className="w-4 h-4" />
@@ -1106,15 +1140,12 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                     )}
                                                                 </div>
                                                                 {isCurrentUser && (
-                                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                                                        {activeConv.recruiter_avatar ? (
-                                                                            <img src={activeConv.recruiter_avatar} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            <div className="w-full h-full flex items-center justify-center bg-emerald-100 text-emerald-600 font-bold">
-                                                                                {activeConv.recruiter_name ? activeConv.recruiter_name.charAt(0).toUpperCase() : "?"}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
+                                                                    <UserAvatar
+                                                                        src={currentUser?.avatar}
+                                                                        name={currentUser?.name || '我'}
+                                                                        size={40}
+                                                                        className="flex-shrink-0"
+                                                                    />
                                                                 )}
                                                             </>
                                                         )}
@@ -1181,12 +1212,12 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                 </div>
                             )}
 
-                            <div className="shrink-0 bg-white border-t border-gray-100 z-20">
+                            <div className="shrink-0 bg-white dark:bg-slate-900 border-t border-gray-100 dark:border-slate-800 z-20">
                                 {/* Input Area - 上下布局 */}
-                                <div className="p-3 space-y-2">
+                                <div className="p-3 bg-white dark:bg-slate-900">
                                     {/* 回复信息 */}
                                     {replyingTo.id && (
-                                        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100">
+                                        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 mb-2 rounded-t-lg">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xs font-medium text-blue-800">回复</span>
@@ -1203,32 +1234,36 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                         </div>
                                     )}
 
-                                    {/* 输入框区域 */}
-                                    <div className="w-full">
-                                        <textarea
-                                            className={`w-full p-3 resize-none text-sm focus:ring-2 focus:ring-emerald-500 transition-all max-h-32 border-2 ${replyingTo.id ? 'border-blue-400 bg-white rounded-xl' : 'border-gray-300 bg-white rounded-xl'}`}
-                                            rows={3}
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                                            placeholder={replyingTo.id ? `回复 ${replyingTo.senderName || '对方'}...` : "输入消息..."}
-                                        />
-                                    </div>
-
-                                    {/* 按钮区域 */}
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-end gap-3">
                                         <button
                                             onClick={() => setShowExtrasMenu(!showExtrasMenu)}
-                                            className={`p-2.5 rounded-full transition-colors ${showExtrasMenu ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
+                                            className={`p-2.5 rounded-full transition-colors flex-shrink-0 ${showExtrasMenu ? 'bg-gray-200 text-gray-800' : 'text-gray-500 hover:bg-gray-100'}`}
                                             aria-label="更多功能"
                                         >
                                             <PlusIcon className={`w-5 h-5 transition-transform duration-200 ${showExtrasMenu ? 'rotate-45' : ''}`} />
                                         </button>
 
+                                        <div className="flex-1 min-w-0 bg-gray-50 dark:bg-slate-800 rounded-[20px] focus-within:ring-1 focus-within:ring-blue-500/50 transition-all">
+                                            <textarea
+                                                className={`w-full px-4 py-3 bg-transparent border-none outline-none focus:ring-0 shadow-none text-sm resize-none max-h-32 min-h-[44px] dark:text-slate-100 placeholder-gray-400 ${replyingTo.id ? 'bg-white dark:bg-slate-800' : ''}`}
+                                                rows={1}
+                                                value={input}
+                                                onChange={(e) => {
+                                                    setInput(e.target.value);
+                                                    // Auto-resize
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = `${e.target.scrollHeight}px`;
+                                                }}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                                                placeholder={replyingTo.id ? `回复 ${replyingTo.senderName || '对方'}...` : "输入消息..."}
+                                            />
+                                        </div>
+
                                         <button
                                             onClick={() => handleSend()}
                                             disabled={!input.trim()}
-                                            className={`p-2.5 rounded-full transition ${input.trim() ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                            className={`p-2.5 rounded-full transition flex-shrink-0 ${input.trim() ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md transform hover:-translate-y-0.5' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                            style={{ backgroundColor: input.trim() ? '#2563EB' : undefined }}
                                         >
                                             <Send className="w-5 h-5" />
                                         </button>
@@ -1237,7 +1272,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
 
                                 {/* Extras Menu */}
                                 {showExtrasMenu && (
-                                    <div className="p-4 border-t border-gray-100 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-4 duration-200 bg-white">
+                                    <div className="p-4 border-t border-gray-100 dark:border-slate-800 grid grid-cols-4 gap-4 animate-in slide-in-from-bottom-4 duration-200 bg-white dark:bg-slate-900">
                                         {
                                             [
                                                 { icon: ImageIcon, label: '图片', action: () => handleSend('[图片]', 'image') },
@@ -1290,11 +1325,11 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                 { icon: Mic, label: '语音', action: () => { } },
                                                 { icon: MessageCircle, label: '交换微信', action: handleWechatExchange }
                                             ].map((item, i) => (
-                                                <button key={i} onClick={item.action} className="flex flex-col items-center gap-2 p-2 hover:bg-gray-50 rounded-xl transition">
-                                                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
+                                                <button key={i} onClick={item.action} className="flex flex-col items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-xl transition">
+                                                    <div className="w-12 h-12 bg-gray-100 dark:bg-slate-800 rounded-full flex items-center justify-center text-gray-600 dark:text-slate-400">
                                                         <item.icon className="w-6 h-6" />
                                                     </div>
-                                                    <span className="text-xs text-gray-500">{item.label}</span>
+                                                    <span className="text-xs text-gray-500 dark:text-slate-400">{item.label}</span>
                                                 </button>
                                             ))
                                         }
@@ -1308,7 +1343,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             {/* Modal Header */}
                                             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                                                 <div className="flex items-center gap-2">
-                                                    <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
                                                     </svg>
                                                     <h3 className="font-semibold text-gray-900">完善您的微信号</h3>
@@ -1339,7 +1374,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                                 value={wechatInput}
                                                                 onChange={(e) => setWechatInput(e.target.value)}
                                                                 placeholder="请输入您的微信号"
-                                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                                             />
                                                         </div>
                                                     </div>
@@ -1361,7 +1396,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                                     <button
                                                         onClick={handleUpdateWechat}
                                                         disabled={!wechatInput.trim()}
-                                                        className={`flex-1 py-2.5 px-4 rounded-xl font-medium transition-all ${wechatInput.trim() ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                                        className={`flex-1 py-2.5 px-4 rounded-xl font-medium transition-all ${wechatInput.trim() ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                                                     >
                                                         保存并继续
                                                     </button>
@@ -1418,9 +1453,9 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all duration-300 animate-in fade-in zoom-in-95"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="p-5 border-b flex justify-between items-center bg-emerald-50/50">
+                        <div className="p-5 border-b flex justify-between items-center bg-blue-50/50">
                             <h3 className="text-xl font-bold text-gray-800 flex items-center">
-                                <CalendarIcon className="w-5 h-5 mr-2 text-emerald-600" />
+                                <CalendarIcon className="w-5 h-5 mr-2 text-blue-600" />
                                 安排面试邀请
                             </h3>
                             <button
@@ -1449,7 +1484,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             name="interviewDate"
                                             value={interviewForm.interviewDate}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             required
                                         />
                                     </div>
@@ -1461,24 +1496,15 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             name="interviewTime"
                                             value={interviewForm.interviewTime}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             required
                                         >
                                             <option value="">请选择时间</option>
-                                            {/* 生成固定时间选项：08:00到18:00，分钟为00, 15, 30, 45 */}
-                                            {Array.from({ length: 11 }).map((_, i) => {
-                                                const hour = 8 + i; // 8到18点
-                                                const hourStr = hour.toString().padStart(2, '0');
-                                                return [0, 15, 30, 45].map(minute => {
-                                                    const minuteStr = minute.toString().padStart(2, '0');
-                                                    const timeValue = `${hourStr}:${minuteStr}`;
-                                                    return (
-                                                        <option key={timeValue} value={timeValue}>
-                                                            {timeValue}
-                                                        </option>
-                                                    );
-                                                });
-                                            }).flat()}
+                                            {TIME_SLOTS.map(timeValue => (
+                                                <option key={timeValue} value={timeValue}>
+                                                    {timeValue}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
 
@@ -1489,24 +1515,20 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             name="interviewTimeEnd"
                                             value={interviewForm.interviewTimeEnd}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             required
                                         >
                                             <option value="">请选择时间</option>
-                                            {/* 生成固定时间选项：08:00到18:00，分钟为00, 15, 30, 45 */}
-                                            {Array.from({ length: 11 }).map((_, i) => {
-                                                const hour = 8 + i; // 8到18点
-                                                const hourStr = hour.toString().padStart(2, '0');
-                                                return [0, 15, 30, 45].map(minute => {
-                                                    const minuteStr = minute.toString().padStart(2, '0');
-                                                    const timeValue = `${hourStr}:${minuteStr}`;
-                                                    return (
-                                                        <option key={timeValue} value={timeValue}>
-                                                            {timeValue}
-                                                        </option>
-                                                    );
-                                                });
-                                            }).flat()}
+                                            {TIME_SLOTS.filter(timeValue => {
+                                                if (!interviewForm.interviewTime) return true;
+                                                const [startH, startM] = interviewForm.interviewTime.split(':').map(Number);
+                                                const [endH, endM] = timeValue.split(':').map(Number);
+                                                return (endH * 60 + endM) > (startH * 60 + startM);
+                                            }).map(timeValue => (
+                                                <option key={timeValue} value={timeValue}>
+                                                    {timeValue}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
 
@@ -1542,7 +1564,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             name="interviewPosition"
                                             value={interviewForm.interviewPosition}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             required
                                         >
                                             {jobs.map(job => (
@@ -1561,7 +1583,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             name="location"
                                             value={interviewForm.location}
                                             onChange={handleFormChange}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             placeholder="请输入面试地址"
                                         />
                                     </div>
@@ -1574,7 +1596,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                             value={interviewForm.notes}
                                             onChange={handleFormChange}
                                             rows={3}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                             placeholder="请输入面试备注（选填）"
                                         ></textarea>
                                     </div>
@@ -1592,7 +1614,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                                         type="button"
                                         onClick={handleCreateInterview}
                                         disabled={formLoading}
-                                        className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                                        className="px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                                     >
                                         {formLoading ? (
                                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

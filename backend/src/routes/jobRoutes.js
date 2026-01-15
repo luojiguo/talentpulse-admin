@@ -174,7 +174,7 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
     const jobIds = cachedResult.rows[0].job_ids;
     if (jobIds && jobIds.length > 0) {
       const jobsResult = await query(`
-                SELECT j.*, c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar, r.position AS recruiter_position
+                SELECT j.*, c.name AS company_name, c.logo AS company_logo, u.name AS recruiter_name, u.avatar AS recruiter_avatar, r.position AS recruiter_position
                 FROM jobs j
                 LEFT JOIN companies c ON j.company_id = c.id
                 LEFT JOIN recruiters r ON j.recruiter_id = r.id
@@ -209,7 +209,7 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
           j.id, j.title, j.location, j.salary, j.description, j.experience, j.degree, j.type,
           j.work_mode, j.job_level, j.department, j.status, j.publish_date, j.created_at,
           j.updated_at, j.company_id, j.recruiter_id, j.required_skills, j.preferred_skills, j.benefits,
-          c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
+          c.name AS company_name, c.logo AS company_logo, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
           r.position AS recruiter_position, r.id AS recruiter_table_id
         FROM jobs j
         LEFT JOIN companies c ON j.company_id = c.id
@@ -310,7 +310,7 @@ router.get('/recommended/:userId/status', asyncHandler(async (req, res) => {
               j.id, j.title, j.location, j.salary, j.description, j.experience, j.degree, j.type,
               j.work_mode, j.job_level, j.department, j.status, j.publish_date, j.created_at,
               j.updated_at, j.company_id, j.recruiter_id, j.required_skills, j.preferred_skills, j.benefits,
-              c.name AS company_name, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
+              c.name AS company_name, c.logo AS company_logo, u.name AS recruiter_name, u.avatar AS recruiter_avatar,
               r.position AS recruiter_position, r.id AS recruiter_table_id
             FROM jobs j
             LEFT JOIN companies c ON j.company_id = c.id
@@ -424,6 +424,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
         SELECT 
           j.*, 
           c.name AS company_name, 
+          c.logo AS company_logo,
           u.name AS recruiter_name, 
           u.avatar AS recruiter_avatar,
           r.position AS recruiter_position,

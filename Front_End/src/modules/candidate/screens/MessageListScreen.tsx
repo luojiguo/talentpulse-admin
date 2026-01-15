@@ -14,10 +14,10 @@ interface MessageListScreenProps {
     currentUser: any;
 }
 
-const MessageListScreen: React.FC<MessageListScreenProps> = ({ 
-    conversations, 
-    searchText, 
-    setSearchText, 
+const MessageListScreen: React.FC<MessageListScreenProps> = ({
+    conversations,
+    searchText,
+    setSearchText,
     onDeleteConversation,
     currentUser
 }) => {
@@ -42,16 +42,16 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
             {/* Header */}
             <div className="sticky top-0 z-30 bg-white shadow-sm p-4">
                 <h1 className="text-xl font-bold text-gray-900 mb-4">消息中心</h1>
-                
+
                 {/* Search Bar - Optimized for mobile */}
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input 
-                        type="text" 
-                        placeholder="搜索联系人..." 
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
-                        value={searchText} 
-                        onChange={(e) => setSearchText(e.target.value)} 
+                    <input
+                        type="text"
+                        placeholder="搜索联系人..."
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-full text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-all"
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
                     />
                 </div>
             </div>
@@ -64,11 +64,11 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                             // 直接从对话数据中获取招聘者信息
                             const recruiterName = conv.recruiter_name || '招聘者';
                             const recruiterAvatar = conv.recruiter_avatar || '招';
-                            
+
                             // 处理删除对话
                             const handleDelete = (e: React.MouseEvent) => {
                                 e.stopPropagation(); // 阻止事件冒泡，避免触发选择对话
-                                
+
                                 // 使用Ant Design的Modal组件替代window.confirm
                                 Modal.confirm({
                                     title: '确认删除聊天记录',
@@ -92,10 +92,10 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                                     }
                                 });
                             };
-                            
+
                             return (
-                                <div 
-                                    key={conv.id} 
+                                <div
+                                    key={conv.id}
                                     onClick={() => navigate(`/messages/${conv.id}`)}
                                     className="p-4 cursor-pointer transition-colors active:bg-gray-100"
                                 >
@@ -103,18 +103,18 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                                         {/* Avatar and Info */}
                                         <div className="flex-1 flex items-start gap-3">
                                             {/* Avatar */}
-                                            <div className="w-12 h-12 rounded-full bg-indigo-100 overflow-hidden flex items-center justify-center flex-shrink-0">
+                                            <div className="w-12 h-12 rounded-full bg-brand-100 overflow-hidden flex items-center justify-center flex-shrink-0">
                                                 {recruiterAvatar && recruiterAvatar !== '' ? (
-                                                    <img 
-                                                        src={processAvatarUrl(recruiterAvatar)} 
-                                                        alt={recruiterName} 
-                                                        className="w-full h-full object-cover" 
+                                                    <img
+                                                        src={processAvatarUrl(recruiterAvatar)}
+                                                        alt={recruiterName}
+                                                        className="w-full h-full object-cover"
                                                     />
                                                 ) : (
-                                                    <span className="text-base font-bold text-indigo-600">{recruiterName.charAt(0) || '招'}</span>
+                                                    <span className="text-base font-bold text-brand-600">{recruiterName.charAt(0) || '招'}</span>
                                                 )}
                                             </div>
-                                            
+
                                             {/* Info */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-baseline justify-between">
@@ -125,10 +125,10 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                                                 <p className="text-sm text-gray-600 truncate mt-1">{conv.lastMessage || '暂无消息'}</p>
                                             </div>
                                         </div>
-                                        
+
                                         {/* Delete Button - Larger touch area */}
-                                        <button 
-                                            onClick={handleDelete} 
+                                        <button
+                                            onClick={handleDelete}
                                             className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors flex-shrink-0"
                                             title="删除聊天"
                                         >
@@ -141,8 +141,8 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                     </div>
                 ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                        <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
-                            <MessageSquare className="w-10 h-10 text-indigo-400" />
+                        <div className="w-20 h-20 rounded-full bg-brand-100 flex items-center justify-center mb-4">
+                            <MessageSquare className="w-10 h-10 text-brand-400" />
                         </div>
                         <h3 className="text-lg font-semibold text-gray-800 mb-2">暂无消息</h3>
                         <p className="text-gray-500 max-w-xs">

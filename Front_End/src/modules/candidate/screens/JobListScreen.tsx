@@ -207,7 +207,7 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
+            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
             placeholder="搜索职位、公司、地点或描述..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
@@ -232,7 +232,7 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
           {loadingJobs ? (
             <div className="text-center py-12">
               <div className="inline-block animate-pulse">
-                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+                <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mb-4"></div>
                 <p className="text-gray-500">加载职位数据中...</p>
               </div>
             </div>
@@ -274,7 +274,7 @@ const JobListScreen: React.FC<JobListScreenProps> = ({ jobs: propsJobs, loadingJ
               {searchText && (
                 <button
                   onClick={() => setSearchText('')}
-                  className="mt-4 text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                  className="mt-4 text-brand-600 hover:text-brand-700 font-medium transition-colors"
                 >
                   清空搜索条件
                 </button>

@@ -273,7 +273,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
      */
     const renderContent = () => {
         return (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-6">
                 {/* 个人信息板块 */}
                 <div id="personal-info">
                     <PersonalInfoSection
@@ -281,12 +281,19 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                         onUpdate={fetchUserData}
                         // 渲染额外的头部操作按钮：预览 和 修改密码
                         renderExtraHeader={() => (
-                            <div className="flex gap-4 text-blue-600 text-sm cursor-pointer ml-4">
-                                <span onClick={() => setPasswordModalVisible(true)} className="hover:text-blue-800 transition-colors">修改密码</span>
-                                <span className="text-gray-300">|</span>
-                                <span onClick={() => setShowPreview(true)} className="hover:text-blue-800 transition-colors">预览简历</span>
-                                <span className="text-gray-300">|</span>
-                                <a href="/recruiter/certification" className="hover:text-blue-800 transition-colors text-blue-600">企业认证</a>
+                            <div className="flex items-center gap-2 ml-4">
+                                <button 
+                                    onClick={() => setPasswordModalVisible(true)} 
+                                    className="px-4 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs font-bold hover:border-brand-300 hover:text-brand-600 dark:hover:border-brand-800 dark:hover:text-brand-400 transition-all active:scale-95"
+                                >
+                                    修改密码
+                                </button>
+                                <button 
+                                    onClick={() => setShowPreview(true)} 
+                                    className="px-4 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20 text-brand-600 dark:text-brand-400 text-xs font-bold hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-all active:scale-95"
+                                >
+                                    预览简历
+                                </button>
                             </div>
                         )}
                     />
@@ -345,16 +352,28 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
     };
 
     if (loading || !user) {
-        return <div className="p-8 text-center text-gray-500">加载中...</div>;
+        return (
+            <div className="flex h-screen items-center justify-center bg-white dark:bg-slate-950">
+                <div className="flex flex-col items-center gap-6">
+                    <div className="relative">
+                        <div className="w-16 h-16 border-4 border-brand-100 dark:border-slate-800 border-t-brand-500 rounded-full animate-spin"></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse"></div>
+                        </div>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 font-bold tracking-wider animate-pulse text-sm">正在加载个人资料...</p>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="bg-gray-50 min-h-screen p-4 md:p-6">
-            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-4 items-start relative">
+        <div className="bg-slate-50 dark:bg-slate-950 min-h-screen p-4 md:p-6 transition-colors duration-500">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 items-start relative">
                 {/* 左侧边栏 - 在移动端/平板 (< lg) 隐藏, 在桌面端 (lg+) 显示 */}
-                <div className="hidden lg:block w-[200px] flex-shrink-0" style={{ height: 'calc(100vh - 48px)' }}>
-                    <Affix offsetTop={24}>
-                        <div style={{ maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
+                <div className="hidden lg:block w-[220px] flex-shrink-0">
+                    <Affix offsetTop={84}>
+                        <div className="max-h-[calc(100vh-100px)] overflow-y-auto pr-2 custom-scrollbar">
                             <ProfileSidebar activeSection={activeSection} onSectionChange={handleSectionChange} />
                         </div>
                     </Affix>
@@ -366,20 +385,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                     <div className="flex flex-col xl:flex-row gap-6 items-start">
                         {/* 核心资料内容区 */}
                         <div className="flex-1 min-w-0 w-full">
-
                             {renderContent()}
                         </div>
 
                         {/* 右侧边栏 - 附件简历管理 */}
-                        {/* 布局：小于 xl 尺寸时堆叠在下方, xl 尺寸以上固定宽度在右侧 */}
-                        <div className="w-full xl:w-[300px] flex-shrink-0">
-                            {/* 桌面端大屏幕视图 - 使用 Affix 固钉效果 */}
+                        <div className="w-full xl:w-[320px] flex-shrink-0">
                             <div className="hidden xl:block">
-                                <Affix offsetTop={24}>
+                                <Affix offsetTop={84}>
                                     <ResumeManageSection userId={userId} />
                                 </Affix>
                             </div>
-                            {/* 移动/平板端视图 (< xl) - 无固钉，普通块级元素堆叠显示 */}
                             <div className="block xl:hidden">
                                 <ResumeManageSection userId={userId} />
                             </div>
@@ -388,7 +403,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                 </div>
             </div>
 
-            {/* 简历预览模态框 (普通查看模式) */}
+            {/* 简历预览模态框 */}
             <ResumePreviewModal
                 visible={showPreview}
                 onClose={() => setShowPreview(false)}
@@ -397,29 +412,42 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
 
             {/* 修改密码模态框 */}
             <Modal
-                title="修改密码"
+                title={<span className="text-slate-900 dark:text-white font-bold">修改密码</span>}
                 open={passwordModalVisible}
                 onOk={handlePasswordChange}
                 onCancel={() => setPasswordModalVisible(false)}
                 confirmLoading={passwordLoading}
                 okText="确认修改"
                 cancelText="取消"
+                className="dark:bg-slate-900"
+                styles={{
+                    body: {
+                        borderRadius: '24px',
+                        padding: '24px',
+                        backgroundColor: 'var(--modal-bg, #ffffff)'
+                    },
+                    header: {
+                        marginBottom: '20px',
+                        borderBottom: 'none',
+                        backgroundColor: 'transparent'
+                    }
+                }}
             >
-                <div className="flex flex-col gap-4 py-4">
+                <div className="flex flex-col gap-5 py-2">
                     <div>
-                        <div className="mb-1 text-sm text-gray-600">旧密码</div>
+                        <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">旧密码</div>
                         <div className="relative">
                             <input
                                 type={showOldPass ? "text" : "password"}
                                 value={passwordForm.oldPassword}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
-                                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-brand-500/20 text-slate-900 dark:text-white placeholder-slate-400 transition-all"
                                 placeholder="请输入旧密码"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowOldPass(!showOldPass)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-500 transition-colors"
                             >
                                 {showOldPass ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
@@ -427,48 +455,67 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                     </div>
 
                     <div>
-                        <div className="mb-1 text-sm text-gray-600">验证码</div>
-                        <div className="flex gap-2">
+                        <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">验证码</div>
+                        <div className="flex gap-3">
                             <input
                                 type="text"
                                 value={passwordForm.verificationCode}
                                 onChange={(e) => setPasswordForm({ ...passwordForm, verificationCode: e.target.value })}
-                                className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-brand-500/20 text-slate-900 dark:text-white placeholder-slate-400 transition-all"
                                 placeholder="请输入6位验证码"
                             />
                             <button
                                 onClick={handleSendCode}
                                 disabled={countdown > 0 || sendingCode}
-                                className={`px-4 py-2 rounded-md font-medium text-sm transition-colors whitespace-nowrap
+                                className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 whitespace-nowrap
                                     ${countdown > 0 || sendingCode
-                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200'
+                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                        : 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/50'
                                     }`}
                             >
-                                {sendingCode ? '发送中...' : countdown > 0 ? `${countdown}秒后重新获取` : '获取验证码'}
+                                {sendingCode ? '发送中...' : countdown > 0 ? `${countdown}s` : '获取验证码'}
                             </button>
                         </div>
                     </div>
 
                     <div>
-                        <div className="mb-1 text-sm text-gray-600">新密码</div>
-                        <input
-                            type="password"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={passwordForm.newPassword}
-                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                            placeholder="请输入新密码（至少6位）"
-                        />
+                        <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">新密码</div>
+                        <div className="relative">
+                            <input
+                                type={showNewPass ? "text" : "password"}
+                                value={passwordForm.newPassword}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-brand-500/20 text-slate-900 dark:text-white placeholder-slate-400 transition-all"
+                                placeholder="请输入新密码（至少6位）"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowNewPass(!showNewPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-500 transition-colors"
+                            >
+                                {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                     </div>
+
                     <div>
-                        <div className="mb-1 text-sm text-gray-600">确认新密码</div>
-                        <input
-                            type="password"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={passwordForm.confirmPassword}
-                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                            placeholder="请再次输入新密码"
-                        />
+                        <div className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">确认新密码</div>
+                        <div className="relative">
+                            <input
+                                type={showConfirmPass ? "text" : "password"}
+                                value={passwordForm.confirmPassword}
+                                onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                                className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-brand-500/20 text-slate-900 dark:text-white placeholder-slate-400 transition-all"
+                                placeholder="请再次输入新密码"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPass(!showConfirmPass)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-500 transition-colors"
+                            >
+                                {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </Modal>

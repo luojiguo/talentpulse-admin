@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Download, X, Shield, Briefcase, Users, User, Ban, CheckCircle, Key } from 'lucide-react';
-import { message, Popconfirm } from 'antd';
+import { Search, Filter, Download, X, Shield, Briefcase, Users, User, Ban, CheckCircle, Key, Building2 } from 'lucide-react';
+import { message, Popconfirm, Tooltip } from 'antd';
 import { TRANSLATIONS } from '@/constants/constants';
 import { userAPI } from '@/services/apiService';
 import { SystemUser, Language, UserRole } from '@/types/types';
@@ -137,11 +137,16 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
 
     const StatusBadge = ({ status }: { status: SystemUser['status'] }) => {
         const colors = {
-            Active: 'bg-green-100 text-green-700',
-            Inactive: 'bg-gray-100 text-gray-600',
-            Suspended: 'bg-yellow-100 text-yellow-700',
+            Active: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+            Inactive: 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400',
+            Suspended: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
         };
-        return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${colors[status]}`}>{status}</span>;
+        const labels: Record<string, string> = {
+            Active: t.activeStatus,
+            Inactive: t.inactiveStatus,
+            Suspended: t.suspendedStatus,
+        };
+        return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${colors[status]}`}>{labels[status] || status}</span>;
     };
 
     // Fetch full user details when a user is selected
@@ -201,7 +206,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
             }
         } catch (error) {
             console.error('更新用户状态失败:', error);
-            message.error('更新用户状态失败');
+            message.error(lang === 'zh' ? '更新用户状态失败' : 'Failed to update user status');
         }
     };
 
@@ -211,25 +216,25 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                 <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="flex gap-2 items-center w-full md:w-auto">
                         <Search className="text-slate-400 w-5 h-5" />
-                        <input type="text" placeholder="按姓名或邮箱搜索..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm w-full md:w-64" />
+                        <input type="text" placeholder={t.search} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm w-full md:w-64 dark:text-white" />
                     </div>
                     <div className="flex gap-4 w-full md:w-auto">
-                        <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm px-4 py-2 w-full md:w-auto focus:ring-2 focus:ring-blue-500">
-                            <option value="all">所有角色</option>
-                            <option value="admin">管理员</option>
-                            <option value="recruiter">招聘者</option>
-                            <option value="candidate">求职者</option>
+                        <select value={filterRole} onChange={e => setFilterRole(e.target.value)} className="bg-slate-100 dark:bg-slate-700 dark:text-white border-none rounded-lg text-sm px-4 py-2 w-full md:w-auto focus:ring-2 focus:ring-blue-500">
+                            <option value="all">{t.allRoles}</option>
+                            <option value="admin">{TRANSLATIONS[lang].roles.admin}</option>
+                            <option value="recruiter">{TRANSLATIONS[lang].roles.recruiter}</option>
+                            <option value="candidate">{TRANSLATIONS[lang].roles.candidate}</option>
                         </select>
                         <button onClick={() => exportToCSV(filteredUsers, 'system_users')} className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white text-sm font-medium rounded-lg hover:bg-slate-900 transition-all">
-                            <Download size={16} /> 导出
+                            <Download size={16} /> {t.export}
                         </button>
                         {/* 列显示/隐藏控制按钮 */}
                         <button
                             onClick={() => setShowColumnModal(true)}
-                            className="bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
+                            className="bg-slate-100 dark:bg-slate-700 dark:text-white border-none rounded-lg text-sm px-4 py-2 focus:ring-2 focus:ring-blue-500 flex items-center gap-2"
                         >
-                            <Filter size={16} className="text-slate-500" />
-                            <span>列设置</span>
+                            <Filter size={16} className="text-slate-500 dark:text-slate-400" />
+                            <span>{t.columnSettings}</span>
                         </button>
                     </div>
                 </div>
@@ -238,17 +243,17 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                         <thead className="text-xs text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300 sticky top-0 z-10">
                             <tr>
                                 {visibleColumns.name && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">{t.name}</th>}
-                                {visibleColumns.email && <th scope="col" className="px-6 py-3 text-left min-w-[200px]">邮箱</th>}
-                                {visibleColumns.phone && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">手机号</th>}
-                                {visibleColumns.gender && <th scope="col" className="px-6 py-3 text-left min-w-[80px]">性别</th>}
-                                {visibleColumns.password && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">密码</th>}
-                                {visibleColumns.userType && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">用户类型</th>}
-                                {visibleColumns.status && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">状态</th>}
-                                {visibleColumns.education && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">学历</th>}
-                                {visibleColumns.workExperience && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">工作经验</th>}
-                                {visibleColumns.desiredPosition && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">期望职位</th>}
-                                {visibleColumns.emailVerified && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">邮箱验证</th>}
-                                {visibleColumns.phoneVerified && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">手机验证</th>}
+                                {visibleColumns.email && <th scope="col" className="px-6 py-3 text-left min-w-[200px]">{t.email}</th>}
+                                {visibleColumns.phone && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">{t.phone}</th>}
+                                {visibleColumns.gender && <th scope="col" className="px-6 py-3 text-left min-w-[80px]">{t.gender}</th>}
+                                {visibleColumns.password && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">{t.password}</th>}
+                                {visibleColumns.userType && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">{t.userType}</th>}
+                                {visibleColumns.status && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">{t.status}</th>}
+                                {visibleColumns.education && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">{t.education}</th>}
+                                {visibleColumns.workExperience && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">{t.workExperience}</th>}
+                                {visibleColumns.desiredPosition && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">{t.desiredPosition}</th>}
+                                {visibleColumns.emailVerified && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">{t.emailVerified}</th>}
+                                {visibleColumns.phoneVerified && <th scope="col" className="px-6 py-3 text-left min-w-[100px]">{t.phoneVerified}</th>}
                                 {visibleColumns.createdAt && <th scope="col" className="px-6 py-3 text-left min-w-[120px]">{t.createdAt}</th>}
                                 {visibleColumns.lastLogin && <th scope="col" className="px-6 py-3 text-left min-w-[150px]">{t.lastLogin}</th>}
                                 {visibleColumns.action && <th scope="col" className="px-6 py-3 text-left min-w-[80px]">{t.action}</th>}
@@ -257,19 +262,19 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={Object.keys(visibleColumns).length} className="px-6 py-8 text-center text-slate-500">
-                                        加载中...
+                                    <td colSpan={Object.keys(visibleColumns).length} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                                        {t.loading}
                                     </td>
                                 </tr>
                             ) : filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={Object.keys(visibleColumns).length} className="px-6 py-8 text-center text-slate-500">
-                                        没有找到匹配的用户
+                                    <td colSpan={Object.keys(visibleColumns).length} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                                        {t.noUsers}
                                     </td>
                                 </tr>
                             ) : (
                                 filteredUsers.map(user => (
-                                    <tr key={user.id} className="bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
+                                    <tr key={user.id} className="group bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600/50">
                                         {visibleColumns.name && (
                                             <td className="px-6 py-4 font-medium text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
@@ -287,7 +292,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                         {/* Top Layer: Image */}
                                                         {user.avatar && (
                                                             <img
-                                                                src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:3001${user.avatar}`}
+                                                                src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8001${user.avatar}`}
                                                                 alt={user.name}
                                                                 className="absolute inset-0 h-full w-full rounded-full object-cover"
                                                                 onError={(e) => {
@@ -296,68 +301,106 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                             />
                                                         )}
                                                     </div>
-                                                    <span>{user.name}</span>
+                                                    <Tooltip title={user.name}>
+                                                        <span
+                                                            className="cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigator.clipboard.writeText(user.name);
+                                                                message.success(t.copyName);
+                                                            }}
+                                                        >
+                                                            {(() => {
+                                                                const isChinese = /[\u4e00-\u9fa5]/.test(user.name);
+                                                                const limit = isChinese ? 4 : 16;
+                                                                return user.name.length > limit ? `${user.name.substring(0, limit)}...` : user.name;
+                                                            })()}
+                                                        </span>
+                                                    </Tooltip>
                                                 </div>
                                             </td>
                                         )}
-                                        {visibleColumns.email && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.email}</td>}
-                                        {visibleColumns.phone && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.phone || '未设置'}</td>}
-                                        {visibleColumns.gender && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.gender || '未设置'}</td>}
+                                        {visibleColumns.email && (
+                                            <td className="px-6 py-4 text-slate-900 dark:text-white">
+                                                <Tooltip title={user.email}>
+                                                    <span
+                                                        className="cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigator.clipboard.writeText(user.email);
+                                                            message.success(t.copyEmail);
+                                                        }}
+                                                    >
+                                                        {user.email.length > 16 ? `${user.email.substring(0, 16)}...` : user.email}
+                                                    </span>
+                                                </Tooltip>
+                                            </td>
+                                        )}
+                                        {visibleColumns.phone && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.phone || '-'}</td>}
+                                        {visibleColumns.gender && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.gender || '-'}</td>}
                                         {visibleColumns.password && <td className="px-6 py-4 font-mono text-sm text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">
-                                            {user.password ? user.password : '未设置'}
+                                            {user.password ? user.password : t.notSet}
                                         </td>}
                                         {visibleColumns.userType && <td className="px-6 py-4">
-                                            {user.roles?.includes('candidate') && user.roles?.includes('recruiter') ? (
-                                                <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded-full">求职者和招聘者</span>
-                                            ) : user.roles?.includes('candidate') ? (
-                                                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">求职者</span>
-                                            ) : user.roles?.includes('recruiter') ? (
-                                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">招聘者</span>
-                                            ) : (
-                                                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">管理员</span>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {user.roles?.includes('candidate') && (
+                                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-sm border border-blue-200 dark:border-blue-800" title={TRANSLATIONS[lang].roles.candidate}>
+                                                        <User size={16} />
+                                                    </div>
+                                                )}
+                                                {user.roles?.includes('recruiter') && (
+                                                    <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm border border-emerald-200 dark:border-emerald-800" title={TRANSLATIONS[lang].roles.recruiter}>
+                                                        <Building2 size={16} />
+                                                    </div>
+                                                )}
+                                                {user.roles?.includes('admin') && (
+                                                    <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 shadow-sm border border-purple-200 dark:border-purple-800" title={TRANSLATIONS[lang].roles.admin}>
+                                                        <Shield size={16} />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>}
                                         {visibleColumns.status && <td className="px-6 py-4">
                                             <StatusBadge status={user.status} />
                                         </td>}
-                                        {visibleColumns.education && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.education || '未设置'}</td>}
-                                        {visibleColumns.workExperience && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.workExperienceYears || 0} 年</td>}
-                                        {visibleColumns.desiredPosition && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.desiredPosition || '未设置'}</td>}
+                                        {visibleColumns.education && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.education || (lang === 'zh' ? '无' : 'None')}</td>}
+                                        {visibleColumns.workExperience && <td className="px-6 py-4 text-slate-900 dark:text-white">{user.workExperienceYears || 0} {lang === 'zh' ? '年' : 'Years'}</td>}
+                                        {visibleColumns.desiredPosition && <td className="px-6 py-4 text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">{user.desiredPosition || t.notSet}</td>}
                                         {visibleColumns.emailVerified && <td className="px-6 py-4">
-                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.emailVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                {user.emailVerified ? '已验证' : '未验证'}
+                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.emailVerified ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                                {user.emailVerified ? t.verified : t.unverified}
                                             </span>
                                         </td>}
                                         {visibleColumns.phoneVerified && <td className="px-6 py-4">
-                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                {user.phoneVerified ? '已验证' : '未验证'}
+                                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${user.phoneVerified ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                                {user.phoneVerified ? t.verified : t.unverified}
                                             </span>
                                         </td>}
                                         {visibleColumns.createdAt && <td className="px-6 py-4 whitespace-nowrap">{user.createdAt}</td>}
                                         {visibleColumns.lastLogin && <td className="px-6 py-4 whitespace-nowrap">{user.lastLogin}</td>}
                                         {visibleColumns.action && <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => setSelectedUser(user)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">查看</button>
+                                                <button onClick={() => setSelectedUser(user)} className="font-medium text-blue-600 dark:text-blue-500 hover:underline">{lang === 'zh' ? '查看' : 'View'}</button>
                                                 {user.role !== 'admin' && (
-                                                    <>
+                                                    <div className="flex items-center gap-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                                                         <Popconfirm
-                                                            title="重置密码"
-                                                            description="确定要将该用户的密码重置为 123456 吗？"
+                                                            title={t.resetPassword}
+                                                            description={t.resetConfirm}
                                                             onConfirm={async () => {
                                                                 try {
                                                                     await userAPI.adminResetPassword(user.id);
-                                                                    message.success('密码已重置为 123456');
+                                                                    message.success(lang === 'zh' ? '密码已重置为 123456' : 'Password reset to 123456');
                                                                 } catch (error) {
                                                                     console.error('重置密码失败:', error);
-                                                                    message.error('重置密码失败');
+                                                                    message.error(lang === 'zh' ? '重置密码失败' : 'Failed to reset password');
                                                                 }
                                                             }}
-                                                            okText="确定"
-                                                            cancelText="取消"
+                                                            okText={lang === 'zh' ? '确定' : 'OK'}
+                                                            cancelText={t.cancel}
                                                         >
                                                             <button
-                                                                className="p-1 text-amber-600 hover:bg-amber-100 rounded"
-                                                                title="重置密码 (123456)"
+                                                                className="p-1 text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded"
+                                                                title={t.resetPassword}
                                                                 onClick={(e) => e.stopPropagation()}
                                                             >
                                                                 <Key size={16} />
@@ -367,30 +410,30 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                         {user.status === 'Suspended' ? (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); handleUpdateStatus(user.id, 'active'); }}
-                                                                className="p-1 text-red-600 hover:bg-red-100 rounded"
-                                                                title="解封账号"
+                                                                className="p-1 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                                                                title={t.unbanUser}
                                                             >
                                                                 <Ban size={16} />
                                                             </button>
                                                         ) : (
                                                             <div onClick={e => e.stopPropagation()}>
                                                                 <Popconfirm
-                                                                    title="封禁用户"
-                                                                    description="确定要封禁该用户吗？封禁后用户将无法登录。"
+                                                                    title={t.banUser}
+                                                                    description={t.banConfirm}
                                                                     onConfirm={() => handleUpdateStatus(user.id, 'suspended')}
-                                                                    okText="确定"
-                                                                    cancelText="取消"
+                                                                    okText={lang === 'zh' ? '确定' : 'OK'}
+                                                                    cancelText={t.cancel}
                                                                 >
                                                                     <button
-                                                                        className="p-1 text-green-600 hover:bg-green-100 rounded"
-                                                                        title="封禁账号"
+                                                                        className="p-1 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
+                                                                        title={t.banUser}
                                                                     >
                                                                         <CheckCircle size={16} />
                                                                     </button>
                                                                 </Popconfirm>
                                                             </div>
                                                         )}
-                                                    </>
+                                                    </div>
                                                 )}
                                             </div>
                                         </td>}
@@ -421,12 +464,12 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                 <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowColumnModal(false)}>
                     <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b pb-4 dark:border-slate-700 mb-4">
-                            <h2 className="text-xl font-bold dark:text-white">列设置</h2>
+                            <h2 className="text-xl font-bold dark:text-white">{t.columnSettings}</h2>
                             <button onClick={() => setShowColumnModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><X size={20} /></button>
                         </div>
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">用户名称</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.name}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.name}
@@ -435,7 +478,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">邮箱</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.email}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.email}
@@ -444,7 +487,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手机号</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.phone}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.phone}
@@ -453,7 +496,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">性别</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.gender}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.gender}
@@ -462,7 +505,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">密码</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.password}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.password}
@@ -471,7 +514,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">用户类型</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.userType}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.userType}
@@ -480,7 +523,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">状态</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.status}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.status}
@@ -489,7 +532,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">学历</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.education}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.education}
@@ -498,7 +541,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">工作经验</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.workExperience}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.workExperience}
@@ -507,7 +550,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">期望职位</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.desiredPosition}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.desiredPosition}
@@ -516,7 +559,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">邮箱验证</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.emailVerified}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.emailVerified}
@@ -525,7 +568,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">手机验证</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.phoneVerified}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.phoneVerified}
@@ -534,7 +577,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">创建时间</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.createdAt}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.createdAt}
@@ -543,7 +586,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">最后登录</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.lastLogin}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.lastLogin}
@@ -552,7 +595,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 />
                             </div>
                             <div className="flex items-center justify-between">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">操作</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.action}</label>
                                 <input
                                     type="checkbox"
                                     checked={visibleColumns.action}
@@ -566,7 +609,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 onClick={() => setShowColumnModal(false)}
                                 className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                             >
-                                取消
+                                {t.cancel}
                             </button>
                             <button
                                 onClick={() => {
@@ -574,7 +617,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                 }}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                             >
-                                保存
+                                {t.save}
                             </button>
                         </div>
                     </div>
@@ -586,7 +629,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                 <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setSelectedUser(null)}>
                     <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-slate-800 shadow-2xl animate-in slide-in-from-right-1/4 duration-300 p-6 flex flex-col" onClick={e => e.stopPropagation()}>
                         <div className="flex justify-between items-center border-b pb-4 dark:border-slate-700">
-                            <h2 className="text-xl font-bold dark:text-white">User Details</h2>
+                            <h2 className="text-xl font-bold dark:text-white">{t.userDetails}</h2>
                             <button onClick={() => setSelectedUser(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><X size={20} /></button>
                         </div>
                         <div className="py-6 space-y-6 overflow-y-auto flex-1">
@@ -606,7 +649,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                     {/* Top Layer: Image */}
                                     {selectedUser.avatar && (
                                         <img
-                                            src={selectedUser.avatar.startsWith('http') ? selectedUser.avatar : `http://localhost:3001${selectedUser.avatar}`}
+                                            src={selectedUser.avatar.startsWith('http') ? selectedUser.avatar : `http://localhost:8001${selectedUser.avatar}`}
                                             alt={selectedUser.name}
                                             className="absolute inset-0 h-full w-full rounded-full object-cover"
                                             onError={(e) => {
@@ -621,95 +664,96 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
 
                             {/* 基本信息 */}
                             <div>
-                                <h3 className="text-lg font-semibold dark:text-white mb-3">基本信息</h3>
-                                <div className="space-y-3">
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">{t.basicInfo}</h3>
+                                <div className="space-y-3 text-slate-600 dark:text-slate-300">
                                     <p><strong className="dark:text-white">ID:</strong> {selectedUser.id}</p>
-                                    <p><strong className="dark:text-white">姓名:</strong> {selectedUser.name}</p>
-                                    <p><strong className="dark:text-white">邮箱:</strong> {selectedUser.email}</p>
-                                    <p><strong className="dark:text-white">密码:</strong>
-                                        <span className="font-mono text-sm">
-                                            {selectedUser.password ? selectedUser.password : '未设置'}
+                                    <p><strong className="dark:text-white">{t.name}:</strong> {selectedUser.name}</p>
+                                    <p><strong className="dark:text-white">{t.email}:</strong> {selectedUser.email}</p>
+                                    <p><strong className="dark:text-white">{t.password}:</strong>
+                                        <span className="font-mono text-sm ml-1">
+                                            {selectedUser.password ? selectedUser.password : t.notSet}
                                         </span>
                                     </p>
-                                    <p><strong className="dark:text-white">手机号:</strong> {selectedUser.phone || '未设置'}</p>
-                                    <p><strong className="dark:text-white">用户类型:</strong>
-                                        {selectedUser.roles?.includes('candidate') && selectedUser.roles?.includes('recruiter') ? '求职者和招聘者' :
-                                            selectedUser.roles?.includes('candidate') ? '求职者' :
-                                                selectedUser.roles?.includes('recruiter') ? '招聘者' :
-                                                    '管理员'}
+                                    <p><strong className="dark:text-white">{t.phone}:</strong> {selectedUser.phone || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{t.userType}:</strong>
+                                        <span className="ml-1">
+                                            {selectedUser.roles?.includes('candidate') && selectedUser.roles?.includes('recruiter') ? (lang === 'zh' ? '求职者和招聘者' : 'Candidate & Recruiter') :
+                                                selectedUser.roles?.includes('candidate') ? TRANSLATIONS[lang].roles.candidate :
+                                                    selectedUser.roles?.includes('recruiter') ? TRANSLATIONS[lang].roles.recruiter :
+                                                        TRANSLATIONS[lang].roles.admin}
+                                        </span>
                                     </p>
                                     {/* Display Company for Recruiters */}
                                     {selectedUser.roles?.includes('recruiter') && (
                                         <>
-                                            <p><strong className="dark:text-white">所属公司:</strong> {selectedUser.company_name || 'Loading...'}</p>
+                                            <p><strong className="dark:text-white">{lang === 'zh' ? '所属公司' : 'Company'}:</strong> {selectedUser.company_name || 'Loading...'}</p>
                                             {selectedUser.company_address && (
-                                                <p><strong className="dark:text-white">公司地址:</strong> {selectedUser.company_address}</p>
+                                                <p><strong className="dark:text-white">{lang === 'zh' ? '公司地址' : 'Address'}:</strong> {selectedUser.company_address}</p>
                                             )}
                                         </>
                                     )}
-                                    <p><strong className="dark:text-white">加入时间:</strong> {selectedUser.createdAt}</p>
-                                    <p><strong className="dark:text-white">最后登录:</strong> {selectedUser.lastLogin}</p>
+                                    <p><strong className="dark:text-white">{t.createdAt}:</strong> {selectedUser.createdAt}</p>
+                                    <p><strong className="dark:text-white">{t.lastLogin}:</strong> {selectedUser.lastLogin}</p>
                                 </div>
                             </div>
 
                             {/* 个人信息 */}
                             <div>
-                                <h3 className="text-lg font-semibold dark:text-white mb-3">个人信息</h3>
-                                <div className="space-y-3">
-                                    <p><strong className="dark:text-white">性别:</strong> {selectedUser.gender || '未设置'}</p>
-                                    <p><strong className="dark:text-white">出生日期:</strong> {selectedUser.birthDate || '未设置'}</p>
-                                    <p><strong className="dark:text-white">学历:</strong> {selectedUser.education || '未设置'}</p>
-                                    <p><strong className="dark:text-white">专业:</strong> {selectedUser.major || '未设置'}</p>
-                                    <p><strong className="dark:text-white">毕业院校:</strong> {selectedUser.school || '未设置'}</p>
-                                    <p><strong className="dark:text-white">毕业年份:</strong> {selectedUser.graduationYear || '未设置'}</p>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">{t.personalInfo}</h3>
+                                <div className="space-y-3 text-slate-600 dark:text-slate-300">
+                                    <p><strong className="dark:text-white">{t.gender}:</strong> {selectedUser.gender || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '出生日期' : 'Birth Date'}:</strong> {selectedUser.birthDate || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{t.education}:</strong> {selectedUser.education || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '专业' : 'Major'}:</strong> {selectedUser.major || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '毕业院校' : 'School'}:</strong> {selectedUser.school || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '毕业年份' : 'Graduation Year'}:</strong> {selectedUser.graduationYear || t.notSet}</p>
                                 </div>
                             </div>
 
                             {/* 职业信息 */}
                             <div>
-                                <h3 className="text-lg font-semibold dark:text-white mb-3">职业信息</h3>
-                                <div className="space-y-3">
-                                    <p><strong className="dark:text-white">工作经验:</strong> {selectedUser.workExperienceYears || 0} 年</p>
-                                    <p><strong className="dark:text-white">期望职位:</strong> {selectedUser.desiredPosition || '未设置'}</p>
-                                    <p><strong className="dark:text-white">技能:</strong> {selectedUser.skills?.length ? selectedUser.skills.join(', ') : '未设置'}</p>
-                                    <p><strong className="dark:text-white">语言能力:</strong> {selectedUser.languages?.length ? selectedUser.languages.join(', ') : '未设置'}</p>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">{t.professionalInfo}</h3>
+                                <div className="space-y-3 text-slate-600 dark:text-slate-300">
+                                    <p><strong className="dark:text-white">{t.workExperience}:</strong> {selectedUser.workExperienceYears || 0} {lang === 'zh' ? '年' : 'Years'}</p>
+                                    <p><strong className="dark:text-white">{t.desiredPosition}:</strong> {selectedUser.desiredPosition || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '技能' : 'Skills'}:</strong> {selectedUser.skills?.length ? selectedUser.skills.join(', ') : t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '语言能力' : 'Languages'}:</strong> {selectedUser.languages?.length ? selectedUser.languages.join(', ') : t.notSet}</p>
                                 </div>
                             </div>
 
                             {/* 联系与社交信息 */}
                             <div>
-                                <h3 className="text-lg font-semibold dark:text-white mb-3">联系与社交信息</h3>
-                                <div className="space-y-3">
-                                    <p><strong className="dark:text-white">地址:</strong> {selectedUser.address || '未设置'}</p>
-                                    <p><strong className="dark:text-white">微信号:</strong> {selectedUser.wechat || '未设置'}</p>
-                                    <p><strong className="dark:text-white">LinkedIn:</strong> {selectedUser.linkedin || '未设置'}</p>
-                                    <p><strong className="dark:text-white">GitHub:</strong> {selectedUser.github || '未设置'}</p>
-                                    <p><strong className="dark:text-white">个人网站:</strong> {selectedUser.personalWebsite || '未设置'}</p>
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">{t.contactInfo}</h3>
+                                <div className="space-y-3 text-slate-600 dark:text-slate-300">
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '地址' : 'Address'}:</strong> {selectedUser.address || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '微信号' : 'WeChat'}:</strong> {selectedUser.wechat || t.notSet}</p>
+                                    <p><strong className="dark:text-white">LinkedIn:</strong> {selectedUser.linkedin || t.notSet}</p>
+                                    <p><strong className="dark:text-white">GitHub:</strong> {selectedUser.github || t.notSet}</p>
+                                    <p><strong className="dark:text-white">{lang === 'zh' ? '个人网站' : 'Website'}:</strong> {selectedUser.personalWebsite || t.notSet}</p>
                                 </div>
                             </div>
-
                             {/* 系统信息 */}
                             <div>
-                                <h3 className="text-lg font-semibold dark:text-white mb-3">系统信息</h3>
-                                <div className="space-y-3">
+                                <h3 className="text-lg font-semibold dark:text-white mb-3">{t.systemInfo}</h3>
+                                <div className="space-y-3 text-slate-600 dark:text-slate-300">
                                     <div className="flex items-center justify-between">
-                                        <p><strong className="dark:text-white">简历完整度:</strong> {selectedUser.resumeCompleteness || 0}%</p>
+                                        <p><strong className="dark:text-white">{lang === 'zh' ? '简历完整度' : 'Resume Completeness'}:</strong> {selectedUser.resumeCompleteness || 0}%</p>
                                         {selectedUser.dbResumeCompleteness !== selectedUser.resumeCompleteness && (
                                             <button
                                                 onClick={() => syncResumeCompleteness(selectedUser)}
                                                 className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
-                                                title="同步到数据库"
+                                                title={lang === 'zh' ? '同步到数据库' : 'Sync to DB'}
                                             >
-                                                同步数据
+                                                {lang === 'zh' ? '同步数据' : 'Sync Data'}
                                             </button>
                                         )}
                                     </div>
                                     {selectedUser.dbResumeCompleteness !== selectedUser.resumeCompleteness && (
-                                        <p className="text-[10px] text-amber-500 mt-1">* 实时计算值与数据库记录不符</p>
+                                        <p className="text-[10px] text-amber-500 mt-1">* {lang === 'zh' ? '实时计算值与数据库记录不符' : 'Calculated value differs from DB'}</p>
                                     )}
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                                    <h3 className="text-lg font-semibold dark:text-white mb-3">账号管理</h3>
+                                    <h3 className="text-lg font-semibold dark:text-white mb-3">{t.accountManage}</h3>
                                     <div className="flex gap-3">
                                         {selectedUser.status === 'Suspended' ? (
                                             <button
@@ -717,7 +761,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                 className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                                             >
                                                 <CheckCircle size={18} />
-                                                解封账号
+                                                {t.unbanUser}
                                             </button>
                                         ) : (
                                             <button
@@ -725,7 +769,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                 className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                                             >
                                                 <Ban size={18} />
-                                                封禁账号
+                                                {t.banUser}
                                             </button>
                                         )}
                                     </div>

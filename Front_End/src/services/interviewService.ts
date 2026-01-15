@@ -4,9 +4,9 @@ import request from '@/utils/request';
  * 面试相关API
  */
 export const interviewAPI = {
-  // 获取所有面试
-  getAllInterviews: () => {
-    return request.get('/interviews');
+  // 获取面试列表，支持参数过滤
+  getAllInterviews: (params?: any) => {
+    return request.get('/interviews', { params });
   },
 
   // 获取单个面试

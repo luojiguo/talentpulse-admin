@@ -186,6 +186,7 @@ const resumeRoutes = require('./routes/resumeRoutes');
 const recruiterRoutes = require('./routes/recruiterRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const interviewRoutes = require('./routes/interviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 // const aiRoutes = require('./routes/aiRoutes'); // AI诊断功能已移除
 
 const configRoutes = require('./routes/configRoutes');
@@ -198,6 +199,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/ai-sessions', aiSessionRoutes);
@@ -227,7 +229,7 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // 启动服务器
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8001;
 const server = app.listen(PORT, async () => {
     console.log(`🚀 TalentPulse API 服务器正在运行在 http://localhost:${PORT}`);
     console.log(`📡 健康检查: http://localhost:${PORT}/health`);

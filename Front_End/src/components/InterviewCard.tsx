@@ -156,7 +156,7 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
     const renderStatus = () => {
         if (interviewStatus === 'accepted') {
             return (
-                <div className="flex items-center text-emerald-600 gap-1.5 bg-emerald-50 p-2 rounded-md w-full justify-center border border-emerald-200">
+                <div className="flex items-center text-blue-600 dark:text-blue-400 gap-1.5 bg-blue-50 dark:bg-blue-900/30 p-2 rounded-md w-full justify-center border border-blue-200 dark:border-blue-800">
                     <CheckCircle className="w-4 h-4" />
                     <span className="text-xs font-semibold">已接受邀请</span>
                 </div>
@@ -164,7 +164,7 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
         }
         if (interviewStatus === 'rejected' || interviewStatus === 'cancelled') {
             return (
-                <div className="flex items-center text-gray-500 gap-1.5 bg-gray-50 p-2 rounded-md w-full justify-center border border-gray-200">
+                <div className="flex items-center text-gray-500 dark:text-slate-400 gap-1.5 bg-gray-50 dark:bg-slate-800 p-2 rounded-md w-full justify-center border border-gray-200 dark:border-slate-700">
                     <XCircle className="w-4 h-4" />
                     <span className="text-xs font-semibold">
                         {interviewStatus === 'cancelled' ? '已取消' : '已拒绝'}
@@ -177,7 +177,7 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
         if (isRecruiter) {
             // 招聘方视角：显示等待状态
             return (
-                <div className="flex items-center text-blue-600 gap-1.5 bg-blue-50 p-2 rounded-md w-full justify-center border border-blue-200">
+                <div className="flex items-center text-blue-600 dark:text-blue-400 gap-1.5 bg-blue-50 dark:bg-blue-900/30 p-2 rounded-md w-full justify-center border border-blue-200 dark:border-blue-800">
                     <AlertCircle className="w-4 h-4 animate-pulse" />
                     <span className="text-xs font-semibold">等待候选人回复</span>
                 </div>
@@ -197,7 +197,7 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
                     <button
                         onClick={handleReject}
                         disabled={isDisabled || isLoading}
-                        className="flex-1 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-700 py-2.5 px-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-gray-300 transform hover:scale-[1.02] active:scale-[0.98]"
+                        className="flex-1 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-slate-700 dark:to-slate-600 hover:from-gray-200 hover:to-gray-300 dark:hover:from-slate-600 dark:hover:to-slate-500 text-gray-700 dark:text-slate-200 py-2.5 px-4 rounded-lg font-semibold transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-gray-300 dark:border-slate-500 transform hover:scale-[1.02] active:scale-[0.98]"
                     >
                         <XCircle className="w-4 h-4" />
                         {isLoading ? '处理中...' : '拒绝'}
@@ -208,14 +208,14 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden w-full max-w-md hover:shadow-lg transition-shadow duration-300">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md border border-gray-100 dark:border-slate-700 overflow-hidden w-full max-w-md hover:shadow-lg transition-shadow duration-300">
             {/* Header with gradient */}
-            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-2.5 flex justify-between items-center text-white">
+            <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-sky-500 dark:from-blue-700 dark:via-blue-600 dark:to-sky-600 p-2.5 flex justify-between items-center text-white">
                 <div className="flex items-center gap-1.5">
                     <Briefcase className="w-4 h-4" />
                     <span className="font-bold text-sm">面试邀请</span>
                 </div>
-                <span className="text-xs bg-white/25 backdrop-blur-sm px-2 py-0.5 rounded-full font-medium">
+                <span className="text-xs bg-white/25 dark:bg-black/25 backdrop-blur-sm px-2 py-0.5 rounded-full font-medium">
                     {interview.interview_round ? `第${interview.interview_round} 轮` : '初试'}
                 </span>
             </div>
@@ -223,13 +223,13 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
             {/* Body */}
             <div className="p-3 space-y-2.5">
                 {/* Position Title */}
-                <div className="border-b border-gray-100 pb-2">
-                    <h3 className="font-bold text-gray-900 text-base mb-1 flex items-center gap-1.5">
-                        <span className="text-indigo-600 text-sm">📋</span>
+                <div className="border-b border-gray-100 dark:border-slate-700 pb-2">
+                    <h3 className="font-bold text-gray-900 dark:text-slate-100 text-base mb-1 flex items-center gap-1.5">
+                        <span className="text-blue-600 dark:text-blue-400 text-sm">📋</span>
                         {interview.position || interview.Interview_Position || "职位未知"}
                     </h3>
                     {interview.company_name && (
-                        <p className="text-gray-500 text-xs flex items-center gap-1 ml-5">
+                        <p className="text-gray-500 dark:text-slate-400 text-xs flex items-center gap-1 ml-5">
                             <span>🏢</span>
                             {interview.company_name}
                         </p>
@@ -238,29 +238,29 @@ const InterviewCard: React.FC<InterviewCardProps> = ({
 
                 {/* Interview Details - Compact Grid Layout */}
                 <div className="grid grid-cols-1 gap-2">
-                    <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-100">
-                        <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
+                    <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border border-gray-100 dark:border-slate-700/50">
+                        <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
                         <div className="flex-1 min-w-0">
-                            <div className="text-gray-500 text-xs mb-0.5">面试日期</div>
-                            <span className="text-gray-900 font-semibold text-sm">
+                            <div className="text-gray-500 dark:text-slate-400 text-xs mb-0.5">面试日期</div>
+                            <span className="text-gray-900 dark:text-slate-200 font-semibold text-sm">
                                 {formatDateTime(interview.interview_date, 'date')}
                             </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-100">
-                        <Clock className="w-4 h-4 text-purple-500 shrink-0" />
+                    <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border border-gray-100 dark:border-slate-700/50">
+                        <Clock className="w-4 h-4 text-sky-500 shrink-0" />
                         <div className="flex-1 min-w-0">
-                            <div className="text-gray-500 text-xs mb-0.5">面试时间</div>
-                            <span className="text-gray-900 font-semibold text-sm">
+                            <div className="text-gray-500 dark:text-slate-400 text-xs mb-0.5">面试时间</div>
+                            <span className="text-gray-900 dark:text-slate-200 font-semibold text-sm">
                                 {interview.interview_time?.substring(0, 5)} - {interview.interview_time_end?.substring(0, 5)}
                             </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-100">
-                        <MapPin className="w-4 h-4 text-pink-500 shrink-0" />
+                    <div className="flex items-center gap-2.5 p-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border border-gray-100 dark:border-slate-700/50">
+                        <MapPin className="w-4 h-4 text-cyan-500 shrink-0" />
                         <div className="flex-1 min-w-0">
-                            <div className="text-gray-500 text-xs mb-0.5">面试地点</div>
-                            <span className="text-gray-900 font-semibold text-sm break-all">
+                            <div className="text-gray-500 dark:text-slate-400 text-xs mb-0.5">面试地点</div>
+                            <span className="text-gray-900 dark:text-slate-200 font-semibold text-sm break-all">
                                 {interview.location}
                             </span>
                         </div>

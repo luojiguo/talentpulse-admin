@@ -16,7 +16,8 @@ import {
   X,
   Calendar,
   UserCheck,
-  FileText
+  FileText,
+  Bell
 } from 'lucide-react';
 import { Language } from '../types/types';
 import { TRANSLATIONS } from '../constants/constants';
@@ -120,7 +121,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
           />
           <NavItem
             icon={<FileCheck size={20} />}
-            label="企业认证审核"
+            label={t.certifications}
             active={currentView === 'certifications'}
             onClick={() => handleNavigate('certifications')}
             isCollapsed={isCollapsed}
@@ -148,23 +149,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
           />
           <NavItem
             icon={<Calendar size={20} />}
-            label="面试管理"
+            label={t.interviews}
             active={currentView === 'interviews'}
             onClick={() => handleNavigate('interviews')}
             isCollapsed={isCollapsed}
           />
           <NavItem
             icon={<UserCheck size={20} />}
-            label="入职管理"
+            label={t.onboardings}
             active={currentView === 'onboardings'}
             onClick={() => handleNavigate('onboardings')}
             isCollapsed={isCollapsed}
           />
           <NavItem
             icon={<FileText size={20} />}
-            label="系统日志"
+            label={t.logs}
             active={currentView === 'logs'}
             onClick={() => handleNavigate('logs')}
+            isCollapsed={isCollapsed}
+          />
+          <NavItem
+            icon={<Bell size={20} />}
+            label={t.notifications}
+            active={currentView === 'notifications'}
+            onClick={() => handleNavigate('notifications')}
             isCollapsed={isCollapsed}
           />
           <NavItem
@@ -174,13 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
             onClick={() => handleNavigate('analytics')}
             isCollapsed={isCollapsed}
           />
-          <NavItem
-            icon={<Settings size={20} />}
-            label={t.settings}
-            active={currentView === 'settings'}
-            onClick={() => handleNavigate('settings')}
-            isCollapsed={isCollapsed}
-          />
+
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -210,8 +212,8 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick, isColla
   <button
     onClick={onClick}
     className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 w-full px-4 py-3 rounded-md transition-all duration-200 ${active
-        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
+      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
       }`}
     aria-label={label}
   >

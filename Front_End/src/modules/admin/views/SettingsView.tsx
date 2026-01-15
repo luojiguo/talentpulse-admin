@@ -3,17 +3,17 @@ import { Sun, Moon } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
 import { Language } from '@/types/types';
 
-const SettingsView: React.FC<{ 
-    lang: Language, 
+const SettingsView: React.FC<{
+    lang: Language,
     setLang: (lang: Language) => void,
     theme: 'light' | 'dark',
-    setTheme: (theme: 'light' | 'dark') => void 
+    setTheme: (theme: 'light' | 'dark') => void
 }> = ({ lang, setLang, theme, setTheme }) => {
     const t = TRANSLATIONS[lang].settings;
     const [message, setMessage] = useState('');
 
     const handleSave = () => {
-        setMessage('Settings saved successfully!');
+        setMessage(lang === 'zh' ? '设置已成功保存！' : 'Settings saved successfully!');
         setTimeout(() => setMessage(''), 3000);
     };
 
@@ -26,19 +26,19 @@ const SettingsView: React.FC<{
                     {message}
                 </div>
             )}
-            
+
             <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-8">
                 {/* Language Setting */}
                 <div>
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-3">{t.language}</h3>
                     <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1 space-x-1">
-                        <button 
+                        <button
                             onClick={() => setLang('zh')}
                             className={`w-full py-2 rounded-md text-sm font-semibold transition-colors ${lang === 'zh' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-600'}`}
                         >
                             中文 (Chinese)
                         </button>
-                        <button 
+                        <button
                             onClick={() => setLang('en')}
                             className={`w-full py-2 rounded-md text-sm font-semibold transition-colors ${lang === 'en' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-600'}`}
                         >
@@ -51,23 +51,23 @@ const SettingsView: React.FC<{
                 <div>
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-3">{t.theme}</h3>
                     <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1 space-x-1">
-                         <button 
+                        <button
                             onClick={() => setTheme('light')}
                             className={`w-full py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${theme === 'light' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-600'}`}
                         >
-                            <Sun size={16} /> Light
+                            <Sun size={16} /> {lang === 'zh' ? '浅色模式' : 'Light Mode'}
                         </button>
-                         <button 
+                        <button
                             onClick={() => setTheme('dark')}
                             className={`w-full py-2 rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${theme === 'dark' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow' : 'text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-600'}`}
                         >
-                            <Moon size={16} /> Dark
+                            <Moon size={16} /> {lang === 'zh' ? '深色模式' : 'Dark Mode'}
                         </button>
                     </div>
                 </div>
 
                 <div className="border-t border-slate-200 dark:border-slate-700 pt-6 flex justify-end">
-                    <button 
+                    <button
                         onClick={handleSave}
                         className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20"
                     >

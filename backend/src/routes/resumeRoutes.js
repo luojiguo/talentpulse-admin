@@ -601,6 +601,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             'SELECT id, name, email FROM users WHERE id = $1',
             [user_id]
         );
+        fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] User lookup result: ${JSON.stringify(userResult.rows)}\n`);
 
         console.log('查询结果:', userResult);
         console.log('结果行数:', userResult.rows.length);
@@ -729,6 +730,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             );
             candidateId = newCandidate.rows[0].id;
         }
+        fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] Candidate ID: ${candidateId}\n`);
 
         // 4. 解析PDF文件内容（如果是PDF文件）
         let parsedContent = null;
@@ -777,6 +779,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             }
         });
     } catch (error) {
+        fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] Upload ERROR: ${error.stack}\n`);
         // 删除已上传的文件
         if (req.file) {
             try {

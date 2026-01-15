@@ -1,0 +1,403 @@
+/* ========================================
+   招聘者主题样式 - 鼠尾草绿
+   ======================================== */
+
+/* CSS变量定义 - 浅色主题 */
+:root[data-theme="light"] {
+  /* 主色调 - 鼠尾草绿 */
+  --sage-primary: #8B9D83;
+  --sage-primary-light: #A8B99E;
+  --sage-primary-dark: #6B7C6B;
+
+  /* 背景色 */
+  --sage-bg: #F5F7F4;
+  --sage-card-bg: #FFFFFF;
+  --sage-hover-bg: #FAFBF9;
+
+  /* 文字颜色 */
+  --sage-text-primary: #2D3E2E;
+  --sage-text-secondary: #6B7C6B;
+  --sage-text-muted: #9AA99A;
+
+  /* 强调色 */
+  --sage-accent: #7A9B76;
+  --sage-accent-light: #9BB896;
+
+  /* 边框色 */
+  --sage-border: #E1E8DD;
+  --sage-border-light: #EDF1EA;
+
+  /* 状态色 */
+  --sage-success: #7A9B76;
+  --sage-warning: #D4A574;
+  --sage-error: #C17B7B;
+  --sage-info: #8B9D83;
+
+  /* 阴影 */
+  --sage-shadow-sm: 0 1px 2px rgba(139, 157, 131, 0.08);
+  --sage-shadow: 0 2px 8px rgba(139, 157, 131, 0.12);
+  --sage-shadow-lg: 0 4px 16px rgba(139, 157, 131, 0.15);
+}
+
+/* CSS变量定义 - 深色主题 */
+:root[data-theme="dark"] {
+  /* 主色调 - emerald绿色系 */
+  --sage-primary: #10b981;
+  --sage-primary-light: #34d399;
+  --sage-primary-dark: #059669;
+
+  /* 背景色 - 统一深色背景 */
+  --sage-bg: #1C1C1E;
+  /* gray-900 - 更深邃的中性色 */
+  --sage-card-bg: #1f2937;
+  /* gray-800 - 与主背景同色系略浅 */
+  --sage-hover-bg: #374151;
+  /* gray-700 */
+
+  /* 文字颜色 - 提升可读性 */
+  --sage-text-primary: #f1f5f9;
+  --sage-text-secondary: #cbd5e1;
+  --sage-text-muted: #94a3b8;
+
+  /* 强调色 */
+  --sage-accent: #34d399;
+  --sage-accent-light: #6ee7b7;
+
+  /* 边框色 */
+  --sage-border: #475569;
+  --sage-border-light: #334155;
+
+  /* 状态色 */
+  --sage-success: #34d399;
+  --sage-warning: #fbbf24;
+  --sage-error: #f87171;
+  --sage-info: #10b981;
+
+  /* 阴影 */
+  --sage-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sage-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --sage-shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* ========================================
+   全局样式覆盖
+   ======================================== */
+
+/* 招聘者模块根容器 */
+.recruiter-root {
+  background-color: var(--sage-bg);
+  color: var(--sage-text-primary);
+  min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ========================================
+   导航栏样式
+   ======================================== */
+
+.recruiter-header {
+  background-color: var(--sage-card-bg);
+  border-bottom: 1px solid var(--sage-border);
+  box-shadow: var(--sage-shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.recruiter-nav-button {
+  color: var(--sage-text-secondary);
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.recruiter-nav-button:hover {
+  background-color: var(--sage-hover-bg);
+  color: var(--sage-primary);
+}
+
+.recruiter-nav-button-active {
+  background-color: var(--sage-primary-light);
+  color: var(--sage-primary-dark);
+}
+
+.recruiter-nav-button-active:hover {
+  background-color: var(--sage-primary);
+  color: white;
+}
+
+/* ========================================
+   卡片样式
+   ======================================== */
+
+.sage-card {
+  background-color: var(--sage-card-bg);
+  border: 1px solid var(--sage-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--sage-shadow);
+  transition: all 0.3s ease;
+}
+
+.sage-card:hover {
+  box-shadow: var(--sage-shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* ========================================
+   按钮样式
+   ======================================== */
+
+.sage-button-primary {
+  background-color: var(--sage-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.sage-button-primary:hover {
+  background-color: var(--sage-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--sage-shadow);
+}
+
+.sage-button-secondary {
+  background-color: transparent;
+  color: var(--sage-primary);
+  border: 1px solid var(--sage-primary);
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.sage-button-secondary:hover {
+  background-color: var(--sage-primary-light);
+  color: white;
+  border-color: var(--sage-primary-light);
+}
+
+/* ========================================
+   输入框样式
+   ======================================== */
+
+.sage-input {
+  background-color: var(--sage-card-bg);
+  border: 1px solid var(--sage-border);
+  border-radius: 8px;
+  padding: 0.625rem 0.875rem;
+  color: var(--sage-text-primary);
+  transition: all 0.2s ease;
+}
+
+.sage-input:focus {
+  outline: none;
+  border-color: var(--sage-primary);
+  box-shadow: 0 0 0 3px rgba(139, 157, 131, 0.1);
+}
+
+.sage-input::placeholder {
+  color: var(--sage-text-muted);
+}
+
+/* ========================================
+   设置面板样式
+   ======================================== */
+
+.settings-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background-color: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--sage-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-button:hover {
+  background-color: var(--sage-hover-bg);
+  color: var(--sage-primary);
+}
+
+.settings-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: 280px;
+  background-color: var(--sage-card-bg);
+  border: 1px solid var(--sage-border);
+  border-radius: 12px;
+  box-shadow: var(--sage-shadow-lg);
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
+}
+
+.settings-panel-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.settings-panel-closed {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+  pointer-events: none;
+}
+
+.settings-panel-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--sage-border);
+  background-color: var(--sage-hover-bg);
+}
+
+.settings-panel-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--sage-text-primary);
+  margin: 0;
+}
+
+.settings-panel-content {
+  padding: 1rem;
+}
+
+.settings-section {
+  margin-bottom: 1.25rem;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--sage-text-secondary);
+  margin-bottom: 0.625rem;
+}
+
+.settings-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.625rem 0.75rem;
+  background-color: var(--sage-hover-bg);
+  border: 1px solid var(--sage-border);
+  border-radius: 8px;
+  color: var(--sage-text-secondary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-option:hover {
+  background-color: var(--sage-primary-light);
+  border-color: var(--sage-primary);
+  color: white;
+}
+
+.settings-option-active {
+  background-color: var(--sage-primary);
+  border-color: var(--sage-primary);
+  color: white;
+  font-weight: 500;
+}
+
+.settings-option-active:hover {
+  background-color: var(--sage-primary-dark);
+  border-color: var(--sage-primary-dark);
+}
+
+/* ========================================
+   响应式设计
+   ======================================== */
+
+@media (max-width: 768px) {
+  .settings-panel {
+    width: 260px;
+  }
+
+  .sage-card {
+    padding: 1rem;
+  }
+}
+
+/* ========================================
+   动画效果
+   ======================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+/* 平滑过渡 */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
+/* ========================================
+   自定义滚动条样式
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  /* slate-300 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  /* slate-400 */
+}
+
+/* 深色模式滚动条 */
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #475569;
+  /* slate-600 */
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  /* slate-500 */
+}

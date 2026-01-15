@@ -142,6 +142,7 @@ export * from './analyticsService';
 export * from './activityService';
 export * from './aiSessionService';
 export * from './onboardingService';
+export * from './notificationService';
 
 // 为了向后兼容，同时导出命名对象
 import { userAPI } from './userService';
@@ -157,6 +158,7 @@ import { analyticsAPI } from './analyticsService';
 import { activityAPI } from './activityService';
 import { aiSessionAPI } from './aiSessionService';
 import { onboardingAPI } from './onboardingService';
+import { notificationAPI } from './notificationService';
 
 // Config Service
 // Config Service
@@ -178,6 +180,7 @@ export {
   activityAPI,
   aiSessionAPI,
   onboardingAPI,
+  notificationAPI,
   configAPI
 };
 

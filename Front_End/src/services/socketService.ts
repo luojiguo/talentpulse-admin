@@ -21,10 +21,10 @@ class SocketService {
         }
 
         // 确定 Socket.IO 服务器地址
-        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+        const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
         const socketUrl = apiUrl.startsWith('http')
             ? apiUrl.replace(/\/api\/?$/, '') // 移除结尾的 /api
-            : 'http://localhost:3001';
+            : 'http://localhost:8001';
 
         console.log('Connecting to socket server:', socketUrl);
 

@@ -74,6 +74,9 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
     const [userResumes, setUserResumes] = useState<any[]>([]);
     const [selectedResume, setSelectedResume] = useState<any | null>(null);
     const [isLoadingResumes, setIsLoadingResumes] = useState(false);
+    const [isUploadingResume, setIsUploadingResume] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const resumeUploadInputRef = useRef<HTMLInputElement>(null);
 
     // WeChat exchange state
     const [showWechatModal, setShowWechatModal] = useState(false);
@@ -254,6 +257,56 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
+    // Handle resume upload
+    const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!currentUser?.id) {
+            message.error('无法获取用户信息，请重新登录');
+            console.error('handleResumeUpload: currentUser.id is missing', currentUser);
+            return;
+        }
+
+        // 验证文件类型
+        const allowedExtensions = ['.pdf', '.doc', '.docx'];
+        const extension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+        if (!allowedExtensions.includes(extension)) {
+            message.error('只支持 PDF 或 Word 文档');
+            if (resumeUploadInputRef.current) resumeUploadInputRef.current.value = '';
+            return;
+        }
+
+        try {
+            setIsUploadingResume(true);
+            setUploadProgress(0);
+
+            console.log('Starting resume upload for user:', currentUser.id, file.name);
+
+            const response = await resumeAPI.uploadResume(currentUser.id, file, (progress) => {
+                setUploadProgress(progress);
+            });
+
+            console.log('Resume upload response:', response);
+
+            if (response.data && (response.data.status === 'success' || response.data.success || response.data.id)) {
+                message.success('简历上传成功');
+                await loadUserResumes();
+            } else {
+                throw new Error(response.data?.message || '上传响应不包含成功状态');
+            }
+        } catch (error) {
+            console.error('上传简历失败:', error);
+            message.error('上传失败，请重试');
+        } finally {
+            setIsUploadingResume(false);
+            setUploadProgress(0);
+            if (resumeUploadInputRef.current) {
+                resumeUploadInputRef.current.value = '';
+            }
+        }
     };
 
     // WeChat Exchange Functions - 重新构建逻辑
@@ -478,7 +531,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                 <div className="flex items-center mb-6">
                     <button
                         onClick={() => navigate('/messages')}
-                        className="flex items-center text-gray-600 hover:text-indigo-600 mb-4"
+                        className="flex items-center text-gray-600 hover:text-brand-600 mb-4"
                     >
                         <ArrowLeft className="w-5 h-5 mr-2" />
                         <span>返回消息列表</span>
@@ -489,7 +542,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                     // 加载状态
                     <div className="text-center py-20 bg-white rounded-2xl border border-slate-200">
                         <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                            <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin"></div>
                         </div>
                         <p className="text-gray-500 font-medium">加载聊天记录中...</p>
                     </div>
@@ -502,7 +555,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                         <p className="text-gray-500 font-medium">未找到该对话</p>
                         <button
                             onClick={() => navigate('/messages')}
-                            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            className="mt-4 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
                         >
                             返回消息列表
                         </button>
@@ -520,7 +573,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                 <div className="sticky top-0 z-30 bg-white border-b border-gray-100 flex items-center justify-between p-4 shadow-sm">
                     <button
                         onClick={() => navigate('/messages')}
-                        className="flex items-center text-gray-600 hover:text-indigo-600"
+                        className="flex items-center text-gray-600 hover:text-brand-600"
                     >
                         <ArrowLeft className="w-6 h-6" />
                     </button>
@@ -530,8 +583,8 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                     </div>
 
                     <div className="flex gap-2">
-                        <button className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition"><Phone className="w-5 h-5" /></button>
-                        <button className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition"><MoreVertical className="w-5 h-5" /></button>
+                        <button className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition"><Phone className="w-5 h-5" /></button>
+                        <button className="p-2 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-full transition"><MoreVertical className="w-5 h-5" /></button>
                     </div>
                 </div>
                 {/* Messages List */}
@@ -643,7 +696,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                                                         <div className="flex gap-2">
                                                                             <button
                                                                                 onClick={() => handleAcceptWechatExchange(msg.id)}
-                                                                                className="flex-1 px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-md hover:bg-indigo-700 transition-colors"
+                                                                                className="flex-1 px-3 py-1.5 bg-brand-600 text-white text-xs rounded-md hover:bg-brand-700 transition-colors"
                                                                             >
                                                                                 同意交换
                                                                             </button>
@@ -871,7 +924,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
 
                         {/* Quick Actions */}
                         <div className="hidden md:flex space-x-2">
-                            <button onClick={handleSendResumeClick} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs rounded-full hover:bg-indigo-100 transition whitespace-nowrap">发送简历</button>
+                            <button onClick={handleSendResumeClick} className="px-3 py-1.5 bg-brand-50 text-brand-600 text-xs rounded-full hover:bg-brand-100 transition whitespace-nowrap">发送简历</button>
                             <button
                                 onClick={handleWechatExchange}
                                 className={`px-3 py-1.5 text-xs rounded-full transition whitespace-nowrap ${exchangeRequestSent ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
@@ -930,36 +983,64 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                             {/* Modal Header */}
                             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                                 <div className="flex items-center gap-2">
-                                    <FileText className="w-5 h-5 text-indigo-600" />
+                                    <FileText className="w-5 h-5 text-brand-600" />
                                     <h3 className="font-semibold text-gray-900">选择要发送的简历</h3>
                                 </div>
-                                <button
-                                    onClick={() => setShowResumeModal(false)}
-                                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => resumeUploadInputRef.current?.click()}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-50 text-brand-600 text-xs font-medium rounded-lg hover:bg-brand-100 transition-colors"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        上传简历
+                                    </button>
+                                    <button
+                                        onClick={() => setShowResumeModal(false)}
+                                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Modal Content */}
                             <div className="p-4 overflow-y-auto max-h-[60vh]">
                                 {isLoadingResumes ? (
                                     <div className="flex flex-col items-center justify-center py-8">
-                                        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
+                                        <div className="w-8 h-8 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mb-3"></div>
                                         <p className="text-sm text-gray-500">加载中...</p>
                                     </div>
                                 ) : userResumes.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                        <p className="text-gray-500 text-sm mb-3">您还没有上传任何简历</p>
-                                        <button
-                                            onClick={() => {
-                                                setShowResumeModal(false);
-                                            }}
-                                            className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
-                                        >
-                                            关闭
-                                        </button>
+                                    <div className="text-center py-10">
+                                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <FileText className="w-8 h-8 text-gray-300" />
+                                        </div>
+                                        <p className="text-gray-500 text-sm mb-6">您还没有上传任何简历</p>
+                                        <div className="flex flex-col gap-2 px-6">
+                                            <button
+                                                onClick={() => resumeUploadInputRef.current?.click()}
+                                                disabled={isUploadingResume}
+                                                className={`w-full py-2.5 bg-brand-600 text-white text-sm font-medium rounded-xl hover:bg-brand-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 ${isUploadingResume ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                            >
+                                                {isUploadingResume ? (
+                                                    <>
+                                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                        <span>上传中 {uploadProgress}%</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Plus className="w-4 h-4" />
+                                                        <span>立即上传</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => setShowResumeModal(false)}
+                                                className="w-full py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
+                                            >
+                                                关闭
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
@@ -974,13 +1055,13 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                                 <button
                                                     key={resume.id || index}
                                                     onClick={() => setSelectedResume(resume)}
-                                                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                                                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isSelected ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
                                                 >
                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-brand-500 bg-brand-500' : 'border-gray-300'}`}>
                                                             {isSelected && <Check className="w-4 h-4 text-white" />}
                                                         </div>
-                                                        <div className="text-indigo-600 flex-shrink-0">
+                                                        <div className="text-brand-600 flex-shrink-0">
                                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                                                 <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1-3a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                                                             </svg>
@@ -1009,7 +1090,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                 <button
                                     onClick={handleConfirmSendResume}
                                     disabled={!selectedResume}
-                                    className={`w-full py-2.5 rounded-xl font-medium transition-all ${selectedResume ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                    className={`w-full py-2.5 rounded-xl font-medium transition-all ${selectedResume ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                                 >
                                     {selectedResume ? `发送简历` : '请选择一份简历'}
                                 </button>
@@ -1082,6 +1163,13 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                     </div>
                 )}
             </div>
+            <input
+                type="file"
+                ref={resumeUploadInputRef}
+                onChange={handleResumeUpload}
+                accept=".pdf,.doc,.docx"
+                className="hidden"
+            />
         </div>
     );
 };

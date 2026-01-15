@@ -30,7 +30,7 @@ export const messageAPI = {
   },
 
   // 创建对话并发送第一条消息
-  createConversationAndSendMessage: (data: { jobId: string | number, candidateId: string | number, recruiterId: string | number, message: string }) => {
+  createConversationAndSendMessage: (data: { jobId: string | number, candidateId: string | number, recruiterId: string | number, message: string, senderId?: string | number }) => {
     return request.post('/messages/conversations', data);
   },
 
