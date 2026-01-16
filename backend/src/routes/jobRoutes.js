@@ -74,11 +74,11 @@ const cleanAIGeneratedContent = (text) => {
 };
 
 
-// --- Helper function for non-blocking AI recommendation ---
+// --- 辅助函数：非阻塞式 AI 职位推荐 ---
 const triggerAIRecommendation = async (userId, userInfo, allJobs) => {
-  console.log(`Triggering AI recommendation for user ${userId}`);
+  // console.log(`Triggering AI recommendation for user ${userId}`);
   try {
-    // Mark existing recommendations as outdated or create a new entry
+    // 标记现有推荐为已过期或创建新条目
     await query(
       `INSERT INTO job_recommendations (user_id, status) VALUES ($1, 'pending')
              ON CONFLICT (user_id) DO UPDATE SET status = 'pending', updated_at = CURRENT_TIMESTAMP`,
@@ -86,10 +86,10 @@ const triggerAIRecommendation = async (userId, userInfo, allJobs) => {
     );
 
     const { major, desired_position, skills, education, work_experience_years, preferred_locations } = userInfo;
-    const aiApiKey = process.env.QIANWEN_API_KEY || process.env.VITE_QIANWEN_API_KEY;
+    const aiApiKey = process.env.QIANWEN_API_KEY;
 
     if (!aiApiKey) {
-      throw new Error('AI API key is not configured.');
+      throw new Error('未配置 AI API 密钥。');
     }
 
     const userContext = `
@@ -116,10 +116,10 @@ ${jobsSummary}
 
 请只返回最匹配的职位ID（最多20个），用逗号分隔，不要其他文字。如果没有匹配的，返回空字符串。`;
 
-    const aiUrl = process.env.QIANWEN_API_URL || process.env.VITE_QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+    const aiUrl = process.env.QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout for AI
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // AI 接口 15 秒超时
 
     const aiResponse = await fetch(aiUrl, {
       method: 'POST',
@@ -138,7 +138,7 @@ ${jobsSummary}
     clearTimeout(timeoutId);
 
     if (!aiResponse.ok) {
-      throw new Error(`AI API request failed with status ${aiResponse.status}`);
+      throw new Error(`AI API 请求失败，状态码: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
@@ -146,15 +146,15 @@ ${jobsSummary}
 
     const matchedJobIds = aiContent.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 
-    // Update the recommendations table with the result
+    // 使用结果更新推荐表
     await query(
       "UPDATE job_recommendations SET status = 'completed', job_ids = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2",
       [matchedJobIds, userId]
     );
-    console.log(`AI recommendation completed for user ${userId}. Found ${matchedJobIds.length} jobs.`);
+    // console.log(`AI recommendation completed for user ${userId}. Found ${matchedJobIds.length} jobs.`);
 
   } catch (error) {
-    console.error(`AI recommendation failed for user ${userId}:`, error.message);
+    // console.error(`AI recommendation failed for user ${userId}:`, error.message);
     await query("UPDATE job_recommendations SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE user_id = $1", [userId]);
   }
 };
@@ -221,7 +221,9 @@ router.get('/recommended/:userId', asyncHandler(async (req, res) => {
 
   // 3. 如果需要，触发异步AI推荐 (不等待)
   if (useAI) {
-    triggerAIRecommendation(userId, userInfo, allJobs).catch(err => console.error("Error in detached AI recommendation:", err));
+    triggerAIRecommendation(userId, userInfo, allJobs).catch(err => {
+      // console.error("Error in detached AI recommendation:", err)
+    });
   }
 
   // 4. 智能排序：为所有岗位计算匹配分数，而不是过滤
@@ -488,7 +490,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
         }
       }
     } catch (error) {
-      console.error('解析技能数组失败:', error);
+      // console.error('解析技能数组失败:', error);
       skillsArray = [];
     }
     updateFields.push(`required_skills = $${paramIndex}::jsonb`);
@@ -516,7 +518,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
         }
       }
     } catch (error) {
-      console.error('解析优先技能数组失败:', error);
+      // console.error('解析优先技能数组失败:', error);
       preferredSkillsArray = [];
     }
     updateFields.push(`preferred_skills = $${paramIndex}::jsonb`);
@@ -544,7 +546,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
         }
       }
     } catch (error) {
-      console.error('解析福利数组失败:', error);
+      // console.error('解析福利数组失败:', error);
       benefitsArray = [];
     }
     updateFields.push(`benefits = $${paramIndex}::jsonb`);
@@ -596,7 +598,7 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // 记录更新职位日志
   await logAction(req, res, '更新职位', `招聘者更新了职位：${result.rows[0].title}`, 'update', { type: 'job', id: result.rows[0].id });
 
-  // Fetch the updated job with company and recruiter details for broadcasting
+  // 获取更新后的职位详细信息（关联公司和招聘者），用于广播
   const fullJobResult = await query(`
     SELECT 
       j.*,
@@ -619,15 +621,15 @@ router.put('/:id', asyncHandler(async (req, res) => {
 
   const updatedJobData = fullJobResult.rows[0] || result.rows[0];
 
-  // Broadcast updated job to all connected clients
+  // 向所有连接的客户端广播更新后的职位
   try {
     const { getIo } = require('../services/socketService');
     const { SERVER_EVENTS } = require('../constants/socketEvents');
     const io = getIo();
     io.emit(SERVER_EVENTS.JOB_UPDATED, updatedJobData);
-    console.log('[Socket] Broadcasted updated job:', updatedJobData.id);
+    // console.log('[Socket] Broadcasted updated job:', updatedJobData.id);
   } catch (error) {
-    console.warn('[Socket] Failed to broadcast updated job:', error.message);
+    // console.warn('[Socket] Failed to broadcast updated job:', error.message);
   }
 
   res.json({
@@ -732,7 +734,7 @@ router.post('/', asyncHandler(async (req, res) => {
         }
       }
     } catch (error) {
-      console.error('解析技能数组失败:', error);
+      // console.error('解析技能数组失败:', error);
       skillsArray = [];
     }
   }
@@ -757,7 +759,7 @@ router.post('/', asyncHandler(async (req, res) => {
         }
       }
     } catch (error) {
-      console.error('解析福利数组失败:', error);
+      // console.error('解析福利数组失败:', error);
       benefitsArray = [];
     }
   }
@@ -782,7 +784,7 @@ router.post('/', asyncHandler(async (req, res) => {
         }
       }
     } catch (error) {
-      console.error('解析优先技能数组失败:', error);
+      // console.error('解析优先技能数组失败:', error);
       preferredSkillsArray = [];
     }
   }
@@ -808,7 +810,7 @@ router.post('/', asyncHandler(async (req, res) => {
   // 记录创建职位日志
   await logAction(req, res, '创建职位', `招聘者创建了职位：${result.rows[0].title}`, 'create', { type: 'job', id: result.rows[0].id });
 
-  // Fetch the created job with company and recruiter details for broadcasting
+  // 获取新创建职位的详细信息（关联公司和招聘者），用于广播
   const fullJobResult = await query(`
     SELECT 
       j.*,
@@ -831,15 +833,15 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const newJobData = fullJobResult.rows[0] || result.rows[0];
 
-  // Broadcast new job to all connected clients
+  // 向所有连接的客户端广播新发布的职位
   try {
     const { getIo } = require('../services/socketService');
     const { SERVER_EVENTS } = require('../constants/socketEvents');
     const io = getIo();
     io.emit(SERVER_EVENTS.JOB_POSTED, newJobData);
-    console.log('[Socket] Broadcasted new job:', newJobData.id);
+    // console.log('[Socket] Broadcasted new job:', newJobData.id);
   } catch (error) {
-    console.warn('[Socket] Failed to broadcast new job:', error.message);
+    // console.warn('[Socket] Failed to broadcast new job:', error.message);
   }
 
   res.status(201).json({

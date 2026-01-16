@@ -9,36 +9,11 @@ const errorHandler = (err, req, res, next) => {
   err.status = err.status || (err.statusCode < 500 ? 'fail' : 'error');
   err.errorCode = err.errorCode || 'INTERNAL_SERVER_ERROR';
 
-  const fs = require('fs');
-  const path = require('path');
-  const logPath = path.join(__dirname, '../../error.log');
 
-  const errorLog = {
-    statusCode: err.statusCode,
-    errorCode: err.errorCode,
-    message: err.message,
-    url: req.originalUrl,
-    method: req.method,
-    timestamp: new Date().toISOString(),
-    stack: err.stack,
-    body: req.body // Log the request body to see inputs
-  };
-
-  fs.appendFileSync(logPath, JSON.stringify(errorLog, null, 2) + '\n---\n');
 
   // 记录所有错误日志，便于调试和监控
-  console.error('ERROR DETAILS:', {
-    statusCode: err.statusCode,
-    errorCode: err.errorCode,
-    message: err.message,
-    url: req.originalUrl,
-    method: req.method,
-    ip: req.ip,
-    timestamp: new Date().toISOString(),
-    stack: err.stack,
-    code: err.code,
-    name: err.name
-  });
+  // 记录错误日志
+  console.error('[Error]', err.message);
 
   // 开发环境发送详细错误
   if (process.env.NODE_ENV === 'development') {
@@ -54,8 +29,8 @@ const errorHandler = (err, req, res, next) => {
     // 处理特定类型的错误
     if (error.name === 'CastError') error = handleCastErrorDB(error);
     if (error.code === '23505') error = handleDuplicateFieldsDB(error);
-    if (error.code === '23503') error = handleForeignKeyErrorDB(error); // Foreign key violation
-    if (error.code === '23514') error = handleCheckViolationDB(error); // Check constraint violation
+    if (error.code === '23503') error = handleForeignKeyErrorDB(error); // 外键约束违反
+    if (error.code === '23514') error = handleCheckViolationDB(error); // 检查约束违反
     if (error.name === 'ValidationError') error = handleValidationErrorDB(error);
     if (error.name === 'JsonWebTokenError') error = handleJWTError();
     if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
@@ -111,7 +86,7 @@ const handleCastErrorDB = err => {
 };
 
 const handleDuplicateFieldsDB = err => {
-  // PG unique violation usually detail looks like: "Key (email)=(test@test.com) already exists."
+  // PostgreSQL 唯一性违反通常详情如下: "Key (email)=(test@test.com) already exists."
   let value = 'unknown';
   try {
     // 尝试从错误详情中提取重复的值

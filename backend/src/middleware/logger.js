@@ -17,6 +17,7 @@ const parseUserAgent = (userAgent) => {
     device_type: 'Unknown'
   };
 
+  // 如果 userAgent 为空，直接返回默认结果
   if (!userAgent) return result;
 
   // 简单的浏览器检测
@@ -75,10 +76,12 @@ const logAction = async (req, res, action, description, logType = 'info', resour
     const { user } = req;
     let ipAddress = req.ip || req.connection.remoteAddress;
 
-    // Normalize IP
+    // 标准化 IP 地址处理
+    // 处理 IPv6 本地回环地址
     if (ipAddress === '::1') {
       ipAddress = '127.0.0.1';
     } else if (ipAddress && ipAddress.startsWith('::ffff:')) {
+      // 处理 IPv4 映射的 IPv6 地址
       ipAddress = ipAddress.replace('::ffff:', '');
     }
 
@@ -133,8 +136,10 @@ const logMiddleware = (logType = 'info') => {
     // 保存原始的res.end方法
     const originalEnd = res.end;
 
+    // 重写 res.end 方法以在响应结束时记录日志
+    // 这种"猴子补丁" (Monkey Patch) 技术允许我们在不改变原有业务逻辑的情况下拦截响应
     res.end = async (chunk, encoding) => {
-      // 计算响应时间
+      // 计算请求处理总耗时
       const responseTime = Date.now() - startTime;
 
       // 调用原始的res.end方法
@@ -149,7 +154,7 @@ const logMiddleware = (logType = 'info') => {
           const { user } = req;
           let ipAddress = req.ip || req.connection.remoteAddress;
 
-          // Normalize IP
+          // 标准化 IP 地址处理
           if (ipAddress === '::1') {
             ipAddress = '127.0.0.1';
           } else if (ipAddress && ipAddress.startsWith('::ffff:')) {

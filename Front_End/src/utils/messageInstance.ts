@@ -18,7 +18,7 @@ export const setGlobalMessage = (instance: MessageInstance) => {
 export const getGlobalMessage = (): MessageInstance => {
     if (!globalMessageInstance) {
         // NOTE: 返回一个 mock 对象,避免在实例未初始化时报错
-        console.warn('Global message instance not initialized yet');
+        // console.warn('Global message instance not initialized yet');
         return {
             success: () => { },
             error: () => { },

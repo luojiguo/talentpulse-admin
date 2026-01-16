@@ -41,13 +41,7 @@ const JobCard: React.FC<{ job: JobPosting; onChat?: (jobId: number, recruiterId:
                     {title}
                 </h3>
                 <span
-                    className="font-black text-lg whitespace-nowrap px-3 py-1.5 rounded-xl border shadow-sm transition-colors"
-                    style={{
-                        backgroundColor: '#EFF6FF', // brand-50
-                        color: '#007AFF', // brand-600 (Apple Blue)
-                        borderColor: '#DBEAFE', // brand-100
-                        boxShadow: '0 1px 2px 0 rgba(0, 122, 255, 0.05)'
-                    }}
+                    className="font-black text-lg whitespace-nowrap px-3 py-1.5 rounded-xl border shadow-sm transition-colors bg-blue-50 dark:bg-slate-700/50 text-brand-500 dark:text-white border-blue-100 dark:border-slate-600/50"
                 >
                     {salary}
                 </span>

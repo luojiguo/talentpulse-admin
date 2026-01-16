@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Filter, Download, X, Shield, Briefcase, Users, User, Ban, CheckCircle, Key, Building2 } from 'lucide-react';
-import { message, Popconfirm, Tooltip } from 'antd';
+import { App, Popconfirm, Tooltip } from 'antd';
 import { TRANSLATIONS } from '@/constants/constants';
 import { userAPI } from '@/services/apiService';
 import { SystemUser, Language, UserRole } from '@/types/types';
@@ -14,6 +14,7 @@ const passwordMap: Record<string, string> = {
 };
 
 const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
+    const { message } = App.useApp(); // NOTE: 使用 App.useApp() hook 获取 message API 以支持动态主题
     const t = TRANSLATIONS[lang].users;
     const [users, setUsers] = useState<SystemUser[]>([]);
     const [filterRole, setFilterRole] = useState('all');

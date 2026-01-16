@@ -7,6 +7,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 // 获取用户的所有AI会话
 router.get('/user/:userId', asyncHandler(async (req, res) => {
     const { userId } = req.params;
+    // 查询指定用户的所有 AI 会话，按最后更新时间倒序排列
     const result = await query(
         'SELECT * FROM ai_sessions WHERE user_id = $1 ORDER BY updated_at DESC',
         [userId]
@@ -39,6 +40,9 @@ router.get('/:sessionId', asyncHandler(async (req, res) => {
 router.post('/', asyncHandler(async (req, res) => {
     const { userId, title, sessionType, messages = [] } = req.body;
 
+    // 插入新会话
+    // messages 默认为空数组，存储为 JSON 格式
+    // initial last_message_at 设置为当前时间
     const result = await query(
         `INSERT INTO ai_sessions (user_id, title, session_type, messages, total_messages, last_message_at)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -62,9 +66,11 @@ router.put('/:sessionId', asyncHandler(async (req, res) => {
     const updateValues = [];
     let valueIndex = 1;
 
+    // 动态构建更新字段
     if (messages !== undefined) {
         updateFields.push(`messages = $${valueIndex++}`);
         updateFields.push(`total_messages = $${valueIndex++}`);
+        // 确保消息被序列化为 JSON 字符串
         updateValues.push(JSON.stringify(messages));
         updateValues.push(messages.length);
     }
@@ -74,11 +80,12 @@ router.put('/:sessionId', asyncHandler(async (req, res) => {
         updateValues.push(title);
     }
 
-    // 总是更新时间戳
+    // 总是更新最后消息时间和更新时间
     updateFields.push(`last_message_at = $${valueIndex++}`);
     updateFields.push(`updated_at = $${valueIndex++}`);
-    updateValues.push(new Date());
-    updateValues.push(new Date());
+    const now = new Date();
+    updateValues.push(now);
+    updateValues.push(now);
 
     // 添加sessionId作为最后一个参数
     updateValues.push(sessionId);
@@ -131,6 +138,8 @@ router.delete('/', asyncHandler(async (req, res) => {
         throw error;
     }
 
+    // 使用 Postgres 的 ANY 操作符高效删除多个 ID
+    // 确保 sessionIds 被转换为整数数组 ($1::int[])
     const result = await query(
         `DELETE FROM ai_sessions WHERE id = ANY($1::int[])
          RETURNING id`,

@@ -51,7 +51,7 @@ const upload = multer({
   }
 });
 
-// Apply authentication middleware to all message routes
+// 对所有消息路由应用身份验证中间件
 router.use(authenticate);
 
 // 获取对话列表 - 优化：只返回对话元数据，不包含详细消息，实现真正的按需加载
@@ -186,11 +186,11 @@ router.get('/conversations/:conversationId/messages', asyncHandler(async (req, r
       LIMIT $2 OFFSET $3
     `, [conversationIdNum, limitNum, offsetNum], 15000);
 
-  console.log(`[DEBUG] Get Messages for Conv ${conversationIdNum}: Found ${result.rows.length} messages. Limit: ${limitNum}, Offset: ${offsetNum}`);
+  // console.log(`[DEBUG] Get Messages for Conv ${conversationIdNum}: Found ${result.rows.length} messages. Limit: ${limitNum}, Offset: ${offsetNum}`);
   if (result.rows.length === 0) {
     // Debug check: do any messages exist?
-    const check = await pool.query('SELECT count(*) FROM messages WHERE conversation_id = $1', [conversationIdNum]);
-    console.log(`[DEBUG] Raw message count in DB for Conv ${conversationIdNum}: ${check.rows[0].count}`);
+    // const check = await pool.query('SELECT count(*) FROM messages WHERE conversation_id = $1', [conversationIdNum]);
+    // console.log(`[DEBUG] Raw message count in DB for Conv ${conversationIdNum}: ${check.rows[0].count}`);
   }
 
   // 查询总消息数
@@ -227,18 +227,18 @@ router.post('/conversations', async (req, res) => {
     // 注意：前端传递的candidateId是users表的id，需要转换为candidates表的id
     // 但recruiterId可能是recruiters表的id，也可能是users表的id（由后面逻辑处理）
 
-    console.log('[DEBUG] Input candidateId (User ID):', candidateId, typeof candidateId);
-    console.log('[DEBUG] Input recruiterId:', recruiterId, typeof recruiterId);
-    console.log('[DEBUG] Input senderId:', senderId);
+    // console.log('[DEBUG] Input candidateId (User ID):', candidateId, typeof candidateId);
+    // console.log('[DEBUG] Input recruiterId:', recruiterId, typeof recruiterId);
+    // console.log('[DEBUG] Input senderId:', senderId);
 
-    // First, verify the candidate User ID exists in users table
+    // 首先，验证候选人用户ID是否存在于users表中
     const candidateUserCheck = await query(
       'SELECT id FROM users WHERE id = $1',
       [parseInt(candidateId)]
     );
 
     if (candidateUserCheck.rows.length === 0) {
-      console.log('[DEBUG] Candidate User ID not found in users table:', candidateId);
+      // console.log('[DEBUG] Candidate User ID not found in users table:', candidateId);
       return res.status(404).json({
         status: 'error',
         message: '候选人用户不存在'
@@ -252,7 +252,7 @@ router.post('/conversations', async (req, res) => {
     );
 
     if (candidateResult.rows.length === 0) {
-      console.log('[DEBUG] No candidate record found for user_id:', candidateId);
+      // console.log('[DEBUG] No candidate record found for user_id:', candidateId);
       return res.status(404).json({
         status: 'error',
         message: '候选人不存在'
@@ -262,16 +262,16 @@ router.post('/conversations', async (req, res) => {
     const actualCandidateId = candidateResult.rows[0].id;
     const actualCandidateUserId = candidateResult.rows[0].user_id;
 
-    console.log('[DEBUG] Resolved actualCandidateId (Candidate Table ID):', actualCandidateId);
-    console.log('[DEBUG] Resolved actualCandidateUserId (User ID):', actualCandidateUserId);
+    // console.log('[DEBUG] Resolved actualCandidateId (Candidate Table ID):', actualCandidateId);
+    // console.log('[DEBUG] Resolved actualCandidateUserId (User ID):', actualCandidateUserId);
 
-    // Resolve Recruiter ID:
-    // Frontend might pass User ID as 'recruiterId'. We need 'recruiters.id'.
-    // Try to find by ID first, then by User ID.
+    // 解析招聘者ID：
+    // 前端可能传递用户ID作为 'recruiterId'。我们需要 'recruiters.id'。
+    // 尝试先按ID查找，然后按用户ID查找。
     let actualRecruiterId = recruiterId;
     const recIdInt = parseInt(recruiterId);
 
-    console.log(`[DEBUG] Resolving Recruiter ID for: ${recruiterId} (Int: ${recIdInt})`);
+    // console.log(`[DEBUG] Resolving Recruiter ID for: ${recruiterId} (Int: ${recIdInt})`);
 
     const recruiterCheck = await query(
       'SELECT id, user_id FROM recruiters WHERE id = $1',
@@ -283,7 +283,7 @@ router.post('/conversations', async (req, res) => {
     if (recruiterCheck.rows.length > 0) {
       actualRecruiterId = recruiterCheck.rows[0].id;
       recruiterUserId = recruiterCheck.rows[0].user_id;
-      console.log(`[DEBUG] Found by Recruiter ID: ${actualRecruiterId}, UserID: ${recruiterUserId}`);
+      // console.log(`[DEBUG] Found by Recruiter ID: ${actualRecruiterId}, UserID: ${recruiterUserId}`);
     } else {
       // Try searching by user_id
       const recruiterByUser = await query(
@@ -293,9 +293,9 @@ router.post('/conversations', async (req, res) => {
       if (recruiterByUser.rows.length > 0) {
         actualRecruiterId = recruiterByUser.rows[0].id;
         recruiterUserId = recruiterByUser.rows[0].user_id;
-        console.log(`[DEBUG] Found by User ID. Actual Recruiter ID: ${actualRecruiterId}, UserID: ${recruiterUserId}`);
+        // console.log(`[DEBUG] Found by User ID. Actual Recruiter ID: ${actualRecruiterId}, UserID: ${recruiterUserId}`);
       } else {
-        console.log(`[DEBUG] Recruiter NOT FOUND for ID: ${recruiterId}`);
+        // console.log(`[DEBUG] Recruiter NOT FOUND for ID: ${recruiterId}`);
         return res.status(404).json({
           status: 'error',
           message: '招聘者不存在'
@@ -347,10 +347,10 @@ router.post('/conversations', async (req, res) => {
       conversationId = newConversation.rows[0].id;
     }
 
-    console.log('[DEBUG] Preparing to INSERT message:');
-    console.log('[DEBUG] conversationId:', conversationId);
-    console.log('[DEBUG] sender_id:', finalSenderId);
-    console.log('[DEBUG] receiver_id:', finalReceiverId);
+    // console.log('[DEBUG] Preparing to INSERT message:');
+    // console.log('[DEBUG] conversationId:', conversationId);
+    // console.log('[DEBUG] sender_id:', finalSenderId);
+    // console.log('[DEBUG] receiver_id:', finalReceiverId);
 
     // 1. 插入消息
     const newMessage = await query(`
@@ -431,6 +431,7 @@ router.post('/', async (req, res) => {
     }
 
     // 添加日志，便于调试
+    /*
     console.log('发送消息请求:', {
       conversationId,
       senderId,
@@ -438,6 +439,7 @@ router.post('/', async (req, res) => {
       text,
       type
     });
+    */
 
     // 获取对话详情，用于确认发送者身份和头像信息
     // 关键修复：直接关联 users 表获取最新的头像和名称，因为 recruiters/candidates 表中的副本可能不是最新的
@@ -464,15 +466,17 @@ router.post('/', async (req, res) => {
 
     const { candidate_user_id, recruiter_user_id, candidate_id, recruiter_id, candidate_name, candidate_avatar, recruiter_name, recruiter_avatar } = conversation.rows[0];
 
+    /*
     console.log('对话关联用户ID:', {
       candidate_user_id,
       recruiter_user_id,
       candidate_id,
       recruiter_id
     });
+    */
 
     if (!candidate_user_id || !recruiter_user_id) {
-      console.error('[DEBUG] CRITICAL: Missing user_id for candidate or recruiter in conversation!', { conversationId });
+      // console.error('[DEBUG] CRITICAL: Missing user_id for candidate or recruiter in conversation!', { conversationId });
     }
 
     // 使用严格比较，并确保类型一致
@@ -501,7 +505,7 @@ router.post('/', async (req, res) => {
       actualReceiverConversationId = candidate_id;
     }
 
-    console.log('确定的接收者ID:', actualReceiverId, '实际对话中的接收者ID:', actualReceiverConversationId);
+    // console.log('确定的接收者ID:', actualReceiverId, '实际对话中的接收者ID:', actualReceiverConversationId);
 
     // 发送消息
     const newMessage = await pool.query(`
@@ -542,7 +546,7 @@ router.post('/', async (req, res) => {
 
     // 2. 广播到接收者的个人房间 (用于消息列表更新和通知)
     // 这样当用户在列表页而没有进入具体对话时，也能收到更新
-    console.log(`Sending explicit notification to user ${actualReceiverId} via socket`);
+    // console.log(`Sending explicit notification to user ${actualReceiverId} via socket`);
     notifyUser(actualReceiverId, 'new_message', {
       ...messageData,
       conversation_id: conversationId // 确保包含conversation_id方便前端匹配
@@ -554,7 +558,7 @@ router.post('/', async (req, res) => {
       message: '消息发送成功'
     });
   } catch (error) {
-    console.error('发送消息错误:', error);
+    // console.error('发送消息错误:', error);
     res.status(500).json({
       status: 'error',
       message: error.message
@@ -1145,15 +1149,16 @@ router.post('/upload-file/:conversationId', (req, res) => {
 
   fileUpload.single('file')(req, res, async (err) => {
     if (err) {
-      console.error('简历上传 - Multer错误:', err.message);
+      // console.error('简历上传 - Multer错误:', err.message);
       return res.status(400).json({ status: 'error', message: err.message });
     }
 
     if (!req.file) {
-      console.error('简历上传 - 没有文件');
+      // console.error('简历上传 - 没有文件');
       return res.status(400).json({ status: 'error', message: '未选择文件' });
     }
 
+    /*
     console.log('简历上传 - 接收到文件:', {
       filename: req.file.filename,
       originalname: req.file.originalname,
@@ -1162,17 +1167,18 @@ router.post('/upload-file/:conversationId', (req, res) => {
       conversationId,
       body: req.body
     });
+    */
 
     try {
       const { senderId, receiverId, fileType } = req.body;
 
-      console.log('简历上传 - 参数:', { senderId, receiverId, fileType });
+      // console.log('简历上传 - 参数:', { senderId, receiverId, fileType });
 
       if (!senderId || !receiverId) {
         if (req.file) {
           fs.unlinkSync(req.file.path);
         }
-        console.error('简历上传 - 缺少必要参数');
+        // console.error('简历上传 - 缺少必要参数');
         return res.status(400).json({ status: 'error', message: 'senderId 和 receiverId 是必填项' });
       }
 
@@ -1181,9 +1187,9 @@ router.post('/upload-file/:conversationId', (req, res) => {
       let fileName = req.file.originalname;
       try {
         fileName = Buffer.from(fileName, 'latin1').toString('utf-8');
-        console.log('修复后的文件名:', fileName);
+        // console.log('修复后的文件名:', fileName);
       } catch (e) {
-        console.warn('修复文件名编码失败:', e);
+        // console.warn('修复文件名编码失败:', e);
       }
       const fileSize = req.file.size;
       const fileTypeVal = req.file.mimetype;
@@ -1207,10 +1213,10 @@ router.post('/upload-file/:conversationId', (req, res) => {
             : req.body.quoted_message;
         }
       } catch (e) {
-        console.warn('解析 quoted_message 失败:', e);
+        // console.warn('解析 quoted_message 失败:', e);
       }
 
-      console.log('简历上传 - 准备插入数据库:', { conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal, quotedMessageObj });
+      // console.log('简历上传 - 准备插入数据库:', { conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal, quotedMessageObj });
 
       const result = await pool.query(`
         INSERT INTO messages (
@@ -1221,7 +1227,7 @@ router.post('/upload-file/:conversationId', (req, res) => {
         RETURNING *
       `, [conversationId, senderId, receiverId, messageText, messageType, fileUrl, fileName, fileSize, fileTypeVal, quotedMessageObj]);
 
-      console.log('简历上传 - 数据库插入成功:', result.rows[0].id);
+      // console.log('简历上传 - 数据库插入成功:', result.rows[0].id);
 
       const unreadField = await getUnreadField(conversationId, senderId);
 
@@ -1271,7 +1277,7 @@ router.post('/upload-file/:conversationId', (req, res) => {
         message: '文件发送成功'
       });
     } catch (error) {
-      console.error('简历上传 - 错误:', error.message);
+      // console.error('简历上传 - 错误:', error.message);
       if (req.file) {
         fs.unlinkSync(req.file.path);
       }
@@ -1280,30 +1286,30 @@ router.post('/upload-file/:conversationId', (req, res) => {
   });
 });
 
-// Update WeChat exchange status
+// 更新微信交换状态
 router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
   const { messageId } = req.params;
-  const { action, userId } = req.body; // userId helps verify identity
+  const { action, userId } = req.body; // userId 用于验证身份
 
-  // Get message
+  // 获取消息
   const msgResult = await pool.query('SELECT * FROM messages WHERE id = $1', [messageId]);
-  if (msgResult.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+  if (msgResult.rows.length === 0) return res.status(404).json({ error: '消息不存在' });
   const msg = msgResult.rows[0];
 
-  // Verify permission: User must be a participant of the conversation and NOT the sender
-  // This is more robust than checking msg.receiver_id which might be inconsistent in legacy data
+  // 验证权限：用户必须是参与者且不是发送者
+  // 这比检查 receiver_id 更稳健，因为历史数据中 receiver_id 可能不一致
   const msgSenderId = msg.sender_id.toString();
   const requestUserId = userId ? userId.toString() : '';
 
-  // 1. Check if user is the sender (Senders cannot accept their own request)
+  // 1. 检查用户是否为发送者（发送者不能接受自己的请求）
   if (msgSenderId === requestUserId) {
     return res.status(403).json({
-      error: 'Unauthorized operation',
-      message: 'You cannot accept your own request'
+      error: '未授权操作',
+      message: '您不能接受自己的请求'
     });
   }
 
-  // 2. Check if user is a participant of the conversation
+  // 2. 检查用户是否为对话参与者
   const convResult = await pool.query(`
     SELECT 
       cd.user_id as candidate_user_id,
@@ -1315,7 +1321,7 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
   `, [msg.conversation_id]);
 
   if (convResult.rows.length === 0) {
-    return res.status(404).json({ error: 'Conversation not found' });
+    return res.status(404).json({ error: '对话不存在' });
   }
 
   const { candidate_user_id, recruiter_user_id } = convResult.rows[0];
@@ -1323,26 +1329,26 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
     (recruiter_user_id && recruiter_user_id.toString() === requestUserId);
 
   if (!isParticipant) {
-    console.log(`[Exchange Debug] Permission Denied. User ${requestUserId} is not in conversation ${msg.conversation_id}`);
+    // console.log(`[Exchange Debug] Permission Denied. User ${requestUserId} is not in conversation ${msg.conversation_id}`);
     return res.status(403).json({
-      error: 'Unauthorized operation',
-      message: 'You are not a participant of this conversation'
+      error: '未授权操作',
+      message: '您不是此对话的参与者'
     });
   }
 
-  // If we are here, the user is a participant and not the sender. 
-  // We can safely assume they are the intended receiver.
+  // 如果到了这里，说明用户是参与者且不是发送者
+  // 我们可以安全地假设他们是预期的接收者。
 
   if (action === 'accept') {
-    // 1. Fetch Initiator's WeChat (Sender)
+    // 1. 获取发起者的微信号（发送者）
     const senderRes = await pool.query('SELECT wechat FROM users WHERE id = $1', [msg.sender_id]);
     const initiatorWechat = senderRes.rows[0]?.wechat || '';
 
-    // 2. Fetch Receiver's WeChat (Current User)
+    // 2. 获取接收者的微信号（当前用户）
     const receiverRes = await pool.query('SELECT wechat FROM users WHERE id = $1', [userId]);
     const receiverWechat = receiverRes.rows[0]?.wechat || '';
 
-    // 3. Update Message to include BOTH
+    // 3. 更新消息以包含双方微信号
     const newContent = JSON.stringify({
       status: 'accepted',
       initiator_wechat: initiatorWechat,
@@ -1355,7 +1361,7 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
       [newContent, messageId]
     );
 
-    // Notify
+    // 通知
     notifyConversation(msg.conversation_id, 'message_updated', updateRes.rows[0]);
     if (candidate_user_id) notifyUser(candidate_user_id, 'message_updated', updateRes.rows[0]);
     if (recruiter_user_id) notifyUser(recruiter_user_id, 'message_updated', updateRes.rows[0]);
@@ -1373,7 +1379,7 @@ router.put('/exchange/:messageId', asyncHandler(async (req, res) => {
     return res.json({ status: 'success', data: updateRes.rows[0] });
   }
 
-  return res.status(400).json({ error: 'Invalid action' });
+  return res.status(400).json({ error: '无效操作' });
 }));
 
 module.exports = router;

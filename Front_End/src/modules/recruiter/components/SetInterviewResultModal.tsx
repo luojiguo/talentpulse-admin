@@ -30,17 +30,22 @@ const SetInterviewResultModal: React.FC<SetInterviewResultModalProps> = ({
     const [currentResult, setCurrentResult] = useState<string | undefined>(undefined);
 
     useEffect(() => {
-        if (open && initialValues) {
+        if (!open) return; // 只在模态框打开时才操作 form
+
+        if (initialValues) {
             form.setFieldsValue({
                 interviewResult: initialValues.interviewResult,
                 interviewFeedback: initialValues.interviewFeedback
             });
             setCurrentResult(initialValues.interviewResult);
         } else {
+            // If modal opens without initial values, ensure form is cleared
             form.resetFields();
             setCurrentResult(undefined);
         }
-    }, [open, initialValues, form]);
+        // NOTE: form 实例是稳定的,不需要作为依赖项
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initialValues]);
 
     const handleOk = async () => {
         try {

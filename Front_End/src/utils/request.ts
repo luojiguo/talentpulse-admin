@@ -1,6 +1,11 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 // 定义接口响应格式
+// 定义接口响应格式
+// code: 业务状态码 (200表示成功)
+// message: 响应消息或错误描述
+// data: 响应数据载荷
+// success: 业务操作是否成功
 export interface ApiResponse<T = any> {
   code: number;
   message: string;
@@ -23,6 +28,7 @@ const service: AxiosInstance = axios.create({
 service.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // 在发送请求之前做些什么
+    // 从本地存储获取 token 并添加到请求头
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -31,7 +37,7 @@ service.interceptors.request.use(
   },
   (error: any) => {
     // 对请求错误做些什么
-    console.error('Request Error:', error);
+    // console.error('请求错误:', error);
     return Promise.reject(error);
   }
 );
@@ -62,7 +68,7 @@ service.interceptors.response.use(
   },
   (error: any) => {
     // 对响应错误做点什么
-    console.error('Response Error:', error);
+    // console.error('响应错误:', error);
 
     if (error.response) {
       // 确保错误响应中的数据格式一致，保留errorCode等字段
@@ -80,31 +86,31 @@ service.interceptors.response.use(
         case 401:
           // 未授权，登录页的401错误由登录组件自己处理
           if (!window.location.pathname.includes('/login')) {
-            console.warn('未授权，请重新登录');
-            // Clear artifacts potentially causing issues
+            // console.warn('未授权，请重新登录');
+            // 清除可能导致问题的本地存储数据
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
           }
           break;
         case 403:
-          console.warn('拒绝访问');
+          // console.warn('拒绝访问');
           break;
         case 404:
-          console.warn('请求的资源不存在');
+          // console.warn('请求的资源不存在');
           break;
         case 500:
-          console.error('服务器内部错误');
+          // console.error('服务器内部错误');
           break;
         default:
-          console.error(`请求失败: ${status}`);
+        // console.error(`请求失败: ${status}`);
       }
     } else if (error.request) {
       // 请求已发出，但没有收到响应
-      console.error('网络连接异常，请检查网络');
+      // console.error('网络连接异常，请检查网络');
     } else {
       // 在设置请求时发生错误
-      console.error('请求配置错误', error.message);
+      // console.error('请求配置错误', error.message);
     }
 
     return Promise.reject(error);

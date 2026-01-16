@@ -20,7 +20,7 @@ exports.submitCertification = async (req, res) => {
         social_credit_code
     } = req.body;
 
-    console.log('[Certification] User submitting:', userId, req.body);
+
 
     const client = await pool.connect();
 
@@ -40,43 +40,38 @@ exports.submitCertification = async (req, res) => {
         // 2. 处理营业执照上传
         let business_license = req.file ? `/business_license/${req.file.filename}` : undefined;
 
-        console.log('[Certification] File uploaded:', business_license);
-        if (!business_license) {
-            console.warn('[Certification] No file uploaded');
-        }
-
-        // 3. Determine Company Logic (Update or Switch)
+        // 3. 确定企业逻辑（更新或切换）
         let company_id;
         let isSwitchingCompany = false;
         const currentCompanyId = recruiterRes.rows[0].company_id;
 
         if (currentCompanyId) {
-            // Check current company's social credit code
+            // 检查当前企业的统一社会信用代码
             const currentCompanyRes = await client.query('SELECT social_credit_code FROM companies WHERE id = $1', [currentCompanyId]);
             const currentCode = currentCompanyRes.rows[0]?.social_credit_code;
 
-            // If social_credit_code provided and different, assume switching company
+            // 如果提供了新的统一社会信用代码且与当前不同，则视为切换企业
             if (social_credit_code && currentCode !== social_credit_code) {
                 isSwitchingCompany = true;
-                console.log(`[Certification] User ${userId} switching company from ${currentCode} to ${social_credit_code}`);
+                isSwitchingCompany = true;
             } else {
                 company_id = currentCompanyId;
             }
         } else {
-            // No current company, effectively "switching" to a new one (or creating first one)
+            // 当前无企业，视为"切换"到新企业（或创建第一个企业）
             isSwitchingCompany = true;
         }
 
         if (isSwitchingCompany) {
-            // Check if target company exists
+            // 检查目标企业是否存在
             const targetCompanyRes = await client.query('SELECT id FROM companies WHERE social_credit_code = $1', [social_credit_code]);
 
             if (targetCompanyRes.rows.length > 0) {
-                // Link to existing company
+                // 关联到现有企业
                 company_id = targetCompanyRes.rows[0].id;
-                // Optional: Update that company's details if needed, but usually we just link. 
-                // Let's minimally update fields if provided to ensure they are fresh? 
-                // Or risky if multiple recruiters? Let's assume we update shared company info.
+                // 可选：如果需要，更新该企业的详细信息
+                // 如果提供了字段，我们进行最小化更新以保持信息最新
+                // 假设我们更新共享的企业信息
                 await client.query(
                     `UPDATE companies SET 
                         name = COALESCE($1, name), address = COALESCE($2, address), 
@@ -88,8 +83,8 @@ exports.submitCertification = async (req, res) => {
                     [company_name, company_address, company_size, company_industry, company_description, contact_name, contact_phone, company_id]
                 );
             } else {
-                // Create new company
-                // Check Name Uniqueness
+                // 创建新企业
+                // 检查名称唯一性
                 const nameCheck = await client.query('SELECT id FROM companies WHERE name = $1', [company_name]);
                 if (nameCheck.rows.length > 0) {
                     res.status(400).json({ status: 'error', message: '该公司名称已存在，请使用其他名称或核对统一社会信用代码' });
@@ -105,7 +100,7 @@ exports.submitCertification = async (req, res) => {
                 company_id = newCompany.rows[0].id;
             }
         } else {
-            // Update existing company (Same Social Credit Code)
+            // 更新现有企业（统一社会信用代码不变）
             await client.query(
                 `UPDATE companies SET 
                     name = $1, address = $2, size = $3, industry = $4, description = $5,
@@ -116,7 +111,7 @@ exports.submitCertification = async (req, res) => {
             );
         }
 
-        // 4. Update recruiter_user association and status
+        // 4. 更新招聘者用户关联和状态
         let updateQuery = `
             UPDATE recruiter_user 
             SET verification_status = 'pending', 
@@ -127,10 +122,10 @@ exports.submitCertification = async (req, res) => {
         `;
         const queryParams = [company_id, contact_name, contact_phone];
 
-        // If file uploaded, update license path. If switching company and no new file, 
-        // strictly speaking we should probably require a license for the new company if not exists.
-        // But if they are just linking to an existing one that might have one... 
-        // For now, if file provided, update it.
+        // 如果上传了文件，更新执照路径。如果切换企业但没上传新文件，
+        // 严格来说可能需要新企业的执照。
+        // 但如果只是关联到已存在的企业，该企业可能已有执照...
+        // 暂时逻辑：如果提供了文件，则更新。
         if (business_license) {
             updateQuery += `, business_license = $4 WHERE user_id = $5`;
             queryParams.push(business_license, userId);
@@ -142,7 +137,7 @@ exports.submitCertification = async (req, res) => {
         await client.query(updateQuery, queryParams);
 
         // 5. 确保 recruiters 表也是未认证状态 (直到管理员通过)
-        // Also update company_id in public recruiters table
+        // 同时更新公共 recruiters 表中的 company_id
         await client.query(
             'UPDATE recruiters SET is_verified = false, company_id = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2',
             [company_id, userId]
@@ -242,7 +237,7 @@ exports.adminGetPendingRequests = async (req, res) => {
  */
 exports.adminVerifyRequest = async (req, res) => {
     const { userId } = req.params; // 这里传的是 user_id (recruiter_user 的主键之一)
-    const { action, reason } = req.body; // action: 'approve' | 'reject'
+    const { action, reason } = req.body; // action: 'approve' | 'reject' (批准 | 拒绝)
 
     if (!['approve', 'reject'].includes(action)) {
         throw new AppError('无效的操作', 400, 'INVALID_ACTION');
@@ -264,7 +259,7 @@ exports.adminVerifyRequest = async (req, res) => {
         }
         const companyId = currentRes.rows[0].company_id;
 
-        // Get User Email for notification
+        // 获取用户邮箱用于通知
         const userRes = await client.query('SELECT email FROM users WHERE id = $1', [userId]);
         const userEmail = userRes.rows[0]?.email;
 
@@ -299,7 +294,7 @@ exports.adminVerifyRequest = async (req, res) => {
                 [companyId, now]
             );
 
-            // Send Email
+            // 发送邮件
             if (userEmail) {
                 await sendCertificationResultEmail(userEmail, true);
             }
@@ -315,7 +310,7 @@ exports.adminVerifyRequest = async (req, res) => {
                 [userId, reason]
             );
 
-            // Send Email
+            // 发送邮件
             if (userEmail) {
                 await sendCertificationResultEmail(userEmail, false, reason);
             }

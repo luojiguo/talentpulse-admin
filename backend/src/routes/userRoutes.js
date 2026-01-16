@@ -23,7 +23,7 @@ function fixFilenameEncoding(filename) {
     const buf = iconv.encode(filename, 'latin1'); // latin1 = ISO-8859-1
     return iconv.decode(buf, 'utf8');
   } catch (err) {
-    console.warn('Filename encoding fix failed, using original:', filename);
+    // console.warn('Filename encoding fix failed, using original:', filename);
     return filename;
   }
 }
@@ -334,7 +334,7 @@ router.post('/send-verification-code', sendCodeValidator, asyncHandler(async (re
     await sendVerificationEmail(user.email, code);
   } else {
     // 短信发送逻辑（暂未实现）
-    console.log(`[Mock SMS] To ${user.phone}: ${code}`);
+    // console.log(`[Mock SMS] To ${user.phone}: ${code}`);
   }
 
   res.json({
@@ -413,7 +413,8 @@ router.post('/:id/avatar', authenticate, asyncHandler(async (req, res) => {
     }
 
     try {
-      console.log('[AVATAR_UPLOAD] 开始处理头像上传, 用户ID:', id);
+      // console.log('[AVATAR_UPLOAD] 开始处理头像上传, 用户ID:', id);
+      /*
       console.log('[AVATAR_UPLOAD] 文件信息:', {
         filename: req.file.filename,
         originalname: req.file.originalname,
@@ -421,23 +422,24 @@ router.post('/:id/avatar', authenticate, asyncHandler(async (req, res) => {
         mimetype: req.file.mimetype,
         path: req.file.path
       });
+      */
 
       // 验证文件确实已保存
       const filePath = req.file.path;
       if (!fs.existsSync(filePath)) {
-        console.error('[AVATAR_UPLOAD] 文件保存失败，路径不存在:', filePath);
+        // console.error('[AVATAR_UPLOAD] 文件保存失败，路径不存在:', filePath);
         throw new Error('文件保存失败，请重试');
       }
 
       // 额外验证：检查文件大小
       const stats = fs.statSync(filePath);
       if (stats.size === 0) {
-        console.error('[AVATAR_UPLOAD] 文件大小为0，保存失败');
+        // console.error('[AVATAR_UPLOAD] 文件大小为0，保存失败');
         fs.unlinkSync(filePath); // 删除空文件
         throw new Error('文件保存失败（文件为空），请重试');
       }
 
-      console.log('[AVATAR_UPLOAD] 文件保存成功，路径:', filePath, '大小:', stats.size, 'bytes');
+      // console.log('[AVATAR_UPLOAD] 文件保存成功，路径:', filePath, '大小:', stats.size, 'bytes');
 
       // 构建文件路径
       const avatarPath = `/avatars/${req.file.filename}`;
@@ -448,7 +450,7 @@ router.post('/:id/avatar', authenticate, asyncHandler(async (req, res) => {
         [avatarPath, id]
       );
 
-      console.log('[AVATAR_UPLOAD] 数据库更新成功, 新头像路径:', avatarPath);
+      // console.log('[AVATAR_UPLOAD] 数据库更新成功, 新头像路径:', avatarPath);
 
       // 只有在数据库更新成功后，才删除旧头像
       const oldAvatar = userCheck.rows[0].avatar;
@@ -457,9 +459,9 @@ router.post('/:id/avatar', authenticate, asyncHandler(async (req, res) => {
         if (fs.existsSync(oldAvatarFullPath)) {
           try {
             fs.unlinkSync(oldAvatarFullPath);
-            console.log('[AVATAR_UPLOAD] 旧头像已删除:', oldAvatarFullPath);
+            // console.log('[AVATAR_UPLOAD] 旧头像已删除:', oldAvatarFullPath);
           } catch (e) {
-            console.error('[AVATAR_UPLOAD] 删除旧头像失败 (但新头像已保存):', e);
+            // console.error('[AVATAR_UPLOAD] 删除旧头像失败 (但新头像已保存):', e);
             // 不抛出错误，因为主要操作（更新）已成功
           }
         }
@@ -476,15 +478,15 @@ router.post('/:id/avatar', authenticate, asyncHandler(async (req, res) => {
         avatarPath: updateResult.rows[0].avatar // 添加明确的路径字段
       });
     } catch (dbError) {
-      console.error('[AVATAR_UPLOAD] 数据库更新失败:', dbError);
+      // console.error('[AVATAR_UPLOAD] 数据库更新失败:', dbError);
 
       // 如果数据库更新失败，删除已上传的新文件
       if (req.file && fs.existsSync(req.file.path)) {
         try {
           fs.unlinkSync(req.file.path);
-          console.log('[AVATAR_UPLOAD] 回滚: 已删除上传的文件', req.file.path);
+          // console.log('[AVATAR_UPLOAD] 回滚: 已删除上传的文件', req.file.path);
         } catch (unlinkError) {
-          console.error('[AVATAR_UPLOAD] 删除无效的新头像失败:', unlinkError);
+          // console.error('[AVATAR_UPLOAD] 删除无效的新头像失败:', unlinkError);
         }
       }
 
@@ -607,10 +609,10 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   } = req.body;
 
   // Debug log (Added back for troubleshooting)
-  console.log('Update User Payload (Retry):', JSON.stringify(req.body, null, 2));
-  console.log('Updating user with ID:', id);
+  // console.log('Update User Payload (Retry):', JSON.stringify(req.body, null, 2));
+  // console.log('Updating user with ID:', id);
 
-  // Manual extract for Min/Max if passed directly (or calculate if not)
+  // 手动提取 Min/Max（如果直接传递）或计算（如果是字符串）
   let { expectedSalaryMin, expectedSalaryMax } = req.body;
   let { graduation_year, work_experience_years, birth_date, gender } = req.body;
 
@@ -655,13 +657,13 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
 
     // 只有当邮箱真正改变时才检查冲突
     if (newEmail && newEmail !== currentEmail) {
-      console.log(`Checking email conflict: '${newEmail}' vs '${currentEmail}'`);
+      // console.log(`Checking email conflict: '${newEmail}' vs '${currentEmail}'`);
       const emailCheck = await query(
         'SELECT id, email FROM users WHERE LOWER(TRIM(email)) = $1 AND id != $2',
         [newEmail, id]
       );
       if (emailCheck.rows.length > 0) {
-        console.log('Email conflict found. Existing owner:', JSON.stringify(emailCheck.rows));
+        // console.log('Email conflict found. Existing owner:', JSON.stringify(emailCheck.rows));
         throw new AppError('该邮箱已被其他账号占用', 400, 'EMAIL_EXISTS');
       }
     }
@@ -681,19 +683,19 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
 
     // 只有当手机号真正改变时才检查冲突
     if (newPhone && newPhone !== currentPhone) {
-      console.log(`Checking phone conflict: '${newPhone}' vs '${currentPhone}'`);
+      // console.log(`Checking phone conflict: '${newPhone}' vs '${currentPhone}'`);
       const phoneCheck = await query(
         'SELECT id FROM users WHERE TRIM(phone) = $1 AND id != $2',
         [newPhone, id]
       );
       if (phoneCheck.rows.length > 0) {
-        console.log('Phone conflict found:', phoneCheck.rows);
+        // console.log('Phone conflict found:', phoneCheck.rows);
         throw new AppError('该手机号已被其他账号占用', 400, 'PHONE_EXISTS');
       }
     }
   }
 
-  // Parse expectedSalary string (e.g., "3-5K") to integer min/max value IF they are not provided directly
+  // 解析 expectedSalary 字符串 (例如 "3-5K") 为整数的 min/max 值 (如果未直接提供)
   if (expectedSalary && (expectedSalaryMin === undefined || expectedSalaryMin === null)) {
     // Extract numbers
     const matches = expectedSalary.match(/(\d+)/g);
@@ -710,10 +712,10 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
     }
   }
 
-  // Update candidates table (Upsert)
-  // We only update if fields are provided to avoid overwriting with nulls if not present
-  // But since this is a PUT/Update profile, we might want to update what we have.
-  // Check if any candidate-specific fields need update
+  // 更新该用户的 candidates 表 (插入或更新)
+  // 如果提供了某些字段，我们才进行更新，避免用 null 覆盖现有数据
+  // 但由于这是 PUT/Update 个人资料接口，我们通常希望更新我们所接收到的数据。
+  // 检查是否有任何候选人特定的字段需要更新
   const candidateFields = [
     'city', 'jobStatus', 'expectedSalaryMin', 'expectedSalaryMax', 'preferredLocations',
     'education', 'major', 'school', 'graduation_year', 'work_experience_years', 'desired_position', 'skills', 'languages', 'availability_status'
@@ -723,36 +725,37 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
     expectedSalaryMin !== undefined || expectedSalaryMax !== undefined;
 
   if (hasCandidateUpdates) {
-    console.log('Updating candidates table for user:', id);
-    // Determine values to update - prioritize new values
-    // Note: Since we are upserting, we need default values if record doesn't exist, OR use COALESCE if it does.
-    // However, if we don't have existing candidate record in memory (we only fetched User), we rely on Upsert DO UPDATE SET COALESCE.
-    // For values that ARE defined in req.body, we pass them. undefined passed as null to upsert, but COALESCE in SQL handles it.
+    // console.log('Updating candidates table for user:', id);
+    // 确定要更新的值 - 优先使用新值
+    // 注意：因为是 upsert，如果记录不存在我们需要默认值，或者如果存在则使用 COALESCE。
+    // 对于在 req.body 中定义的字段，我们传递它们。未定义的字段传递为 null，但在 SQL 中使用 COALESCE 处理。
 
-    // Logic for desired_position mapping
+    // 期望职位映射逻辑
     const finalDesiredPosition = desiredPosition !== undefined ? desiredPosition : (desired_position !== undefined ? desired_position : undefined);
 
-    // Sync job_status and availability_status. 
-    // If availability_status is provided, use it for job_status as well to keep them in sync if job_status is still used.
-    // Or prefer availability_status.
+    // 同步 job_status 和 availability_status。
+    // 如果提供了 availability_status，则将其用于 job_status 以保持同步（如果 job_status 仍在使用）。
+    // 或者优先使用 availability_status。
     const finalAvailabilityStatus = availability_status !== undefined ? availability_status : (jobStatus !== undefined ? jobStatus : undefined);
 
-    // Map availability_status values to job_status values that match database constraints
-    // Frontend sends: 'active', 'inactive', 'open', 'intern'
-    // Database job_status constraint allows: 'active', 'inactive', 'hired'
+    // 将 availability_status 值映射为符合数据库约束的 job_status 值
+    // 前端发送: 'active', 'inactive', 'open', 'intern'
+    // 数据库 job_status 约束允许: 'active', 'inactive', 'hired'
     const jobStatusMapping = {
       'active': 'active',
       'inactive': 'inactive',
-      'open': 'active', // Map 'open' to 'active'
-      'intern': 'active' // Map 'intern' to 'active'
+      'open': 'active', // 将 'open' 映射为 'active'
+      'intern': 'active' // 将 'intern' 映射为 'active'
     };
     const finalJobStatus = finalAvailabilityStatus ? jobStatusMapping[finalAvailabilityStatus] || 'active' : null;
 
+    /*
     console.log('Candidate update data:', {
       work_experience_years,
       availability_status: finalAvailabilityStatus,
       job_status: finalJobStatus
     });
+    */
 
     try {
       await query(
@@ -797,8 +800,9 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
           finalAvailabilityStatus !== undefined ? finalAvailabilityStatus : null
         ]
       );
-      console.log('Candidates table update completed successfully');
+      // console.log('Candidates table update completed successfully');
     } catch (error) {
+      /*
       console.error('Error updating candidates table:', {
         error: error,
         message: error.message,
@@ -807,13 +811,14 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
         constraint: error.constraint,
         stack: error.stack
       });
+      */
       throw error;
     }
   }
 
   // 更新用户信息 (Users table)
-  // Removed deprecated fields: education, major, school, graduation_year, work_experience_years, desired_position, skills, languages
-  console.log('Updating users table with data:', updateData);
+  // 移除了已废弃字段: education, major, school, graduation_year, work_experience_years, desired_position, skills, languages
+  // console.log('Updating users table with data:', updateData);
   let updateResult;
   try {
     updateResult = await query(
@@ -830,8 +835,9 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
         updateData.personal_website, resumeCompleteness, id
       ]
     );
-    console.log('Users table update completed, result:', updateResult.rows[0]);
+    // console.log('Users table update completed, result:', updateResult.rows[0]);
   } catch (error) {
+    /*
     console.error('Error updating users table:', {
       error: error,
       message: error.message,
@@ -840,6 +846,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
       constraint: error.constraint,
       stack: error.stack
     });
+    */
     throw error;
   }
 
@@ -888,7 +895,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
   // 记录更新用户信息日志
   await logAction(req, res, '更新用户信息', `用户 ${updateResult.rows[0].name} 更新了个人信息`, 'update', { type: 'user', id: id });
 
-  // Re-fetch merged data to return
+  // 重新获取合并后的数据以返回
   const fetchResult = await query(
     `SELECT u.*, 
             c.desired_position as "desiredPosition", c.education, c.major, c.school, c.graduation_year, c.work_experience_years, c.skills, c.languages,
@@ -903,7 +910,7 @@ router.put('/:id', authenticate, asyncHandler(async (req, res) => {
 
   res.json({
     status: 'success',
-    message: 'User information updated successfully',
+    message: '用户信息更新成功',
     data: fetchResult.rows[0]
   });
 }));
@@ -1138,7 +1145,7 @@ router.post('/verify-code', verifyCodeValidator, asyncHandler(async (req, res) =
 
   // 生成一个临时token用于重置密码
   const resetToken = jwt.sign(
-    { userId: user.id, identifier, type: 'reset_password' }, // Added type for extra security
+    { userId: user.id, identifier, type: 'reset_password' }, // 添加 type 以增加安全性
     process.env.JWT_SECRET || 'your-secret-key',
     { expiresIn: '10m' } // 10分钟有效期
   );
@@ -1246,7 +1253,7 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
       try {
         if (fs.existsSync(file)) fs.unlinkSync(file);
       } catch (e) {
-        console.error('File deletion failed:', file, e);
+        // console.error('File deletion failed:', file, e);
       }
     }
 
@@ -1259,7 +1266,7 @@ router.delete('/:id/delete-account', asyncHandler(async (req, res) => {
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('账号注销失败:', error);
+    // console.error('账号注销失败:', error);
     throw new AppError('账号注销失败，请稍后重试', 500, 'ACCOUNT_DELETION_FAILED');
   } finally {
     client.release();

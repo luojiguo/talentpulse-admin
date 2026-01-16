@@ -5,11 +5,6 @@ import RegisterForm from './RegisterForm';
 import ForgotPasswordForm from './ForgotPasswordForm';
 import { SystemUser } from '../../types/types';
 
-// Update User type definition if needed, or import it.
-// Assuming SystemUser is sufficient for now but App.tsx extended it. 
-// Let's verify type usage. 
-// App.tsx interface User extends SystemUser { needs_verification?: boolean }
-// We can use any or SystemUser & { needs_verification?: boolean }
 
 interface User extends SystemUser {
     needs_verification?: boolean;
@@ -49,7 +44,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isModal = false 
     return (
         <div className={`flex items-center justify-center ${isModal ? '' : 'min-h-screen bg-gradient-to-br from-indigo-100 to-slate-100 p-4'}`}>
             <div className={`w-full bg-white overflow-hidden flex flex-col md:flex-row ${isModal ? '' : 'max-w-4xl rounded-2xl shadow-2xl'}`}>
-                {/* Left Side: Brand - Hide in Modal */}
+                {/* 左侧：品牌展示 - 在模态框中隐藏 */}
                 {!isModal && (
                     <div className="md:w-1/2 bg-indigo-900 text-white p-10 flex flex-col justify-center">
                         <h1 className="text-4xl font-extrabold mb-4">TalentPulse</h1>
@@ -71,7 +66,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess, isModal = false 
                     </div>
                 )}
 
-                {/* Right Side: Auth Forms */}
+
+
+                {/* 右侧：认证表单 */}
                 <div className={`${isModal ? 'w-full' : 'md:w-1/2'} flex items-center justify-center p-6`}>
                     {isForgotPassword ? (
                         <ForgotPasswordForm

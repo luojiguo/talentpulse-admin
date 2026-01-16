@@ -245,7 +245,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
       />
 
       {/* 右侧主内容区 - 包含导航栏和内容 */}
-      <div className="flex-1 flex flex-col h-full">
+      <div className="flex-1 flex flex-col h-full min-w-0">
         {/* 移动端菜单按钮 */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}

@@ -7,7 +7,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 // 获取所有面试，支持按照 userId 和 role 过滤
 router.get('/', asyncHandler(async (req, res) => {
     const { userId, role } = req.query;
-    console.log(`[DEBUG] GET /interviews - Fetching interviews, role: ${role}, userId: ${userId}`);
+    // console.log(`[DEBUG] GET /interviews - Fetching interviews, role: ${role}, userId: ${userId}`);
 
     let queryText = `
       SELECT 
@@ -59,7 +59,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
     const result = await query(queryText, queryParams);
 
-    console.log('[DEBUG] Interviews query returned', result.rows.length, 'rows');
+    // console.log('[DEBUG] Interviews query returned', result.rows.length, 'rows');
 
     res.json({
         status: 'success',
@@ -71,7 +71,7 @@ router.get('/', asyncHandler(async (req, res) => {
 // 获取单个面试
 router.get('/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
-    console.log('[DEBUG] GET /interviews/:id - id:', id);
+    // console.log('[DEBUG] GET /interviews/:id - id:', id);
     const result = await query(`
       SELECT 
         i.id,
@@ -103,11 +103,11 @@ router.get('/:id', asyncHandler(async (req, res) => {
       WHERE i.id = $1
     `, [id]);
 
-    console.log('[DEBUG] Interview query returned', result.rows.length, 'rows');
+    // console.log('[DEBUG] Interview query returned', result.rows.length, 'rows');
 
     if (result.rows.length === 0) {
-        console.error('[ERROR] Interview not found for id:', id);
-        const error = new Error('Interview not found');
+        // console.error('[ERROR] Interview not found for id:', id);
+        const error = new Error('未找到面试记录');
         error.statusCode = 404;
         error.errorCode = 'INTERVIEW_NOT_FOUND';
         throw error;
@@ -167,11 +167,11 @@ router.post('/', asyncHandler(async (req, res) => {
             interviewPosition
         } = req.body;
 
-        console.log('[DEBUG] POST /interviews - payload:', JSON.stringify(req.body));
+        // console.log('[DEBUG] POST /interviews - payload:', JSON.stringify(req.body));
 
         // 验证必填字段
         if (!applicationId || !interviewDate || !interviewTime) {
-            console.error('[ERROR] POST /interviews - Missing required fields');
+            // console.error('[ERROR] POST /interviews - Missing required fields');
             const error = new Error('缺少必填字段');
             error.statusCode = 400;
             error.errorCode = 'MISSING_REQUIRED_FIELDS';
@@ -200,23 +200,23 @@ router.post('/', asyncHandler(async (req, res) => {
             finalLocation = jobInfo.rows[0].companyLocation;
         }
 
-        // 查找招聘者ID (interviewerId from frontend is actually User ID)
+        // 查找招聘者ID (前端传来的 interviewerId 实际上是 User ID)
         let finalInterviewerId = interviewerId;
         try {
             const recruiterQuery = await query('SELECT id FROM recruiters WHERE user_id = $1', [interviewerId]);
             if (recruiterQuery.rows.length > 0) {
                 finalInterviewerId = recruiterQuery.rows[0].id;
-                console.log(`[DEBUG] Mapped User ID ${interviewerId} to Recruiter ID ${finalInterviewerId}`);
+                // console.log(`[DEBUG] Mapped User ID ${interviewerId} to Recruiter ID ${finalInterviewerId}`);
             } else {
-                console.warn(`[WARNING] No recruiter found for User ID ${interviewerId}. Using original ID.`);
-                // If checking by ID directly finds it, then it was already a recruiter ID
+                // console.warn(`[WARNING] No recruiter found for User ID ${interviewerId}. Using original ID.`);
+                // 如果通过ID直接查找能找到，说明它已经是招聘者ID了
                 const checkRecruiter = await query('SELECT id FROM recruiters WHERE id = $1', [interviewerId]);
                 if (checkRecruiter.rows.length === 0) {
-                    console.error(`[ERROR] ID ${interviewerId} not found in recruiters table as id or user_id`);
+                    // console.error(`[ERROR] ID ${interviewerId} not found in recruiters table as id or user_id`);
                 }
             }
         } catch (err) {
-            console.error('[ERROR] Failed to map interviewer ID:', err);
+            // console.error('[ERROR] Failed to map interviewer ID:', err);
         }
 
         const result = await query(`
@@ -250,7 +250,7 @@ router.post('/', asyncHandler(async (req, res) => {
             interviewPosition
         ]);
 
-        console.log('[DEBUG] Interview created successfully, id:', result.rows[0].id);
+        // console.log('[DEBUG] Interview created successfully, id:', result.rows[0].id);
 
         res.status(201).json({
             status: 'success',
@@ -258,7 +258,7 @@ router.post('/', asyncHandler(async (req, res) => {
             message: '面试邀请创建成功'
         });
     } catch (error) {
-        console.error('[ERROR] Failed to create interview:', error);
+        // console.error('[ERROR] Failed to create interview:', error);
         throw error;
     }
 }));
@@ -408,7 +408,7 @@ router.patch('/:id/status', asyncHandler(async (req, res) => {
                     message: status === 'accepted' ? '候选人已接受面试邀请' : '候选人已拒绝面试邀请'
                 });
 
-                console.log(`Notified recruiter user ${recruiterUserId} about interview ${id} status change to ${status}`);
+                // console.log(`Notified recruiter user ${recruiterUserId} about interview ${id} status change to ${status}`);
             } else {
                 // 如果找不到对应的招聘者记录，尝试回退到原始ID（兼容性处理）
                 io.to(`${ROOM_PREFIXES.USER}${updatedInterview.interviewer_id}`).emit('interview_status_updated', {
@@ -417,11 +417,11 @@ router.patch('/:id/status', asyncHandler(async (req, res) => {
                     interview: updatedInterview,
                     message: status === 'accepted' ? '候选人已接受面试邀请' : '候选人已拒绝面试邀请'
                 });
-                console.warn(`[WARNING] Recruiter not found for ID ${updatedInterview.interviewer_id}. Sending to fallback room.`);
+                // console.warn(`[WARNING] Recruiter not found for ID ${updatedInterview.interviewer_id}. Sending to fallback room.`);
             }
         }
     } catch (socketError) {
-        console.error('Failed to send Socket.IO notification:', socketError);
+        // console.error('Failed to send Socket.IO notification:', socketError);
         // 不影响主流程，继续返回成功响应
     }
 

@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { message } from 'antd';
+import { getGlobalMessage } from '@/utils/messageInstance';
 import { CLIENT_EVENTS, SERVER_EVENTS } from '@/constants/socketEvents';
 
 class SocketService {
@@ -26,7 +26,7 @@ class SocketService {
             ? apiUrl.replace(/\/api\/?$/, '') // 移除结尾的 /api
             : 'http://localhost:8001';
 
-        console.log('Connecting to socket server:', socketUrl);
+        // console.log('Connecting to socket server:', socketUrl);
 
         this.socket = io(socketUrl, {
             transports: ['websocket', 'polling'], // 优先使用 websocket
@@ -36,42 +36,42 @@ class SocketService {
         });
 
         this.socket.on('connect', () => {
-            console.log('Socket connected:', this.socket?.id);
-            message.success('消息服务连接成功');
+            // console.log('Socket connected:', this.socket?.id);
+            // getGlobalMessage().success('消息服务连接成功');
             // 连接成功后，加入用户个人房间
             this.socket?.emit(CLIENT_EVENTS.JOIN_USER, userId);
         });
 
         this.socket.on('disconnect', (reason) => {
-            console.log('Socket disconnected:', reason);
+            // console.log('Socket disconnected:', reason);
             if (reason === 'io server disconnect') {
-                message.error('服务器断开连接，正在尝试重连...');
+                getGlobalMessage().error('服务器断开连接，正在尝试重连...');
             } else if (reason === 'io client disconnect') {
                 // 客户端主动断开，不显示提示
             } else {
-                message.warning(`连接已断开 (${reason})，正在尝试重连...`);
+                getGlobalMessage().warning(`连接已断开 (${reason})，正在尝试重连...`);
             }
         });
 
         this.socket.on('connect_error', (err) => {
-            console.error('Socket connection error:', err);
-            message.error('连接服务器失败，请检查网络连接');
+            // console.error('Socket connection error:', err);
+            getGlobalMessage().error('连接服务器失败，请检查网络连接');
         });
 
         this.socket.on('reconnect', (attemptNumber) => {
-            console.log('Socket reconnected after', attemptNumber, 'attempts');
-            message.success('消息服务重连成功');
+            // console.log('Socket reconnected after', attemptNumber, 'attempts');
+            getGlobalMessage().success('消息服务重连成功');
             // 重连成功后，重新加入用户个人房间
             this.socket?.emit(CLIENT_EVENTS.JOIN_USER, userId);
         });
 
         this.socket.on('reconnect_failed', () => {
-            console.error('Socket reconnection failed');
-            message.error('无法重新连接到服务器，请刷新页面重试');
+            // console.error('Socket reconnection failed');
+            getGlobalMessage().error('无法重新连接到服务器，请刷新页面重试');
         });
 
         this.socket.on('reconnect_attempt', (attemptNumber) => {
-            console.log('Socket reconnect attempt:', attemptNumber);
+            // console.log('Socket reconnect attempt:', attemptNumber);
         });
 
         return this.socket;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, MessageSquare, Trash2 } from 'lucide-react';
-import { Modal } from 'antd';
+import { Modal, App } from 'antd';
 import { Conversation } from '@/types/types';
 import { formatDateTime } from '@/utils/dateUtils';
 import { processAvatarUrl } from '@/components/AvatarUploadComponent';
@@ -22,6 +22,7 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
     currentUser
 }) => {
     const navigate = useNavigate();
+    const { modal } = App.useApp();
 
     // 只根据搜索文本过滤对话，不进行去重，确保所有对话都显示
     const filteredConversations = conversations
@@ -70,7 +71,7 @@ const MessageListScreen: React.FC<MessageListScreenProps> = ({
                                 e.stopPropagation(); // 阻止事件冒泡，避免触发选择对话
 
                                 // 使用Ant Design的Modal组件替代window.confirm
-                                Modal.confirm({
+                                modal.confirm({
                                     title: '确认删除聊天记录',
                                     content: (
                                         <div>

@@ -285,8 +285,6 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
   });
 })
 );
-// 获取访问量与注册量趋势数据（支持多时间维度）
-// 获取访问量与注册量趋势数据（支持多时间维度）
 // 获取访问量与注册量趋势数据（支持多时间维度和自定义范围）
 router.get('/visitor-trends', asyncHandler(async (req, res) => {
   const dimension = req.query.dimension || 'month'; // day, week, month
@@ -404,8 +402,8 @@ router.get('/funnel', asyncHandler(async (req, res) => {
 
 // 获取平均招聘周期数据
 router.get('/time-to-hire', asyncHandler(async (req, res) => {
-  // Calculate average days from Application Created -> Onboarding Created
-  // Join via candidate_id and job_id since onboardings doesn't have application_id
+  // 计算平均天数：申请创建时间 -> 入职创建时间
+  // 通过 candidate_id 和 job_id 关联，因为 onboardings 表没有直接存储 application_id
   const result = await query(`
     SELECT 
       TO_CHAR(o.created_at, 'YYYY-MM') as month_val,
@@ -431,14 +429,14 @@ router.get('/time-to-hire', asyncHandler(async (req, res) => {
 
 // 获取候选人来源质量数据
 router.get('/source-quality', asyncHandler(async (req, res) => {
-  // Get REAL total hires count
+  // 获取真实的入职总数
   const hiresResult = await query(`SELECT COUNT(*) as count FROM onboardings WHERE status = 'completed'`);
   const totalHires = parseInt(hiresResult.rows[0].count) || 0;
 
-  // Since we don't have 'source' column, we simulate distribution based on real total
-  // Distribution Profile: Referral (30%), LinkedIn (25%), Direct (20%), Job Board (25%)
+  // 由于没有 'source' (来源) 字段，我们基于真实总数模拟分布
+  // 分布配置: 内推 (30%), LinkedIn (25%), 直接访问 (20%), 招聘网站 (25%)
 
-  // Helper to ensure integers sum up nicely, though slight rounding diff is fine for visual
+  // 辅助数组，确保整数求和接近总数（可视化差异可忽略）
   const d = [
     { name: '内推', factor: 0.3, quality: 92 },
     { name: 'LinkedIn', factor: 0.25, quality: 85 },
@@ -448,12 +446,12 @@ router.get('/source-quality', asyncHandler(async (req, res) => {
 
   const data = d.map(item => ({
     name: item.name,
-    hires: Math.max(1, Math.round(totalHires * item.factor)), // Ensure at least 1 if total > 0? No, if 0 then 0
+    hires: Math.max(1, Math.round(totalHires * item.factor)), // 确保至少为1（除非总数为0）
     quality: item.quality
   }));
 
   if (totalHires === 0) {
-    // If 0 hires, just return 0s
+    // 如果没有入职记录，则返回 0
     data.forEach(item => item.hires = 0);
   }
 

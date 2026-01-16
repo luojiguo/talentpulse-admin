@@ -5,7 +5,7 @@ import {
     Camera, Mic, Trash2, MapPin, ArrowLeft, Pin, Calendar as CalendarIcon, XCircle, Copy, CheckCircle,
     Download, Eye, FileText, X, MessageCircle, User
 } from 'lucide-react';
-import { Modal, message } from 'antd';
+import { Modal, message, App } from 'antd';
 import { formatDateTime } from '@/utils/dateUtils';
 import { useDeviceType } from '@/hooks/useMediaQuery';
 import {
@@ -201,6 +201,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
     const { conversationId: paramConversationId } = useParams<{ conversationId: string }>();
     const chatEndRef = useRef<HTMLDivElement>(null);
     const [input, setInput] = useState('');
+    const { modal } = App.useApp();
     const [showExtrasMenu, setShowExtrasMenu] = useState(false);
     const [searchText, setSearchText] = useState('');
 
@@ -560,7 +561,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
         e.stopPropagation(); // 阻止事件冒泡，避免触发选择对话
 
         // 使用Ant Design的Modal组件替代window.confirm
-        Modal.confirm({
+        modal.confirm({
             title: '确认删除聊天记录',
             content: (
                 <div>
@@ -592,7 +593,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
             setShowWechatModal(true);
         } else {
             // 场景2: 已设置微信号，弹出确认框
-            Modal.confirm({
+            modal.confirm({
                 title: '确定与对方交换微信吗？',
                 icon: <MessageCircle className="text-blue-500" />,
                 content: (

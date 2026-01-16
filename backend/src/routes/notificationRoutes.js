@@ -5,28 +5,29 @@ const { pool } = require('../config/db');
 const { authenticate, optionalAuth } = require('../middleware/auth');
 const { notifyRole } = require('../services/socketService');
 
-// --- Admin Endpoints ---
+// --- 管理员接口 ---
 
-// Create a new notification (Draft or Published)
+// 创建新通知（草稿或已发布）
 router.post('/admin', authenticate, async (req, res) => {
-    // Basic admin check (Assuming role 'admin' exists in user object)
-    // You might want to enhance this with a proper role middleware
-    /*
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ status: 'error', message: 'Unauthorized' });
-    }
-    */
-    // Skipping strict admin check for now as per instructions implies simple verification or implicit trust if authenticated as admin user
-    // But standard practice: 
-    /*
-    const adminCheck = await pool.query('SELECT role FROM user_roles WHERE user_id = $1 AND role = $2', [req.user.id, 'admin']);
-    if (adminCheck.rows.length === 0) return res.status(403).json({ status: 'error', message: 'Not an admin' });
-    */
+
 
     const { title, content, target_audience, type, is_published } = req.body;
 
+    /*
+    // 基础管理员检查（假设用户对象中存在角色 'admin'）
+    // 可能需要使用适当的角色中间件来增强此功能
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ status: 'error', message: '无权访问' });
+    }
+    */
+    // 按照说明暂时跳过严格的管理员检查，仅进行简单的验证或在验证为管理员用户时给予隐式信任
+    // 标准做法如下：
+    /*
+    const adminCheck = await pool.query('SELECT role FROM user_roles WHERE user_id = $1 AND role = $2', [req.user.id, 'admin']);
+    if (adminCheck.rows.length === 0) return res.status(403).json({ status: 'error', message: '非管理员用户' });
+    */
     if (!title || !content || !target_audience) {
-        return res.status(400).json({ status: 'error', message: 'Missing required fields' });
+        return res.status(400).json({ status: 'error', message: '缺少必填字段' });
     }
 
     try {
@@ -47,7 +48,7 @@ router.post('/admin', authenticate, async (req, res) => {
 
             await client.query('COMMIT');
 
-            // If published immediately, send socket notification
+            // 如果立即发布，发送 Socket 通知
             if (is_published) {
                 const notificationPayload = {
                     id: newNotification.id,
@@ -72,12 +73,12 @@ router.post('/admin', authenticate, async (req, res) => {
             client.release();
         }
     } catch (err) {
-        console.error('Error creating notification:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('创建通知失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 
-// Get all notifications (For Admin List)
+// 获取所有通知（管理员列表）
 router.get('/admin', authenticate, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -90,13 +91,13 @@ router.get('/admin', authenticate, async (req, res) => {
         `);
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
-        console.error('Error fetching admin notifications:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('获取管理员通知失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 
-// Update notification (Only if not published, or allow update but re-notify?)
-// Simplifying: Allow update. If publishing a draft, trigger notify.
+// 更新通知（仅在未发布时，或允许更新但重新通知？）
+// 简化处理：允许更新。如果是发布草稿，则触发通知。
 router.put('/admin/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     const { title, content, target_audience, type, is_published } = req.body;
@@ -106,15 +107,15 @@ router.put('/admin/:id', authenticate, async (req, res) => {
         try {
             await client.query('BEGIN');
 
-            // Check current status
+            // 检查当前状态
             const checkRes = await client.query('SELECT is_published FROM system_notifications WHERE id = $1', [id]);
             if (checkRes.rows.length === 0) {
                 await client.query('ROLLBACK');
-                return res.status(404).json({ status: 'error', message: 'Notification not found' });
+                return res.status(404).json({ status: 'error', message: '通知未找到' });
             }
             const wasPublished = checkRes.rows[0].is_published;
 
-            // Update
+            // 更新
             let queryText = `
                 UPDATE system_notifications 
                 SET title = $1, content = $2, target_audience = $3, type = $4, updated_at = NOW()
@@ -122,7 +123,7 @@ router.put('/admin/:id', authenticate, async (req, res) => {
             let values = [title, content, target_audience, type];
             let paramIndex = 5;
 
-            // Handle publishing status change
+            // 处理发布状态变更
             let becomingPublished = false;
             if (typeof is_published !== 'undefined') {
                 queryText += `, is_published = $${paramIndex}`;
@@ -143,7 +144,7 @@ router.put('/admin/:id', authenticate, async (req, res) => {
 
             await client.query('COMMIT');
 
-            // Trigger socket if just published
+            // 如果刚刚发布，触发 Socket 通知
             if (becomingPublished) {
                 const notificationPayload = {
                     id: updatedNotification.id,
@@ -169,44 +170,50 @@ router.put('/admin/:id', authenticate, async (req, res) => {
             client.release();
         }
     } catch (err) {
-        console.error('Error updating notification:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('更新通知失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 
-// Delete notification
+// 删除通知
 router.delete('/admin/:id', authenticate, async (req, res) => {
     const { id } = req.params;
     try {
+        // 按照说明暂时跳过严格的管理员检查，仅进行简单的验证或在验证为管理员用户时给予隐式信任
+        // 标准做法如下：
+        /*
+        const adminCheck = await pool.query('SELECT role FROM user_roles WHERE user_id = $1 AND role = $2', [req.user.id, 'admin']);
+        if (adminCheck.rows.length === 0) return res.status(403).json({ status: 'error', message: '非管理员用户' });
+        */
         await pool.query('DELETE FROM system_notifications WHERE id = $1', [id]);
-        res.json({ status: 'success', message: 'Notification deleted' });
+        res.json({ status: 'success', message: '通知已删除' });
     } catch (err) {
-        console.error('Error deleting notification:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('删除通知失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 
 
-// --- User Endpoints ---
+// --- 用户接口 ---
 
-// Get my notifications
+// 获取我的通知
 router.get('/', authenticate, async (req, res) => {
     const userId = req.user.id;
 
     try {
-        // We need to know user's role to filter target_audience
-        // Assuming we can get roles from user_roles table
+        // 我们需要知道用户的角色来过滤目标受众
+        // 假设我们可以从 user_roles 表获取角色
         const rolesRes = await pool.query('SELECT role FROM user_roles WHERE user_id = $1', [userId]);
         const userRoles = rolesRes.rows.map(r => r.role);
 
         let roles = userRoles;
         if (req.query.role) {
-            // If specific role requested (e.g. from current UI context), filter to that only if user actually has it
+            // 如果请求了特定角色（例如从当前 UI 上下文），且用户确实拥有该角色，则仅过滤该角色
             if (userRoles.includes(req.query.role)) {
                 roles = [req.query.role];
             } else {
-                // Requested role not held by user? Return empty or error?
-                // Returning empty roles list effectively means they see only 'all' audience or nothing specialized
+                // 请求的角色不是用户拥有的？返回空或错误？
+                // 返回空角色列表通常意味着他们只能看到 'all' 受众或看不到特定角色的通知
                 roles = [];
             }
         }
@@ -229,7 +236,7 @@ router.get('/', authenticate, async (req, res) => {
 
         const result = await pool.query(queryText, [userId, roles]);
 
-        // Count unread
+        // 统计未读数量
         const unreadCountRes = await pool.query(`
             SELECT count(*) 
             FROM system_notifications n
@@ -246,12 +253,12 @@ router.get('/', authenticate, async (req, res) => {
         });
 
     } catch (err) {
-        console.error('Error fetching user notifications:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('获取用户通知失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 
-// Mark as read
+// 标记为已读
 router.post('/:id/read', authenticate, async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
@@ -265,16 +272,16 @@ router.post('/:id/read', authenticate, async (req, res) => {
 
         res.json({ status: 'success' });
     } catch (err) {
-        console.error('Error marking notification read:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('标记通知为已读失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 
-// Mark ALL as read
+// 标记所有为已读
 router.post('/read-all', authenticate, async (req, res) => {
     const userId = req.user.id;
     try {
-        // Find all unread notifications for this user and insert into reads
+        // 查找该用户的所有未读通知并插入已读表
         const rolesRes = await pool.query('SELECT role FROM user_roles WHERE user_id = $1', [userId]);
         const roles = rolesRes.rows.map(r => r.role);
 
@@ -291,8 +298,8 @@ router.post('/read-all', authenticate, async (req, res) => {
 
         res.json({ status: 'success' });
     } catch (err) {
-        console.error('Error marking all read:', err);
-        res.status(500).json({ status: 'error', message: 'Internal server error' });
+        // console.error('标记所有为已读失败:', err);
+        res.status(500).json({ status: 'error', message: '服务器内部错误' });
     }
 });
 

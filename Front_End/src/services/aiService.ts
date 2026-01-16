@@ -96,15 +96,10 @@ const cleanAIGeneratedContent = (text: string): string => {
 
 export const callQianwen = async (messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>): Promise<string> => {
   try {
-    // Check if API key is set
+    // 检查 API Key 是否设置
     if (!QIANWEN_API_KEY || QIANWEN_API_KEY === '') {
-      console.error('Qianwen API Key is not set. Current env values:', {
-        APAKEY: import.meta.env.APAKEY,
-        QIANWEN_API_KEY: import.meta.env.QIANWEN_API_KEY,
-        VITE_QIANWEN_API_KEY: import.meta.env.VITE_QIANWEN_API_KEY,
-        allEnv: Object.keys(import.meta.env).filter(k => k.includes('API') || k.includes('KEY'))
-      });
-      return 'AI服务配置错误，请检查API密钥。请在项目根目录的 .env.local 文件中设置 QIANWEN_API_KEY 或 VITE_QIANWEN_API_KEY，然后重启开发服务器。';
+      console.error('Qianwen API Key 未设置');
+      return 'AI服务配置错误，请检查API密钥。请在项目根目录的 .env.local 文件中设置 VITE_QIANWEN_API_KEY，然后重启开发服务器。';
     }
 
     const apiUrl = import.meta.env.QIANWEN_API_URL || import.meta.env.VITE_QIANWEN_API_URL || QIANWEN_PROXY_URL;
@@ -140,7 +135,7 @@ export const callQianwen = async (messages: Array<{ role: 'system' | 'user' | 'a
           // 仅在代理地址且出现 5xx/404 时尝试直连
           const canFallback = url !== QIANWEN_DIRECT_URL && (res.status >= 500 || res.status === 404);
           if (canFallback) {
-            console.warn('Retrying Qianwen request via direct endpoint after proxy failure');
+            // console.warn('Retrying Qianwen request via direct endpoint after proxy failure');
             continue;
           }
 
@@ -181,11 +176,8 @@ export const callQianwen = async (messages: Array<{ role: 'system' | 'user' | 'a
 const callGemini = async (prompt: string): Promise<string> => {
   try {
     if (!GEMINI_API_KEY || GEMINI_API_KEY === '') {
-      console.error('Gemini API Key is not set.', {
-        hasGEMINI_API_KEY: Boolean(import.meta.env.GEMINI_API_KEY),
-        hasVITE_GEMINI_API_KEY: Boolean(import.meta.env.VITE_GEMINI_API_KEY)
-      });
-      return 'AI服务配置错误（Gemini），请检查 GEMINI_API_KEY 或 VITE_GEMINI_API_KEY。';
+      // console.error('Gemini API Key is not set.');
+      return 'AI服务配置错误（Gemini），请检查 VITE_GEMINI_API_KEY。';
     }
 
     const modelCandidates = uniq(
@@ -223,11 +215,10 @@ const callGemini = async (prompt: string): Promise<string> => {
         lastError = { status: res.status, statusText: res.statusText, data: payload, url: base };
         // 404：优先认为是 endpoint 版本或 model 不存在，继续尝试其它候选组合
         if (res.status === 404) {
-          console.warn('Gemini endpoint/model returned 404, retrying with fallback', { base });
+          // console.warn('Gemini endpoint/model returned 404, retrying with fallback', { base });
           continue;
         }
-
-        console.error('Gemini API Error:', { status: res.status, statusText: res.statusText, data: payload, base });
+        // console.error('Gemini API Error:', { status: res.status, statusText: res.statusText, base });
         const detail = payload?.error?.message || payload?.message;
         return `AI服务请求失败 (Gemini ${res.status}): ${res.statusText || ''}${detail ? ` - ${detail}` : ''}`;
       }
@@ -251,7 +242,7 @@ const callGemini = async (prompt: string): Promise<string> => {
     const detail = lastError?.data?.error?.message || lastError?.data?.message;
     return `AI服务请求失败 (Gemini): ${lastError?.status || 'unknown'}${detail ? ` - ${detail}` : ''}`;
   } catch (e) {
-    console.error('Gemini Request Error:', e);
+    // console.error('Gemini Request Error:', e);
     return `AI服务请求异常 (Gemini): ${(e as Error).message}`;
   }
 };
@@ -280,7 +271,7 @@ export const generateDashboardInsight = async (
     ]);
     return text || (language === 'zh' ? '暂时无法生成分析报告。' : 'Unable to generate insights at this time.');
   } catch (error) {
-    console.error('Error generating AI insight:', error);
+    // console.error('Error generating AI insight:', error);
     throw error;
   }
 };
@@ -326,7 +317,7 @@ export const chatWithCandidateAI = async (
 
     return qianwenText || geminiText || '抱歉，AI助手暂时无法回复。';
   } catch (error) {
-    console.error('Qianwen Chat Error:', error);
+    // console.error('Qianwen Chat Error:', error);
     return `网络请求失败，请稍后再试: ${(error as Error).message}`;
   }
 }
@@ -400,7 +391,7 @@ export const generateFullJobInfo = async (
 
     return jobInfo;
   } catch (error) {
-    console.error('生成完整职位信息失败:', error);
+    // console.error('生成完整职位信息失败:', error);
     // 返回默认值
     return {
       location: '深圳',
@@ -441,7 +432,7 @@ export const generateJobDescription = async (
     const cleanedText = cleanAIGeneratedContent(text);
     return cleanedText || 'AI 生成 JD 失败，请手动填写。';
   } catch (error) {
-    console.error('JD Gen Error', error);
+    // console.error('JD Gen Error', error);
     // Fallback generation on exception
     const skillList = skills.split(',').map(s => s.trim()).filter(Boolean);
     const skillStr = skillList.length ? skillList.join('、') : '无特定技能要求';
@@ -464,7 +455,7 @@ export const optimizeResumeDescription = async (
     ]);
     return text || originalText;
   } catch (error) {
-    console.error('Resume Optimize Error', error);
+    // console.error('Resume Optimize Error', error);
     return originalText;
   }
 };
@@ -482,7 +473,7 @@ export const generateInterviewFeedback = async (
     const text = await callQianwen(msgs);
     return text || "面试官正在思考下一题...";
   } catch (error) {
-    console.error('Mock Interview Error', error);
+    // console.error('Mock Interview Error', error);
     return "网络连接不稳定，请重试。";
   }
 };
@@ -500,7 +491,7 @@ export const generateRecruitmentSuggestions = async (
     ]);
     return cleanAIGeneratedContent(text) || "AI 暂时无法提供建议。";
   } catch (error) {
-    console.error('Recruitment Suggestions Error', error);
+    // console.error('Recruitment Suggestions Error', error);
     return "无法连接到 AI 服务。";
   }
 };
@@ -576,7 +567,7 @@ ${langInstruction} 语气要专业、简洁、直接,适合高管阅读。`;
     ]);
     return text || (language === 'zh' ? '暂时无法生成分析内容。' : 'Unable to generate analytics insight.');
   } catch (error) {
-    console.error('Analytics Insight Error:', error);
+    // console.error('Analytics Insight Error:', error);
     return language === 'zh' ? 'AI 服务暂不可用,请稍后再试。' : 'AI service unavailable.';
   }
 };
@@ -632,7 +623,7 @@ export const generateCompanyDescription = async (
 
     return cleanedText || '暂时无法生成公司简介，请稍后重试。';
   } catch (error) {
-    console.error('Generate Company Description Error:', error);
+    // console.error('Generate Company Description Error:', error);
     return 'AI服务暂不可用，请稍后重试。';
   }
 };

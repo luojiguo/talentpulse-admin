@@ -10,11 +10,19 @@ const AppError = require('../utils/AppError');
  */
 const sendVerificationEmail = async (toEmail, code) => {
   try {
-    // 硬编码配置
-    const LUCKYCOLA_COLAKEY = 'xAV12gYOGgDwW31763380657444qVyO032wTM';
-    const LUCKYCOLA_SMTP_EMAIL = 'jayyangluo@163.com';
-    const LUCKYCOLA_SMTP_CODE = 'ASeYQFVKnfDzL6Pm';
-    const LUCKYCOLA_SMTP_CODE_TYPE = '163';
+    // 从环境变量获取配置
+    const {
+      LUCKYCOLA_COLAKEY,
+      LUCKYCOLA_SMTP_EMAIL,
+      LUCKYCOLA_SMTP_CODE,
+      LUCKYCOLA_SMTP_CODE_TYPE
+    } = process.env;
+
+    // 验证配置是否完整
+    if (!LUCKYCOLA_COLAKEY || !LUCKYCOLA_SMTP_EMAIL || !LUCKYCOLA_SMTP_CODE || !LUCKYCOLA_SMTP_CODE_TYPE) {
+      console.warn(`【模拟发送】邮件配置缺失，向邮箱 ${toEmail} 发送验证码: ${code}`);
+      return;
+    }
 
     // 邮件内容
     const subject = 'TalentPulse - 验证码';
@@ -46,19 +54,17 @@ const sendVerificationEmail = async (toEmail, code) => {
 
     // 检查API响应
     if (response.status !== 200 || response.data.code !== 200) {
-      console.error('调用邮件API失败:', response.data);
+      console.error('调用邮件API失败:', response.data.msg || '未知错误');
       // API调用失败，使用模拟发送模式
-      console.log(`【模拟发送】向邮箱 ${toEmail} 发送验证码: ${code}`);
-      console.log(`【注意】邮件API调用失败，未发送真实邮件。`);
+      // console.log(`【模拟发送】向邮箱 ${toEmail} 发送验证码: ${code}`);
       return; // 直接返回，不抛出错误
     }
 
     console.log(`成功发送验证码到邮箱 ${toEmail}: ${code}`);
   } catch (error) {
-    console.error('发送邮件失败:', error);
+    console.error('发送邮件失败:', error.message);
     // 任何错误都使用模拟发送模式
-    console.log(`【模拟发送】向邮箱 ${toEmail} 发送验证码: ${code}`);
-    console.log(`【注意】发送邮件时发生错误，未发送真实邮件。`);
+    // console.log(`【模拟发送】向邮箱 ${toEmail} 发送验证码: ${code}`);
     // 不抛出错误，避免影响主要流程
   }
 };
@@ -81,8 +87,7 @@ const sendPasswordResetSuccessEmail = async (toEmail) => {
     // 验证配置是否完整
     if (!LUCKYCOLA_COLAKEY || !LUCKYCOLA_SMTP_EMAIL || !LUCKYCOLA_SMTP_CODE || !LUCKYCOLA_SMTP_CODE_TYPE) {
       // 配置不完整，使用模拟发送模式
-      console.log(`【模拟发送】向邮箱 ${toEmail} 发送密码重置成功邮件`);
-      console.log(`【注意】邮件发送配置不完整，未发送真实邮件。请在.env文件中配置完整的邮件服务参数。`);
+      console.warn(`【模拟发送】邮件配置缺失，向邮箱 ${toEmail} 发送密码重置成功邮件`);
       return; // 直接返回，不抛出错误
     }
 
@@ -113,19 +118,17 @@ const sendPasswordResetSuccessEmail = async (toEmail) => {
 
     // 检查API响应
     if (response.status !== 200 || response.data.code !== 200) {
-      console.error('调用邮件API失败:', response.data);
+      console.error('调用邮件API失败:', response.data.msg || '未知错误');
       // API调用失败，使用模拟发送模式
-      console.log(`【模拟发送】向邮箱 ${toEmail} 发送密码重置成功邮件`);
-      console.log(`【注意】邮件API调用失败，未发送真实邮件。`);
+      // console.log(`【模拟发送】向邮箱 ${toEmail} 发送密码重置成功邮件`);
       return; // 直接返回，不抛出错误
     }
 
     console.log(`成功发送密码重置成功邮件到邮箱 ${toEmail}`);
   } catch (error) {
-    console.error('发送密码重置成功邮件失败:', error);
+    console.error('发送密码重置成功邮件失败:', error.message);
     // 任何错误都使用模拟发送模式
-    console.log(`【模拟发送】向邮箱 ${toEmail} 发送密码重置成功邮件`);
-    console.log(`【注意】发送邮件时发生错误，未发送真实邮件。`);
+    // console.log(`【模拟发送】向邮箱 ${toEmail} 发送密码重置成功邮件`);
     // 不抛出错误，避免影响主要流程
   }
 };
@@ -148,8 +151,9 @@ const sendCertificationResultEmail = async (toEmail, isApproved, reason = '') =>
     } = process.env;
 
     // 验证配置是否完整
+    // 验证配置是否完整
     if (!LUCKYCOLA_COLAKEY || !LUCKYCOLA_SMTP_EMAIL || !LUCKYCOLA_SMTP_CODE || !LUCKYCOLA_SMTP_CODE_TYPE) {
-      console.log(`【模拟发送】向邮箱 ${toEmail} 发送企业认证结果: ${isApproved ? '通过' : '拒绝'}`);
+      console.warn(`【模拟发送】邮件配置缺失，向邮箱 ${toEmail} 发送企业认证结果`);
       return;
     }
 
@@ -202,7 +206,7 @@ const sendCertificationResultEmail = async (toEmail, isApproved, reason = '') =>
 
     console.log(`成功发送认证结果邮件到邮箱 ${toEmail}`);
   } catch (error) {
-    console.error('发送认证结果邮件失败:', error);
+    console.error('发送认证结果邮件失败:', error.message);
   }
 };
 

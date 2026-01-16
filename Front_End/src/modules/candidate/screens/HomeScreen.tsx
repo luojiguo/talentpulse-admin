@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { JobPosting, Company, SystemUser } from '@/types/types';
 import { jobAPI, companyAPI, userAPI } from '@/services/apiService';
-import { Search, ChevronUp, ChevronDown, MapPin, Briefcase, Filter, CheckCircle, XCircle, AlertCircle, Edit3, GraduationCap } from 'lucide-react';
-import { Modal, Input, Select, message } from 'antd';
+import { Search, ChevronUp, ChevronDown, MapPin, Briefcase, Filter, CheckCircle, XCircle, AlertCircle, GraduationCap } from 'lucide-react';
+
 import CompanyCard from '../components/CompanyCard';
 import JobCard from '../components/JobCard';
 import UserAvatar from '@/components/UserAvatar';
@@ -18,7 +18,7 @@ interface HomeScreenProps {
   jobsError?: string | null;
   followedCompanies: (string | number)[];
   setFollowedCompanies: React.Dispatch<React.SetStateAction<(string | number)[]>>;
-  currentUser: { id: number | string; name: string; email: string; avatar?: string };
+  currentUser: { id: number | string; name: string; email: string; avatar?: string } | null;
   userProfile?: {
     city?: string;
     jobStatus?: string;
@@ -49,192 +49,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
 
   // 使用父组件传递的jobs数据，如果没有则使用本地数据
   const jobs = propsJobs || localJobs;
-  const [combinedSearchQuery, setCombinedSearchQuery] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [showAllCompanies, setShowAllCompanies] = useState(false);
-  const [isCityPickerOpen, setIsCityPickerOpen] = useState(false);
-  const [filterLocation, setFilterLocation] = useState('全部');
-  const [filterExperience, setFilterExperience] = useState('全部');
-  const [filterDegree, setFilterDegree] = useState('全部');
-  const [filterJobType, setFilterJobType] = useState('全部');
   const [visibleJobsCount, setVisibleJobsCount] = useState(10);
 
-  // State for editing user profile
-  const [editingField, setEditingField] = useState<'preferredLocations' | 'jobStatus' | 'expectedSalary' | 'desiredPosition' | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
-  const [salaryMin, setSalaryMin] = useState<number | undefined>(undefined);
-  const [salaryMax, setSalaryMax] = useState<number | undefined>(undefined);
-  const [savingProfile, setSavingProfile] = useState(false);
-
-  // 使用固定的筛选选项，确保选项完整且一致
-  // 同时从数据库中获取实际存在的值，用于验证和显示
-  const filterOptions = useMemo(() => {
-    // 从jobs数据中提取实际存在的值（用于验证数据一致性）
-    const existingExperiences = new Set<string>();
-    const existingDegrees = new Set<string>();
-    const existingJobTypes = new Set<string>();
-
-    jobs.forEach(job => {
-      if (job.experience && job.experience.trim()) {
-        existingExperiences.add(job.experience);
-      }
-      if (job.degree && job.degree.trim()) {
-        existingDegrees.add(job.degree);
-      }
-      if (job.type && job.type.trim()) {
-        existingJobTypes.add(job.type);
-      }
-      if (job.work_mode && job.work_mode.trim() === '远程') {
-        existingJobTypes.add('远程');
-      }
-    });
-
-    // 使用固定的选项列表，确保选项完整
-    // 如果数据库中有不在固定列表中的值，也会包含进来（向后兼容）
-    const experiences = [...EXPERIENCE_OPTIONS];
-    const degrees = [...DEGREE_OPTIONS];
-    const jobTypes = [...JOB_TYPE_OPTIONS];
-
-    // 添加数据库中存在的但不在固定列表中的值（向后兼容）
-    existingExperiences.forEach(exp => {
-      if (!experiences.includes(exp)) {
-        experiences.push(exp);
-      }
-    });
-
-    existingDegrees.forEach(deg => {
-      if (!degrees.includes(deg)) {
-        degrees.push(deg);
-      }
-    });
-
-    existingJobTypes.forEach(type => {
-      if (!jobTypes.includes(type)) {
-        jobTypes.push(type);
-      }
-    });
-
-    return {
-      experiences,
-      degrees,
-      jobTypes
-    };
-  }, [jobs]);
-
-  // Toggle follow company
-  const toggleFollowCompany = async (companyId: string | number) => {
-    try {
-      if (followedCompanies.includes(companyId)) {
-        // Unfollow company
-        await companyAPI.unfollowCompany(companyId, currentUser.id);
-        setFollowedCompanies(prev => prev.filter(id => id !== companyId));
-      } else {
-        // Follow company
-        await companyAPI.followCompany(companyId, currentUser.id);
-        setFollowedCompanies(prev => [...prev, companyId]);
-      }
-    } catch (error) {
-      console.error('Follow/unfollow company error:', error);
-    }
-  };
 
   const [isAIPending, setIsAIPending] = useState(false);
   const [aiJobsError, setAIJobsError] = useState<string | null>(null);
 
-  // Filtered jobs based on search and filters (多条件AND筛选)
+  // Simple search filtering
   const filteredJobs = useMemo(() => {
     if (!jobs || jobs.length === 0) return [];
+    if (!searchText.trim()) return jobs;
 
-    const filtered = jobs.filter(job => {
-      // 1. 搜索关键词匹配（OR逻辑：匹配标题、公司名或描述）
-      const matchesSearch = !combinedSearchQuery ||
-        (job.title && job.title.toLowerCase().includes(combinedSearchQuery.toLowerCase())) ||
-        (job.company_name && job.company_name.toLowerCase().includes(combinedSearchQuery.toLowerCase())) ||
-        (job.description && job.description.toLowerCase().includes(combinedSearchQuery.toLowerCase()));
+    const lowerSearch = searchText.toLowerCase().trim();
+    return jobs.filter(job => {
+      const title = String(job.title || '').toLowerCase();
+      const company = String(job.company || '').toLowerCase();
+      const location = String(job.location || '').toLowerCase();
+      const description = String(job.description || '').toLowerCase();
 
-      // 2. 城市筛选（精确匹配）
-      const matchesLocation = filterLocation === '全部' ||
-        (job.location && job.location === filterLocation);
-
-      // 3. 经验筛选
-      // - 如果筛选条件是"全部"，显示所有职位
-      // - 如果筛选条件是具体值：
-      //   * 如果职位经验是 undefined/null/空/"不限"，表示接受任何经验，应该匹配
-      //   * 否则精确匹配
-      const matchesExperience = filterExperience === '全部'
-        ? true
-        : (() => {
-          // 处理 undefined、null、空字符串的情况
-          if (job.experience === undefined || job.experience === null) {
-            return true; // undefined/null 表示接受任何经验
-          }
-          if (typeof job.experience === 'string' && job.experience.trim() === '') {
-            return true; // 空字符串表示接受任何经验
-          }
-          if (job.experience === '不限') {
-            return true; // "不限"表示接受任何经验
-          }
-          return job.experience === filterExperience; // 精确匹配
-        })();
-
-      // 4. 学历筛选
-      // - 如果筛选条件是"全部"，显示所有职位
-      // - 如果筛选条件是具体值：
-      //   * 如果职位学历是 undefined/null/空/"不限"，表示接受任何学历，应该匹配
-      //   * 否则精确匹配
-      const matchesDegree = filterDegree === '全部'
-        ? true
-        : (() => {
-          // 处理 undefined、null、空字符串的情况
-          if (job.degree === undefined || job.degree === null) {
-            return true; // undefined/null 表示接受任何学历
-          }
-          if (typeof job.degree === 'string' && job.degree.trim() === '') {
-            return true; // 空字符串表示接受任何学历
-          }
-          if (job.degree === '不限') {
-            return true; // "不限"表示接受任何学历
-          }
-          return job.degree === filterDegree; // 精确匹配
-        })();
-
-      // 5. 职位类型筛选
-      // - 如果选择"全部"，显示所有职位
-      // - 如果选择"远程"，匹配 type 为"远程"或 work_mode 为"远程"的职位
-      // - 否则精确匹配 job.type
-      // - 如果 job.type 是 undefined/null，视为匹配所有类型
-      const matchesJobType = filterJobType === '全部'
-        ? true
-        : filterJobType === '远程'
-          ? (job.type === '远程' || job.work_mode === '远程')
-          : (() => {
-            // 处理 undefined/null 的情况
-            if (job.type === undefined || job.type === null) {
-              return true; // undefined/null 表示接受任何类型
-            }
-            return job.type === filterJobType; // 精确匹配
-          })();
-
-      // 所有筛选条件必须同时满足（AND逻辑）
-      return matchesSearch && matchesLocation && matchesExperience && matchesDegree && matchesJobType;
+      return title.includes(lowerSearch) ||
+        company.includes(lowerSearch) ||
+        location.includes(lowerSearch) ||
+        description.includes(lowerSearch);
     });
-
-    // 调试信息（仅在开发环境）
-    if (process.env.NODE_ENV === 'development') {
-      console.log('筛选结果:', {
-        总职位数: jobs.length,
-        筛选后数量: filtered.length,
-        筛选条件: {
-          城市: filterLocation,
-          经验: filterExperience,
-          学历: filterDegree,
-          职位类型: filterJobType,
-          搜索关键词: combinedSearchQuery || '无'
-        }
-      });
-    }
-
-    return filtered;
-  }, [jobs, combinedSearchQuery, filterLocation, filterExperience, filterDegree, filterJobType]);
+  }, [jobs, searchText]);
 
   // Initial job fetch and triggers AI recommendation
   useEffect(() => {
@@ -256,12 +96,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
           ? await jobAPI.getRecommendedJobs(currentUser.id, true) // Pass true to trigger AI
           : await jobAPI.getAllJobs();
 
-        console.log('API响应:', response);
+
 
         if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
-          console.log('原始API数据:', response.data.slice(0, 5));
           const formattedJobs = formatJobData(response.data);
-          console.log('格式化后的数据:', formattedJobs.slice(0, 5));
           setLocalJobs(formattedJobs);
           // If a user is logged in, start polling for AI results
           if (currentUser?.id) {
@@ -285,87 +123,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     return () => { isMounted = false; };
   }, [propsJobs, propsLoadingJobs, propsJobsError, currentUser?.id]);
 
-  // Fetch jobs from backend based on filter conditions
-  useEffect(() => {
-    if (propsJobs) {
-      return; // 如果父组件传递了数据，使用父组件的数据
-    }
+  // No backend filtering effect needed for simple search
+  // useEffect logic removed
 
-    // 检查是否有筛选条件
-    const hasFilters = filterLocation !== '全部' ||
-      filterExperience !== '全部' ||
-      filterDegree !== '全部' ||
-      filterJobType !== '全部';
-
-    if (!hasFilters) {
-      // 没有筛选条件，使用初始数据
-      setUseFilteredData(false);
-      return;
-    }
-
-    let isMounted = true;
-
-    const fetchFilteredJobs = async () => {
-      setLoadingJobs(true);
-      setJobsError(null);
-
-      try {
-        // 构建筛选参数
-        const params: any = {
-          limit: 1000
-        };
-
-        // 城市筛选
-        if (filterLocation !== '全部') {
-          params.location = filterLocation;
-        }
-
-        // 经验筛选 - 排除"不限"选项
-        if (filterExperience !== '全部' && filterExperience !== '不限') {
-          params.experience = filterExperience;
-        }
-
-        // 学历筛选 - 排除"不限"选项
-        if (filterDegree !== '全部' && filterDegree !== '不限') {
-          params.degree = filterDegree;
-        }
-
-        // 职位类型筛选 - 处理"远程"和其他类型
-        if (filterJobType !== '全部') {
-          if (filterJobType === '远程') {
-            // 远程工作可以同时设置type和work_mode，或者只设置work_mode
-            params.work_mode = '远程';
-            // 也可以设置type为远程，但后端主要用work_mode筛选
-            // params.type = '远程';
-          } else {
-            // 其他职位类型
-            params.type = filterJobType;
-          }
-        }
-
-        const response = await jobAPI.getAllJobs(params);
-
-        if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
-          const formattedJobs = formatJobData(response.data);
-          setLocalJobs(formattedJobs);
-          setUseFilteredData(true);
-        } else if (isMounted) {
-          setJobsError('职位数据格式不正确');
-        }
-      } catch (error: any) {
-        if (isMounted) {
-          setJobsError(error.message || '加载筛选职位失败');
-          console.error('获取筛选职位失败:', error);
-        }
-      } finally {
-        if (isMounted) setLoadingJobs(false);
-      }
-    };
-
-    fetchFilteredJobs();
-
-    return () => { isMounted = false; };
-  }, [filterLocation, filterExperience, filterDegree, filterJobType, propsJobs]);
 
   // Poll for AI recommendations
   useEffect(() => {
@@ -686,182 +446,37 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   }, [visibleJobsCount, filteredJobs.length]);
 
 
-  // Optimize salary options generation
-  const salaryOptions = useMemo(() => {
-    const options = [];
-    // 1k - 30k: 1k steps
-    for (let i = 1; i <= 30; i++) {
-      options.push({ value: i * 1000, label: `${i}k` });
-    }
-    // 31k - 100k: 1k steps
-    for (let i = 31; i <= 100; i++) {
-      options.push({ value: i * 1000, label: `${i}k` });
-    }
-    // 105k - 200k: 5k steps
-    for (let i = 105; i <= 200; i += 5) {
-      options.push({ value: i * 1000, label: `${i}k` });
-    }
-    // 210k - 500k: 10k steps
-    for (let i = 210; i <= 500; i += 10) {
-      options.push({ value: i * 1000, label: `${i}k` });
-    }
-    return options;
-  }, []);
 
-  const handleEditClick = (field: 'preferredLocations' | 'desiredPosition' | 'expectedSalary' | 'jobStatus', currentValue: string, minSal?: number, maxSal?: number) => {
-    setEditingField(field);
-    // If editing preferredLocations, use preferredLocations if available
-    if (field === 'preferredLocations') {
-      setEditValue(userProfile?.preferredLocations || '');
-    } else {
-      setEditValue(currentValue);
-    }
-    if (field === 'expectedSalary') {
-      setSalaryMin(minSal);
-      setSalaryMax(maxSal);
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    if (!currentUser?.id || !editingField) return;
-
-    setSavingProfile(true);
-    try {
-      const updateData: Partial<SystemUser> & {
-        expectedSalaryMin?: number;
-        expectedSalaryMax?: number;
-        preferredLocations?: string;
-      } = {};
-      if (editingField === 'preferredLocations') {
-        updateData.preferredLocations = editValue;
-      } else if (editingField === 'desiredPosition') {
-        updateData.desiredPosition = editValue;
-      } else if (editingField === 'expectedSalary') {
-        // Construct salary string and min/max
-        if (salaryMin !== undefined && salaryMax !== undefined) {
-          updateData.expectedSalaryMin = salaryMin;
-          updateData.expectedSalaryMax = salaryMax;
-        }
-      }
-
-      const response = await userAPI.updateUser(String(currentUser.id), updateData);
-
-      if (response.status === 'success') {
-        message.success('个人信息更新成功！');
-        if (onRefreshProfile) {
-          onRefreshProfile(); // Refresh parent component's userProfile state
-        }
-        setEditingField(null);
-        setEditValue('');
-        setSalaryMin(undefined);
-        setSalaryMax(undefined);
-      } else {
-        message.error(response.message || '更新失败，请重试。');
-      }
-    } catch (error) {
-      console.error('Failed to update user profile:', error);
-      message.error('更新失败，请检查网络或稍后重试。');
-    } finally {
-      setSavingProfile(false);
-    }
-  };
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      {/* Filter Section - Now at the top of job list */}
-      <div className="bg-white/80 dark:bg-[#1C1C1E]/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-200/60 dark:border-slate-800 mb-8 transition-colors duration-300 sticky top-20 z-30">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-          {/* Keyword Search */}
-          <div className="md:col-span-12 lg:col-span-4">
-            <div className="relative group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-500 w-5 h-5 transition-colors duration-300" />
-              <input
-                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 focus:bg-white dark:focus:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 transition-all duration-300"
-                placeholder="搜索职位、公司或技能..."
-                value={combinedSearchQuery}
-                onChange={(e) => setCombinedSearchQuery(e.target.value)}
-              />
-            </div>
+      {/* Simple Search Section - Now at Home */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <h3 className="text-2xl font-bold text-slate-900">推荐职位</h3>
+        <div className="relative w-full md:w-96">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+            </svg>
           </div>
-
-          {/* Filters */}
-          <div className="md:col-span-12 lg:col-span-8">
-            <div className="flex flex-wrap gap-2.5 items-center">
-              {/* City Select */}
-              <button
-                onClick={() => setIsCityPickerOpen(true)}
-                className="flex items-center px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-brand-500 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-white dark:hover:bg-slate-800 active:scale-95 transition-all duration-300 font-medium text-sm shadow-sm flex-shrink-0 min-w-[100px] justify-between group"
-              >
-                <div className="flex items-center">
-                  <MapPin className="w-4 h-4 mr-2 text-slate-400 group-hover:text-brand-500 transition-colors" />
-                  <span className="truncate max-w-[80px]">{filterLocation === '全部' ? '城市' : filterLocation}</span>
-                </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-brand-500 ml-2 transition-colors" />
-              </button>
-
-              {/* Experience Select */}
-              <div className="relative flex-shrink-0 min-w-[110px]">
-                <select
-                  className="appearance-none w-full pl-10 pr-8 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-700 dark:text-slate-300 font-medium text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                  value={filterExperience}
-                  onChange={(e) => setFilterExperience(e.target.value)}
-                >
-                  {filterOptions.experiences.map(exp => (
-                    <option key={exp} value={exp}>{exp === '全部' ? '经验' : exp}</option>
-                  ))}
-                </select>
-                <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-
-              {/* Degree Select */}
-              <div className="relative flex-shrink-0 min-w-[110px]">
-                <select
-                  className="appearance-none w-full pl-10 pr-8 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-700 dark:text-slate-300 font-medium text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                  value={filterDegree}
-                  onChange={(e) => setFilterDegree(e.target.value)}
-                >
-                  {filterOptions.degrees.map(deg => (
-                    <option key={deg} value={deg}>{deg === '全部' ? '学历' : deg}</option>
-                  ))}
-                </select>
-                <GraduationCap className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-
-              {/* Job Type Select */}
-              <div className="relative flex-shrink-0 min-w-[110px]">
-                <select
-                  className="appearance-none w-full pl-10 pr-8 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl text-slate-700 dark:text-slate-300 font-medium text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                  value={filterJobType}
-                  onChange={(e) => setFilterJobType(e.target.value)}
-                >
-                  {filterOptions.jobTypes.map(type => (
-                    <option key={type} value={type}>{type === '全部' ? '类型' : type}</option>
-                  ))}
-                </select>
-                <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-
-              {/* Reset Filter Button - Only show if filters are active */}
-              {(filterLocation !== '全部' || filterExperience !== '全部' || filterDegree !== '全部' || filterJobType !== '全部') && (
-                <button
-                  onClick={() => {
-                    setFilterLocation('全部');
-                    setFilterExperience('全部');
-                    setFilterDegree('全部');
-                    setFilterJobType('全部');
-                    setCombinedSearchQuery('');
-                  }}
-                  className="ml-auto flex items-center px-4 py-2.5 text-sm font-medium text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-colors"
-                >
-                  <Filter className="w-4 h-4 mr-1.5" />
-                  重置
-                </button>
-              )}
-            </div>
-          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
+            placeholder="搜索职位、公司、地点或描述..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          {searchText && (
+            <button
+              onClick={() => setSearchText('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+              title="清除搜索"
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -934,118 +549,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
           </div>
 
           {/* Dynamic Recommendation Info - Replacing the count */}
-          {userProfile && (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-brand-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-brand-100 dark:border-slate-700 shadow-sm shadow-brand-50/50 transition-all duration-300">
-                <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center text-brand-600 font-bold text-xs border border-brand-200 overflow-hidden">
-                  <UserAvatar
-                    src={userProfile.avatar}
-                    name={userProfile.name}
-                    size={24}
-                    className="w-full h-full"
-                    alt="User"
-                  />
-                </div>
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">根据求职期望匹配：</span>
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-900 dark:text-slate-200 font-medium">
-                      {userProfile?.preferredLocations || '地点未填'}
-                    </span>
-                    <button
-                      onClick={() => handleEditClick('preferredLocations', userProfile?.preferredLocations || '')}
-                      className="text-slate-400 hover:text-brand-500 transition-colors"
-                    >
-                      <Edit3 size={14} />
-                    </button>
-                  </div>
-                  <span className="text-slate-200 dark:text-slate-700">|</span>
-                  <span
-                    onClick={() => handleEditClick('desiredPosition', userProfile.desiredPosition || '')}
-                    className="bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-brand-50 dark:hover:bg-slate-600 transition-colors hover:underline"
-                    title="点击修改期望岗位"
-                  >
-                    {userProfile.desiredPosition || '岗位未填'}
-                  </span>
-                  <span className="text-slate-200 dark:text-slate-700">|</span>
-                  <span
-                    onClick={() => handleEditClick('expectedSalary', '', userProfile.expectedSalaryMin, userProfile.expectedSalaryMax)}
-                    className="bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-brand-50 dark:hover:bg-slate-600 transition-colors hover:underline"
-                    title="点击修改期望薪资"
-                  >
-                    {(() => {
-                      if (userProfile.expectedSalaryMin !== undefined && userProfile.expectedSalaryMax !== undefined && userProfile.expectedSalaryMin !== null && userProfile.expectedSalaryMax !== null) {
-                        const min = userProfile.expectedSalaryMin >= 1000 ? `${Math.round(userProfile.expectedSalaryMin / 1000)}k` : userProfile.expectedSalaryMin;
-                        const max = userProfile.expectedSalaryMax >= 1000 ? `${Math.round(userProfile.expectedSalaryMax / 1000)}k` : userProfile.expectedSalaryMax;
-                        return `${min}-${max}`;
-                      }
-                      return '薪资未填';
-                    })()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* User profile matching section removed */}
         </div>
 
         {/* Edit Profile Modal */}
-        <Modal
-          title={`修改${editingField === 'preferredLocations' ? '期望地点' :
-            editingField === 'desiredPosition' ? '期望岗位' :
-              editingField === 'expectedSalary' ? '期望薪资' : ''
-            } `}
-          open={!!editingField}
-          onOk={handleSaveProfile}
-          onCancel={() => {
-            setEditingField(null);
-            setEditValue('');
-          }}
-          okText="保存"
-          cancelText="取消"
-          confirmLoading={savingProfile}
-          className="candidate-modal"
-        >
-          {editingField === 'expectedSalary' ? (
-            <div className="flex items-center gap-2">
-              <Select
-                placeholder="最低薪资"
-                value={salaryMin}
-                onChange={val => {
-                  setSalaryMin(val);
-                  // Reset max if it becomes invalid (< min)
-                  if (salaryMax && val && salaryMax <= val) {
-                    setSalaryMax(undefined);
-                  }
-                }}
-                options={salaryOptions}
-                style={{ width: '100%' }}
-                showSearch
-                optionFilterProp="label"
-              />
-              <span className="text-gray-400">至</span>
-              <Select
-                placeholder="最高薪资"
-                value={salaryMax}
-                onChange={val => setSalaryMax(val)}
-                options={salaryOptions.filter(opt => !salaryMin || opt.value > salaryMin)}
-                style={{ width: '100%' }}
-                showSearch
-                optionFilterProp="label"
-                disabled={!salaryMin}
-              />
-            </div>
-          ) : (
-            <Input
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              placeholder={
-                editingField === 'preferredLocations' ? "请输入期望地点，如：北京,上海" :
-                  editingField === 'desiredPosition' ? "请输入期望岗位，如：前端开发" :
-                    "请输入内容"
-              }
-            />
-          )}
-        </Modal>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {loadingJobs ? (
             <div className="col-span-full text-center py-20">
@@ -1093,24 +601,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
                 <Search className="w-10 h-10 text-slate-300" />
               </div>
               <p className="text-slate-500 dark:text-slate-400 font-medium text-lg mb-2">没有找到符合条件的职位</p>
-              <p className="text-slate-400 dark:text-slate-500 text-sm mb-6">尝试更换搜索词或放宽筛选条件</p>
+              <p className="text-slate-400 dark:text-slate-500 text-sm mb-6">尝试更换搜索词</p>
               <button
                 onClick={() => {
-                  setCombinedSearchQuery('');
-                  setFilterLocation('全部');
-                  setFilterExperience('全部');
-                  setFilterDegree('全部');
-                  setFilterJobType('全部');
+                  setSearchText('');
                 }}
                 className="px-6 py-2.5 bg-brand-500 text-white rounded-xl font-bold hover:bg-brand-600 transition-all shadow-lg shadow-brand-100 dark:shadow-none"
               >
-                清除所有筛选
+                清除搜索
               </button>
             </div>
           )}
         </div>
       </div>
-      <CityPickerModal isOpen={isCityPickerOpen} onClose={() => setIsCityPickerOpen(false)} currentCity={filterLocation} onSelectCity={setFilterLocation} />
+
     </div>
   );
 };

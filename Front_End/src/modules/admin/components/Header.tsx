@@ -79,7 +79,7 @@ const Header: React.FC<HeaderProps> = ({ onGenerateInsight, insightStatus, lang,
   }, [dropdownOpen, notificationDropdownOpen]);
 
   return (
-    <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between lg:ml-0 h-16">
+    <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30 px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between lg:ml-0 h-[60px] transition-all duration-300">
       {/* 页面标题区域 */}
       <div className="flex items-center gap-3">
         <div className="text-lg font-bold text-slate-900 dark:text-white">

@@ -7,7 +7,27 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍎</text></svg>" type="image/svg+xml" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = { darkMode: 'class' };
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              sage: {
+                50: '#F4F6F2',
+                100: '#E9EDE5',
+                200: '#C7D1BF',
+                300: '#A5B599',
+                400: '#9CAF88', // Primary Sage Green
+                500: '#7F9369',
+                600: '#627252',
+                700: '#46513A',
+                800: '#2A3123',
+                900: '#0E100B',
+              }
+            }
+          }
+        }
+      };
     </script>
     <style>
       body {

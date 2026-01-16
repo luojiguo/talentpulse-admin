@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Form, Input, DatePicker, Modal, List, message, Tag, Typography, Row, Col } from 'antd';
+import { Button, Card, Form, Input, DatePicker, Modal, List, message, Tag, Typography, Row, Col, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { candidateAPI } from '@/services/candidateService';
 import dayjs from 'dayjs';
@@ -20,6 +20,7 @@ const WorkExperienceSection: React.FC<WorkExperienceSectionProps> = ({ userId, d
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | number | null>(null);
     const [form] = Form.useForm();
+    const { modal } = App.useApp();
 
     // Fetch experiences
     const fetchExperiences = async () => {
@@ -65,7 +66,7 @@ const WorkExperienceSection: React.FC<WorkExperienceSectionProps> = ({ userId, d
     };
 
     const handleDelete = async (id: string | number) => {
-        Modal.confirm({
+        modal.confirm({
             title: '确认删除',
             content: '确定要删除这条工作经历吗？',
             onOk: async () => {
@@ -113,9 +114,9 @@ const WorkExperienceSection: React.FC<WorkExperienceSectionProps> = ({ userId, d
             <div className="flex justify-between items-center mb-8 pl-4 border-l-4 border-brand-500 transition-all">
                 <Title level={4} style={{ margin: 0 }} className="dark:text-white !font-bold !text-xl tracking-tight">工作/实习经历</Title>
                 <div className="opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <Button 
-                        type="link" 
-                        icon={<PlusOutlined />} 
+                    <Button
+                        type="link"
+                        icon={<PlusOutlined />}
                         onClick={handleAdd}
                         className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-bold flex items-center gap-1"
                     >
@@ -155,7 +156,7 @@ const WorkExperienceSection: React.FC<WorkExperienceSectionProps> = ({ userId, d
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 {item.tags && (
                                     <div className="flex flex-wrap gap-2 mt-4">
                                         {item.tags.split(',').map((tag: string, index: number) => (
@@ -165,23 +166,23 @@ const WorkExperienceSection: React.FC<WorkExperienceSectionProps> = ({ userId, d
                                         ))}
                                     </div>
                                 )}
-                                
+
                                 <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl text-slate-600 dark:text-slate-400 text-sm leading-relaxed border-l-2 border-brand-200 dark:border-brand-500/30 whitespace-pre-wrap">
                                     <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">工作内容</div>
                                     {item.description}
                                 </div>
                             </div>
                             <div className="flex gap-1 ml-4 transition-all duration-300 opacity-0 group-hover/item:opacity-100">
-                                <Button 
-                                    type="text" 
-                                    icon={<EditOutlined className="text-brand-600 dark:text-brand-400" />} 
+                                <Button
+                                    type="text"
+                                    icon={<EditOutlined className="text-brand-600 dark:text-brand-400" />}
                                     onClick={() => handleEdit(item)}
                                     className="hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl"
                                 />
-                                <Button 
-                                    type="text" 
-                                    danger 
-                                    icon={<DeleteOutlined />} 
+                                <Button
+                                    type="text"
+                                    danger
+                                    icon={<DeleteOutlined />}
                                     onClick={() => handleDelete(item.id)}
                                     className="hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl"
                                 />
@@ -259,7 +260,8 @@ const WorkExperienceSection: React.FC<WorkExperienceSectionProps> = ({ userId, d
                     </Form.Item>
                 </Form>
             </Modal>
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .profile-form .ant-form-item-label label {
                     font-size: 11px;
                     font-weight: 900;

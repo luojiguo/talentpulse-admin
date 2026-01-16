@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Card, Form, Input, DatePicker, Select, message, Upload, Avatar, Typography, Row, Col, Modal } from 'antd';
+import { Button, Card, Form, Input, DatePicker, Select, message, Upload, Avatar, Typography, Row, Col, Modal, App } from 'antd';
 import { EditOutlined, UserOutlined, UploadOutlined } from '@ant-design/icons';
 import { userAPI, candidateAPI } from '@/services/apiService';
 import dayjs from 'dayjs';
@@ -26,6 +26,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
     const [isEditing, setIsEditing] = useState(false);
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
+    const { modal } = App.useApp();
 
     // Initialize form values
     const initValues = () => {
@@ -51,7 +52,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
     };
 
     const handleCancel = () => {
-        Modal.confirm({
+        modal.confirm({
             title: '确认取消',
             content: '您确定要取消编辑吗？未保存的内容将丢失。',
             okText: '确定',
@@ -154,8 +155,19 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
      */
     const getStatusLabel = (val: string) => {
         if (!val) return '未填写';
-        const found = STATUS_OPTIONS.find(o => o.value === val);
+
+        // Handle standard English enums
+        const normalize = (v: string) => v.toUpperCase();
+        const upperVal = normalize(val);
+
+        if (upperVal === 'AVAILABLE' || upperVal === 'ACTIVE') return '离校-随时到岗';
+        if (upperVal === 'INACTIVE' || upperVal === 'NOT_LOOKING') return '在职-暂不考虑';
+        if (upperVal === 'OPEN' || upperVal === 'OBSERVING' || upperVal === 'OPEN_TO_OPPORTUNITIES') return '在职-看机会';
+        if (upperVal === 'INTERN' || upperVal === 'INTERNSHIP') return '在校-寻找实习';
+
+        const found = STATUS_OPTIONS.find(o => normalize(o.value) === normalize(val));
         if (found) return found.label;
+
         // If not found in values, maybe it is the label itself?
         const foundByLabel = STATUS_OPTIONS.find(o => o.label === val);
         return foundByLabel ? foundByLabel.label : val;
@@ -206,6 +218,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                     src={user.avatar}
                                     name={user.name}
                                     className="relative mb-2 group-hover:opacity-70 transition-all border-4 border-white dark:border-slate-800 shadow-2xl"
+                                    style={{ color: '#007AFF', backgroundColor: '#EFF6FF' }}
                                 />
                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-brand-900/40 rounded-full h-[120px] w-[120px] mx-auto text-white text-[10px] font-black uppercase tracking-widest">
                                     更换头像
@@ -220,6 +233,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                 src={user.avatar}
                                 name={user.name}
                                 className="relative mb-2 border-4 border-white dark:border-slate-800 shadow-2xl"
+                                style={{ color: '#007AFF', backgroundColor: '#EFF6FF' }}
                             />
                         </div>
                     )}
@@ -236,7 +250,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                                 </Col>
                                 <Col span={12}>
                                     <Form.Item name="availability_status" label="当前求职状态" rules={[{ required: true, message: '请选择求职状态' }]}>
-                                        <Select placeholder="请选择求职状态" className="rounded-2xl h-12" popupClassName="dark:bg-slate-800">
+                                        <Select placeholder="请选择求职状态" className="rounded-2xl h-12" classNames={{ popup: { root: 'dark:bg-slate-800' } }}>
                                             {STATUS_OPTIONS.map(opt => (
                                                 <Option key={opt.value} value={opt.value}>{opt.label}</Option>
                                             ))}
@@ -247,7 +261,7 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                             <Row gutter={24}>
                                 <Col span={12}>
                                     <Form.Item name="gender" label="性别" rules={[{ required: true, message: '请选择性别' }]}>
-                                        <Select placeholder="请选择性别" className="rounded-2xl h-12" popupClassName="dark:bg-slate-800">
+                                        <Select placeholder="请选择性别" className="rounded-2xl h-12" classNames={{ popup: { root: 'dark:bg-slate-800' } }}>
                                             <Option value="男">男</Option>
                                             <Option value="女">女</Option>
                                             <Option value="其他">其他</Option>
@@ -395,7 +409,8 @@ const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({ user, onUpdat
                     background-color: #1e293b !important;
                 }
             ` }} />
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .profile-form .ant-form-item-label label {
                     font-size: 11px;
                     font-weight: 900;

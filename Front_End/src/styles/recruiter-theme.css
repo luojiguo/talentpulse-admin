@@ -392,12 +392,17 @@
 }
 
 /* 深色模式滚动条 */
-:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #475569;
-  /* slate-600 */
-}
-
 :root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
   /* slate-500 */
+}
+
+/* ========================================
+   Ant Design 全局样式覆盖
+   ======================================== */
+
+/*强制重写 Ant Design 全局消息提示图标颜色为品牌蓝 */
+.ant-message .anticon-check-circle,
+.ant-message-success .anticon {
+  color: #007AFF !important;
 }

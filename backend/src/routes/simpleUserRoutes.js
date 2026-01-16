@@ -2,14 +2,13 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../config/db');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 // 登录路由 - 支持 /api/login 和 /api/users/login 路径
 router.post(['/login', '/users/login'], async (req, res) => {
   try {
     const { identifier, password, userType } = req.body;
-    console.log('登录请求参数:', { identifier, userType });
+    // console.log('登录请求参数:', { identifier, userType });
 
     // 简化登录逻辑 - 直接返回模拟数据
     // 绕过数据库连接，确保登录功能正常工作
@@ -44,37 +43,8 @@ router.post(['/login', '/users/login'], async (req, res) => {
       token: token
     });
   } catch (error) {
-    console.error('登录错误:', error);
-    // 返回模拟登录成功响应 - 当发生其他错误时使用
-    const { identifier, userType } = req.body;
-    const mockUserData = {
-      id: '1',
-      name: '测试用户',
-      email: identifier,
-      phone: '13800138000',
-      avatar: '',
-      roles: [userType],
-      role: userType
-    };
-
-    const tokenPayload = {
-      id: mockUserData.id,
-      email: mockUserData.email,
-      name: mockUserData.name,
-      roles: mockUserData.roles,
-      currentRole: userType
-    };
-
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET || 'your_jwt_secret_key', {
-      expiresIn: process.env.JWT_EXPIRES_IN || '24h'
-    });
-
-    res.json({
-      status: 'success',
-      message: '登录成功',
-      data: mockUserData,
-      token: token
-    });
+    // console.error('登录错误:', error);
+    res.status(500).json({ status: 'error', message: '登录处理失败' });
   }
 });
 

@@ -6,7 +6,7 @@ import { userAPI, companyAPI } from '@/services/apiService';
 import { MessageAlert } from './CommonComponents';
 import { InputField } from './CommonComponents';
 import { generateCompanyDescription } from '@/services/aiService';
-import { Modal, message } from 'antd';
+import { Modal, message, App } from 'antd';
 import { processAvatarUrl } from '@/components/AvatarUploadComponent';
 import UserAvatar from '@/components/UserAvatar';
 
@@ -22,6 +22,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
     onSwitchRole, profile, setProfile, fetchRecruiterProfile
 }) => {
     const [alertMessage, setAlertMessage] = useState('');
+    const { modal } = App.useApp();
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -221,20 +222,22 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
 
             if (response.status === 'success') {
                 // 保存成功后，重新获取最新的个人信息，确保页面显示的是最新数据
-                const latestRecruiterProfile = await fetchRecruiterProfile();
-
-                setAlertMessage('个人及公司信息已成功更新！');
-                setTimeout(() => setAlertMessage(''), 3000);
+                await fetchRecruiterProfile();
+                message.success('个人及公司信息已成功更新！');
             } else {
-                setAlertMessage('个人及公司信息更新失败：' + response.message);
-                setTimeout(() => setAlertMessage(''), 3000);
+                message.error('个人及公司信息更新失败：' + response.message);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('个人及公司信息更新错误:', error);
-            setAlertMessage('个人及公司信息更新失败，请稍后重试！');
-            setTimeout(() => setAlertMessage(''), 3000);
+            message.error(error.message || '个人及公司信息更新失败，请稍后重试！');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        if (e.key === 'Enter') {
+            handleSave();
         }
     };
 
@@ -504,6 +507,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 onChange={(e: any) => setProfile({ ...profile, name: e.target.value })}
                                 placeholder={getFieldPlaceholder('name', '')}
                                 disabled={loading}
+                                onKeyDown={handleKeyDown}
                             />
                             <InputField
                                 label="职位"
@@ -511,6 +515,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 onChange={(e: any) => setProfile({ ...profile, position: e.target.value })}
                                 placeholder="请输入职位"
                                 disabled={loading}
+                                onKeyDown={handleKeyDown}
                             />
                             <InputField
                                 label="联系邮箱"
@@ -518,6 +523,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 onChange={(e: any) => setProfile({ ...profile, email: e.target.value })}
                                 placeholder={getFieldPlaceholder('email', '')}
                                 disabled={loading}
+                                onKeyDown={handleKeyDown}
                             />
                             <InputField
                                 label="联系电话"
@@ -525,6 +531,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 onChange={(e: any) => setProfile({ ...profile, phone: e.target.value })}
                                 placeholder={getFieldPlaceholder('phone', '')}
                                 disabled={loading}
+                                onKeyDown={handleKeyDown}
                             />
                             <InputField
                                 label="微信号"
@@ -532,6 +539,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                                 onChange={(e: any) => setProfile({ ...profile, wechat: e.target.value })}
                                 placeholder="请输入微信号，方便与候选人沟通"
                                 disabled={loading}
+                                onKeyDown={handleKeyDown}
                             />
                         </div>
                     </div>
@@ -958,7 +966,7 @@ const RecruiterProfileScreen: React.FC<RecruiterProfileScreenProps> = ({
                         <div className="flex flex-col md:flex-row gap-4">
                             <button
                                 onClick={() => {
-                                    Modal.confirm({
+                                    modal.confirm({
                                         title: '确认注销账号',
                                         content: (
                                             <div>

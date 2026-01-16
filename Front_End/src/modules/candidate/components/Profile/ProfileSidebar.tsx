@@ -72,7 +72,7 @@ const ProfileSidebar: React.FC<ProfileSidebarProps> = ({ activeSection, onSectio
                             onClick={() => onSectionChange(item.key)}
                             className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-500 group relative
                                 ${isActive
-                                    ? 'bg-brand-50/80 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 font-black shadow-lg shadow-brand-500/5'
+                                    ? 'bg-brand-50/80 dark:bg-brand-900/30 text-brand-600 dark:text-white font-black shadow-lg shadow-brand-500/5 dark:shadow-none'
                                     : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
                                 }`}
                         >

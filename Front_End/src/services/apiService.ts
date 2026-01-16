@@ -3,7 +3,7 @@
  * 将各个模块的API统一导出，方便组件调用
  */
 import axios from 'axios';
-import { message } from 'antd';
+import { getGlobalMessage } from '@/utils/messageInstance';
 
 // 创建 axios 实例
 const api = axios.create({
@@ -67,7 +67,7 @@ api.interceptors.response.use(
       // 计算重试延迟（指数退避）
       const delay = Math.pow(2, config.retry) * retryDelay + Math.random() * 500;
 
-      console.log(`请求失败，${delay}ms后重试 (${config.retry}/${maxRetries})`, error.message);
+      // console.log(`请求失败，${delay}ms后重试 (${config.retry}/${maxRetries})`, error.message);
 
       // 延迟后重试请求
       return new Promise((resolve) => {
@@ -79,7 +79,7 @@ api.interceptors.response.use(
 
     // 网络错误或无响应
     if (!response) {
-      message.error('网络连接失败，请检查网络设置');
+      getGlobalMessage().error('网络连接失败，请检查网络设置');
       return Promise.reject(error);
     }
 
@@ -91,32 +91,32 @@ api.interceptors.response.use(
         // 未授权，清除 token 并跳转登录 (如果不在登录页)
         // 登录页的401错误由登录组件自己处理，不显示通用提示
         if (!window.location.pathname.includes('/login')) {
-          message.error('登录失效，请重新登录');
+          getGlobalMessage().error('登录失效，请重新登录');
           localStorage.removeItem('token');
           window.location.href = '/login';
         }
         break;
       case 403:
-        message.error('没有权限执行此操作');
+        getGlobalMessage().error('没有权限执行此操作');
         break;
       case 404:
         // 404错误通常由具体业务处理，这里只做通用提示或忽略
-        // message.error('请求的资源不存在'); 
+        // getGlobalMessage().error('请求的资源不存在'); 
         break;
       case 500:
-        message.error('服务器内部错误，请稍后重试');
+        getGlobalMessage().error('服务器内部错误，请稍后重试');
         break;
       case 503:
-        message.error('服务器暂时不可用，请稍后重试');
+        getGlobalMessage().error('服务器暂时不可用，请稍后重试');
         break;
       case 504:
-        message.error('请求超时，请稍后重试');
+        getGlobalMessage().error('请求超时，请稍后重试');
         break;
       default:
         // 只有当有明确的错误信息时才提示，避免干扰
         // 登录页的错误由登录组件自己处理
         if (errorMessage && !window.location.pathname.includes('/login')) {
-          message.error(errorMessage);
+          getGlobalMessage().error(errorMessage);
         }
     }
 

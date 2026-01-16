@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { message, Modal } from 'antd';
+import { message, Modal, App } from 'antd';
 import {
     CheckCircle, XCircle, Clock, Building2, User, FileText,
     ExternalLink, Loader2, Eye
@@ -38,6 +38,7 @@ export const CertificationReviewsView: React.FC = () => {
     const [rejectModalOpen, setRejectModalOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
     const [rejectReason, setRejectReason] = useState('');
+    const { modal } = App.useApp();
 
     const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -60,7 +61,7 @@ export const CertificationReviewsView: React.FC = () => {
     };
 
     const handleApprove = (userId: string) => {
-        Modal.confirm({
+        modal.confirm({
             title: '确认批准',
             content: '确认批准该企业的认证申请吗?',
             okText: '确认',

@@ -20,7 +20,7 @@ function fixFilenameEncoding(filename) {
         // 直接返回原始文件名，因为在中间件中已经处理了编码
         return filename;
     } catch (err) {
-        console.warn('Filename encoding fix failed, using original:', filename, err);
+        // console.warn('修复文件名编码失败，使用原始文件名:', filename, err);
         return filename;
     }
 }
@@ -400,9 +400,9 @@ console.log('resumesRootDir exists:', fs.existsSync(resumesRootDir));
 
 // 确保根目录存在
 if (!fs.existsSync(resumesRootDir)) {
-    console.log('创建根目录:', resumesRootDir);
+    // console.log('创建根目录:', resumesRootDir);
     fs.mkdirSync(resumesRootDir, { recursive: true });
-    console.log('根目录创建成功:', fs.existsSync(resumesRootDir));
+    // console.log('根目录创建成功:', fs.existsSync(resumesRootDir));
 }
 
 // 配置multer存储 - 先临时存储，后续重命名
@@ -425,23 +425,23 @@ const storage = multer.diskStorage({
 // 修复中文文件名乱码的中间件
 const fixChineseFilenameMiddleware = (req, res, next) => {
     if (req.file) {
-        console.log('=== 原始文件名中间件 ===');
-        console.log('原始文件名:', req.file.originalname);
+        // console.log('=== 原始文件名中间件 ===');
+        // console.log('原始文件名:', req.file.originalname);
 
         // 修复原始文件名的中文编码
         // 使用iconv-lite直接解码，处理multer可能的编码问题
         try {
             // 尝试将文件名从binary转换为utf-8
             req.file.originalname = iconv.decode(Buffer.from(req.file.originalname, 'binary'), 'utf-8');
-            console.log('修复后文件名(utf-8):', req.file.originalname);
+
         } catch (err) {
-            console.warn('UTF-8解码失败，尝试GBK:', err);
+            // console.warn('UTF-8解码失败，尝试GBK:', err);
             try {
                 // 如果utf-8失败，尝试GBK
                 req.file.originalname = iconv.decode(Buffer.from(req.file.originalname, 'binary'), 'gbk');
-                console.log('修复后文件名(gbk):', req.file.originalname);
+                // console.log('修复后文件名(gbk):', req.file.originalname);
             } catch (gbkErr) {
-                console.warn('GBK解码失败，使用原始文件名:', gbkErr);
+                // console.warn('GBK解码失败，使用原始文件名:', gbkErr);
             }
         }
     }
@@ -601,10 +601,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             'SELECT id, name, email FROM users WHERE id = $1',
             [user_id]
         );
-        fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] User lookup result: ${JSON.stringify(userResult.rows)}\n`);
 
-        console.log('查询结果:', userResult);
-        console.log('结果行数:', userResult.rows.length);
 
         if (userResult.rows.length === 0) {
             const error = new Error('用户不存在');
@@ -614,22 +611,8 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
 
         // 获取用户行数据
         const userRow = userResult.rows[0];
-        console.log('用户行数据:', userRow);
-        console.log('name字段:', userRow.name);
-        console.log('name字段类型:', typeof userRow.name);
-        console.log('name字段长度:', userRow.name ? userRow.name.length : 0);
-
         // 获取用户名，确保它是字符串类型
         const userName = String(userRow.name || '');
-
-        // 调试日志：输出文件上传的基本信息
-        console.log('=== 简历上传调试信息 ===');
-        console.log('原始文件信息:', req.file);
-        console.log('用户ID:', user_id);
-        console.log('用户名 (原始):', userName);
-        console.log('用户名 (类型):', typeof userName);
-        console.log('用户名 (长度):', userName.length);
-        console.log('resumesRootDir:', resumesRootDir);
 
         // 修复用户名，确保不包含特殊字符，支持中文
         const cleanUserName = userName.trim() || '未知用户';
@@ -654,22 +637,22 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
 
         const userFolderPath = path.join(resumesRootDir, userFolderName);
 
-        console.log('=== 文件夹创建逻辑 ===');
-        console.log('用户文件夹名称:', userFolderName);
-        console.log('用户文件夹路径:', userFolderPath);
+        // console.log('=== 文件夹创建逻辑 ===');
+        // console.log('用户文件夹名称:', userFolderName);
+        // console.log('用户文件夹路径:', userFolderPath);
 
         // 确保用户文件夹存在
         if (!fs.existsSync(userFolderPath)) {
-            console.log('文件夹不存在，开始创建...');
+            // console.log('文件夹不存在，开始创建...');
             try {
                 fs.mkdirSync(userFolderPath, { recursive: true });
-                console.log('文件夹创建成功:', userFolderPath);
+                // console.log('文件夹创建成功:', userFolderPath);
             } catch (error) {
-                console.error('文件夹创建失败:', error);
+                // console.error('文件夹创建失败:', error);
                 throw new Error('创建用户文件夹失败: ' + error.message);
             }
         } else {
-            console.log('文件夹已存在:', userFolderPath);
+            // console.log('文件夹已存在:', userFolderPath);
         }
 
         const extname = path.extname(req.file.originalname);
@@ -684,31 +667,31 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
         const newFilename = `${safeOriginalName}_${timestamp}${extname}`;
         const newFilePath = path.join(userFolderPath, newFilename);
 
-        console.log('=== 文件保存逻辑 ===');
-        console.log('源文件路径:', req.file.path);
-        console.log('目标文件路径:', newFilePath);
+        // console.log('=== 文件保存逻辑 ===');
+        // console.log('源文件路径:', req.file.path);
+        // console.log('目标文件路径:', newFilePath);
 
         // 检查源文件是否存在
         if (!fs.existsSync(req.file.path)) {
-            console.error('源文件不存在:', req.file.path);
+            // console.error('源文件不存在:', req.file.path);
             throw new Error('源文件不存在');
         } else {
-            console.log('源文件存在，准备保存...');
+            // console.log('源文件存在，准备保存...');
 
             try {
                 // 使用fs.renameSync进行文件重命名，Node.js v14+已经支持中文路径
                 fs.renameSync(req.file.path, newFilePath);
-                console.log('文件保存成功');
+                // console.log('文件保存成功');
 
                 // 检查目标文件是否存在
                 if (fs.existsSync(newFilePath)) {
-                    console.log('目标文件已存在:', newFilePath);
+                    // console.log('目标文件已存在:', newFilePath);
                 } else {
-                    console.error('目标文件不存在，保存失败');
+                    // console.error('目标文件不存在，保存失败');
                     throw new Error('保存文件失败: 目标文件不存在');
                 }
             } catch (error) {
-                console.error('文件保存失败:', error);
+                // console.error('文件保存失败:', error);
                 throw new Error('保存文件失败: ' + error.message);
             }
         }
@@ -730,7 +713,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             );
             candidateId = newCandidate.rows[0].id;
         }
-        fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] Candidate ID: ${candidateId}\n`);
+        // fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] Candidate ID: ${candidateId}\n`);
 
         // 4. 解析PDF文件内容（如果是PDF文件）
         let parsedContent = null;
@@ -749,7 +732,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
                 // 智能解析结构化信息
                 parsedData = parseResumeContent(parsedContent);
             } catch (parseError) {
-                console.error('PDF解析失败:', parseError);
+                // console.error('PDF解析失败:', parseError);
                 // 解析失败不影响上传，继续执行
             }
         }
@@ -779,7 +762,7 @@ router.post('/upload', upload.single('resume'), fixChineseFilenameMiddleware, as
             }
         });
     } catch (error) {
-        fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] Upload ERROR: ${error.stack}\n`);
+        // fs.appendFileSync('upload_debug.log', `[${new Date().toISOString()}] Upload ERROR: ${error.stack}\n`);
         // 删除已上传的文件
         if (req.file) {
             try {
@@ -820,7 +803,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
             try {
                 fs.unlinkSync(fullPath);
             } catch (e) {
-                console.error('删除简历文件失败:', e);
+                // console.error('删除简历文件失败:', e);
             }
         }
     }
@@ -862,11 +845,11 @@ router.get('/file/:id', asyncHandler(async (req, res) => {
         if (resume.resume_file_url) {
             // 替换 /User_Resume/ 前缀，得到相对路径
             const relativePath = resume.resume_file_url.replace('/User_Resume/', '');
-            console.log('相对路径:', relativePath);
+            // console.log('相对路径:', relativePath);
 
             // 构建完整文件路径
             filePath = path.join(resumesRootDir, relativePath);
-            console.log('完整文件路径:', filePath);
+            // console.log('完整文件路径:', filePath);
         } else {
             throw new Error('简历文件URL不存在');
         }
@@ -912,12 +895,12 @@ router.get('/file/:id', asyncHandler(async (req, res) => {
             res.download(filePath, safeFilename);
         }
 
-        console.log('=== 简历文件下载请求结束 ===');
+        // console.log('=== 简历文件下载请求结束 ===');
     } catch (error) {
-        console.error('=== 简历文件下载错误 ===');
-        console.error('错误类型:', error.name);
-        console.error('错误信息:', error.message);
-        console.error('错误堆栈:', error.stack);
+        // console.error('=== 简历文件下载错误 ===');
+        // console.error('错误类型:', error.name);
+        // console.error('错误信息:', error.message);
+        // console.error('错误堆栈:', error.stack);
         throw error;
     }
 }));

@@ -5,10 +5,10 @@ const { asyncHandler } = require('../middleware/errorHandler');
 
 const { authenticate } = require('../middleware/auth');
 
-// Apply authentication to all routes
+// 对所有路由应用身份验证
 router.use(authenticate);
 
-// ------------------- Create Onboarding Record -------------------
+// ------------------- 创建入职记录 -------------------
 router.post('/', asyncHandler(async (req, res) => {
     const {
         candidateId,
@@ -28,15 +28,15 @@ router.post('/', asyncHandler(async (req, res) => {
         probationPeriod
     } = req.body;
 
-    // Basic validation
+    // 基础验证
     if (!candidateId || !recruiterId || !jobId || !startDate) {
         return res.status(400).json({
             status: 'error',
-            message: 'candidateId, recruiterId, jobId, and startDate are required fields',
+            message: '候选人ID、招聘者ID、职位ID和入职日期为必填项',
         });
     }
 
-    // Resolve recruiter_id (in case user_id given)
+    // 解析招聘者ID（如果提供的是用户ID）
     const recruiterResult = await query(
         'SELECT id FROM recruiters WHERE id = $1 OR user_id = $1',
         [recruiterId]
@@ -45,7 +45,7 @@ router.post('/', asyncHandler(async (req, res) => {
     if (recruiterResult.rows.length === 0) {
         return res.status(404).json({
             status: 'error',
-            message: 'Recruiter not found',
+            message: '未找到招聘者',
         });
     }
     const realRecruiterId = recruiterResult.rows[0].id;
@@ -59,7 +59,7 @@ router.post('/', asyncHandler(async (req, res) => {
      RETURNING *`,
         [
             candidateId,
-            realRecruiterId, // Use resolved ID
+            realRecruiterId, // 使用解析后的ID
             jobId,
             startDate,
             endDate,
@@ -79,19 +79,17 @@ router.post('/', asyncHandler(async (req, res) => {
     res.json({ status: 'success', data: result.rows[0] });
 }));
 
-// ------------------- Get Onboarding List (with filters) -------------------
+// ------------------- 获取入职列表（带筛选） -------------------
 router.get('/', asyncHandler(async (req, res) => {
     const { candidateId, recruiterId, jobId, status } = req.query;
     const conditions = [];
     const params = [];
 
-    // Always filter out soft-deleted or cancelled? Maybe not for recruiter view.
-    // Always filter out soft-deleted or cancelled? Maybe not for recruiter view.
-    // conditions.push(`status != 'Cancelled'`);
+    // 是否总是过滤掉软删除或取消的记录？对于招聘者视图可能不需要。
 
     if (candidateId) { params.push(candidateId); conditions.push(`o.candidate_id = $${params.length}`); }
 
-    // Resolve recruiter_id from user_id if provided
+    // 如果提供了用户ID，则解析招聘者ID
     if (recruiterId) {
         const recruiterResult = await query(
             'SELECT id FROM recruiters WHERE id = $1 OR user_id = $1',
@@ -102,8 +100,8 @@ router.get('/', asyncHandler(async (req, res) => {
             params.push(realRecruiterId);
             conditions.push(`o.recruiter_id = $${params.length}`);
         } else {
-            // Provided recruiterId not found, likely return empty or ignore (return empty safe)
-            params.push(-1); // Impossible ID
+            // 提供的招聘者ID未找到，可能返回空或忽略（返回空更安全）
+            params.push(-1); // 不可能的ID
             conditions.push(`o.recruiter_id = $${params.length}`);
         }
     }
@@ -114,7 +112,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // Join tables to get names
+    // 关联表以获取名称
     const sql = `
     SELECT 
         o.*,
@@ -139,7 +137,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
     const result = await query(sql, params);
 
-    // Format for frontend
+    // 格式化为前端所需格式
     const formattedData = result.rows.map(row => ({
         id: row.id,
         candidateId: row.candidate_id,
@@ -170,13 +168,13 @@ router.get('/', asyncHandler(async (req, res) => {
     res.json({ status: 'success', data: formattedData });
 }));
 
-// ------------------- Update Onboarding Record -------------------
+// ------------------- 更新入职记录 -------------------
 router.put('/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
-    // Allow updating any field passed in body
-    // Mapping frontend camelCase to snake_case
+    // 允许更新请求体中传递的任何字段
+    // 将前端的小驼峰命名映射为下划线命名
     const fieldMapping = {
         startDate: 'start_date',
         endDate: 'end_date',
@@ -203,10 +201,10 @@ router.put('/:id', asyncHandler(async (req, res) => {
     });
 
     if (!fields.length) {
-        return res.status(400).json({ status: 'error', message: 'No valid fields to update' });
+        return res.status(400).json({ status: 'error', message: '没有有效的更新字段' });
     }
 
-    values.push(id); // ID is the last param
+    values.push(id); // ID 是最后一个参数
     const result = await query(
         `UPDATE onboardings SET ${fields.join(', ')}
      WHERE id = $${values.length}
@@ -217,24 +215,24 @@ router.put('/:id', asyncHandler(async (req, res) => {
     res.json({ status: 'success', data: result.rows[0] });
 }));
 
-// ------------------- Delete (Soft Delete / Cancel) -------------------
+// ------------------- 删除（软删除/取消） -------------------
 router.delete('/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
-    // Soft delete: change status to Cancelled or delete if preferred.
-    // Let's implement actual delete for now as per user request to "manage" data
-    // or simple soft delete via status
+    // 软删除：将状态更改为已取消或根据需要删除。
+    // 根据用户“管理”数据的请求，目前实现实际删除
+    // 或通过状态进行简单的软删除
 
     const result = await query(
         `DELETE FROM onboardings WHERE id = $1 RETURNING *`,
         [id]
     );
-    console.log('[DEBUG] DELETE /onboardings/:id affected rows:', result.rowCount);
+    // console.log('[DEBUG] DELETE /onboardings/:id affected rows:', result.rowCount);
 
     if (result.rowCount === 0) {
-        return res.status(404).json({ status: 'error', message: 'Record not found' });
+        return res.status(404).json({ status: 'error', message: '记录未找到' });
     }
 
-    res.json({ status: 'success', message: 'Record deleted' });
+    res.json({ status: 'success', message: '记录已删除' });
 }));
 
 module.exports = router;

@@ -7,8 +7,15 @@ const router = express.Router();
 // 获取系统日志
 router.get('/logs', asyncHandler(async (req, res) => {
   try {
+    // 获取查询参数
+    // limit: 每页数量, offset: 分页偏移量
+    // logType: 日志类型筛选
+    // startDate/endDate: 时间范围筛选
+    // search: 搜索关键词 (操作、描述、用户ID、用户名、邮箱)
     const { limit = 5, offset = 0, logType, startDate, endDate, search } = req.query;
 
+    // 构建基础查询语句
+    // 关联 users 表以获取操作人的详细信息
     let baseQuery = `
       FROM system_logs sl
       LEFT JOIN users u ON sl.user_id = u.id
@@ -16,6 +23,7 @@ router.get('/logs', asyncHandler(async (req, res) => {
     `;
     const queryParams = [];
 
+    // 动态构建查询条件
     if (logType && logType !== 'all') {
       baseQuery += ` AND sl.log_type = $${queryParams.length + 1}`;
       queryParams.push(logType);
@@ -31,6 +39,7 @@ router.get('/logs', asyncHandler(async (req, res) => {
       queryParams.push(endDate);
     }
 
+    // 搜索条件：支持多字段模糊搜索
     if (search) {
       baseQuery += ` AND (
         sl.action ILIKE $${queryParams.length + 1} OR 

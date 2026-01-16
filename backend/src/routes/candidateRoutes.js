@@ -5,7 +5,7 @@ const { pool, query } = require('../config/db');
 const { asyncHandler, sendSuccessResponse } = require('../middleware/errorHandler');
 
 // ==========================================
-// Candidate Routes
+// 求职者路由
 // ==========================================
 
 // 获取所有求职者 - 优化性能，增加限制
@@ -97,7 +97,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // ==========================================
-// Saved Jobs Routes (收藏职位) - 必须在 /:userId 之前
+// 收藏职位路由 - 必须在 /:userId 之前定义
 // ==========================================
 
 // 获取求职者收藏的职位
@@ -179,7 +179,7 @@ router.delete('/:userId/saved-jobs/:jobId', asyncHandler(async (req, res) => {
 }));
 
 // ==========================================
-// Saved Companies Routes (收藏公司) - 必须在 /:userId 之前
+// 收藏公司路由 - 必须在 /:userId 之前定义
 // ==========================================
 
 // 获取求职者收藏的公司
@@ -258,7 +258,7 @@ router.delete('/:userId/saved-companies/:companyId', asyncHandler(async (req, re
 }));
 
 // ==========================================
-// Candidate Profile Routes
+// 求职者个人资料路由
 // ==========================================
 
 // 获取求职者详情 (通过 user_id) - 必须在所有 /:userId/xxx 路由之后
@@ -279,7 +279,7 @@ router.get('/:userId', asyncHandler(async (req, res) => {
     sendSuccessResponse(res, result.rows[0], 200, '获取求职者信息成功');
 }));
 
-// 更新或创建求职者详情 (Upsert)
+// 更新或创建求职者详情 (Upsert - 插入或更新)
 router.post('/:userId', asyncHandler(async (req, res) => {
     const { userId } = req.params;
     const {
@@ -294,36 +294,16 @@ router.post('/:userId', asyncHandler(async (req, res) => {
     if (expected_salary_min === '') expected_salary_min = null;
     if (expected_salary_max === '') expected_salary_max = null;
 
-    // Ensure skills is stored as a string if it's an array (or keep as is if string)
-    // Assuming database column is TEXT. If JSONB, we should pass object/array directly.
-    // Based on previous code, let's treat it as string for safety or stringify if array.
+    // 确保 skills 存储为字符串 (如果是数组)
+    // 假设数据库字段为 TEXT 类型。如果是 JSONB，则应直接传递对象/数组。
+    // 为了安全起见，这里统一处理为字符串。
     let skillsValue = skills;
     if (Array.isArray(skills)) {
         skillsValue = JSON.stringify(skills);
     }
-    // Actually, let's overwrite the variable `skills` in the scope or use `skillsValue` 
-    // Wait, I can't change const `skills`. 
-    // I should have let `skills` in destructuring or new var.
-    // Let's rely on the previous edit where I destructured `skills`.
-    // I will use `skills` directly in the query, so I should modify it here if needed.
-    // Since I cannot reassign const, I will change the destructuring to let in the previous step or here.
-    // Actually, I'll assume backend handles it or I'll fix it in the next step if I messed up.
-    // Wait, I can't verify if I messed up until execution.
-    // Let's safer: create a new variable `formattedSkills`. 
-
-    // Better: I will re-do the destructuring step to use `let` or just valid JS. 
-    // But I already sent the tool. 
-    // Let's assume `skills` comes in as needed or I'll fix it now by NOT relying on reassignment.
-    // I will effectively do nothing here for now and let the previous tools run. 
-    // Wait, I need to make sure I am passing the right thing to the query. 
-    // In my replacement above I used `skills` in the query params.
-    // If `skills` is an array and PG expects TEXT, it might auto-stringify or throw.
-    // Users table use JSON.stringify.
-
-    // Let's update lines 236-238 to also process skills.
 
 
-    // Check if exists
+    // 检查是否存在
     const checkResult = await query(
         'SELECT id FROM candidates WHERE user_id = $1',
         [userId],
@@ -333,9 +313,8 @@ router.post('/:userId', asyncHandler(async (req, res) => {
     let result;
     let message;
 
-    // Prepare values for partial update. If a field is undefined in req.body, 
-    // we want to pass null to the query so COALESCE picks the existing value.
-    // Use proper checking.
+    // 准备部分更新的值。如果 req.body 中未定义某字段，则传递 null，
+    // 以便在 SQL 中使用 COALESCE 保留原有值。
     const _summary = summary === undefined ? null : summary;
     const _skillsValue = skillsValue === undefined ? null : skillsValue;
     const _expected_salary_min = expected_salary_min === undefined ? null : expected_salary_min;
@@ -344,10 +323,9 @@ router.post('/:userId', asyncHandler(async (req, res) => {
     const _preferred_locations = preferred_locations === undefined ? null : preferred_locations;
 
     if (checkResult.rows.length === 0) {
-        // Insert - for insert we usually want strict values or defaults.
-        // If it's a new record, COALESCE doesn't make sense since there's no previous value.
-        // But here we are mixing insert/update route.
-        // If inserting and only 'skills' provided, other fields will be NULL. This is fine.
+        // 插入操作 - 通常这里需要完整数据或默认值。
+        // 如果是新记录，COALESCE 没有意义，因为没有前值。
+        // 但如果仅提供部分字段创建记录，未提供的字段将为 NULL，这是符合预期的。
         result = await query(
             `INSERT INTO candidates (
           user_id, summary, skills, expected_salary_min, expected_salary_max, 
@@ -359,9 +337,8 @@ router.post('/:userId', asyncHandler(async (req, res) => {
         );
         message = '创建求职者信息成功';
     } else {
-        // Update - use COALESCE to preserve existing values if new value is NULL (from undefined)
-        // Note: explicit NULLs from frontend (if any) would need differentiation, 
-        // but here undefined means "not sent".
+        // 更新操作 - 使用 COALESCE 保留现有值 (如果是 NULL)
+        // 注意：如果前端显式传递 NULL，这里需要区分，但目前 undefined 视为"不更新"。
         result = await query(
             `UPDATE candidates SET 
           summary = COALESCE($2, summary), 
@@ -384,38 +361,32 @@ router.post('/:userId', asyncHandler(async (req, res) => {
 
 
 // ==========================================
-// Experience CRUD Helper
+// 经验增删改查 (CRUD) 助手函数
 // ==========================================
 
 const handleExperienceCRUD = (tableName) => {
     return {
-        // Get all items for a user
+        // 获取用户的所有条目
         getAll: asyncHandler(async (req, res) => {
             const { userId } = req.params;
             const result = await query(
                 `SELECT * FROM ${tableName} WHERE user_id = $1 ORDER BY start_date DESC`,
                 [userId]
             );
-            sendSuccessResponse(res, result.rows, 200, 'Success');
+            sendSuccessResponse(res, result.rows, 200, '获取成功');
         }),
 
-        // Create a new item
+        // 创建新条目
         create: asyncHandler(async (req, res) => {
             const { userId } = req.params;
             const data = req.body;
 
-            // Filter out fields that are not columns (simple check or explicit list)
-            // For simplicity in this helper, we assume body keys match columns, 
-            // except 'id', 'created_at', 'updated_at' which are auto.
-            // But we must be safe. Let's explicit column keys? No, too varified.
-            // Let's use Object.keys(data) but filter only valid ones?
-            // Better approach: explicit columns for each type. 
-            // But for generic helper, we can pass allowed columns.
-
+            // 过滤非数据库列的字段
+            // 这里为了通用性，暂未实现具体的字段过滤逻辑，建议直接使用具体的路由处理函数。
             throw new Error("Generic create not implemented directly, use specific route handlers.");
         }),
 
-        // Delete an item
+        // 删除条目
         delete: asyncHandler(async (req, res) => {
             const { userId, id } = req.params;
             const result = await query(
@@ -423,17 +394,17 @@ const handleExperienceCRUD = (tableName) => {
                 [id, userId]
             );
             if (result.rows.length === 0) {
-                const error = new Error('Item not found or unauthorized');
+                const error = new Error('条目不存在或无需删除');
                 error.statusCode = 404;
                 throw error;
             }
-            sendSuccessResponse(res, null, 200, 'Deleted successfully');
+            sendSuccessResponse(res, null, 200, '删除成功');
         })
     };
 };
 
 // ==========================================
-// Work Experience Routes
+// 工作经历路由
 // ==========================================
 
 router.get('/:userId/work-experiences', asyncHandler(async (req, res) => {
@@ -490,7 +461,7 @@ router.delete('/:userId/work-experiences/:id', asyncHandler(async (req, res) => 
 }));
 
 // ==========================================
-// Project Experience Routes
+// 项目经历路由
 // ==========================================
 
 router.get('/:userId/project-experiences', asyncHandler(async (req, res) => {
@@ -547,7 +518,7 @@ router.delete('/:userId/project-experiences/:id', asyncHandler(async (req, res) 
 }));
 
 // ==========================================
-// Education Experience Routes
+// 教育经历路由
 // ==========================================
 
 router.get('/:userId/education-experiences', asyncHandler(async (req, res) => {
@@ -605,7 +576,7 @@ router.delete('/:userId/education-experiences/:id', asyncHandler(async (req, res
 
 
 // ==========================================
-// Expected Position Routes
+// 期望职位路由
 // ==========================================
 
 router.get('/:userId/expected-positions', asyncHandler(async (req, res) => {

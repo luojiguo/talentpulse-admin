@@ -57,7 +57,7 @@ const EmailBindForm: React.FC<EmailBindFormProps> = ({ onBindSuccess }) => {
       }
       setError(errorMsg);
       message.error(errorMsg);
-      console.error('Send email bind code error:', err);
+      console.error('发送邮箱验证码失败:', err);
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +94,7 @@ const EmailBindForm: React.FC<EmailBindFormProps> = ({ onBindSuccess }) => {
       }
       setError(errorMsg);
       message.error(errorMsg);
-      console.error('Bind email error:', err);
+      console.error('绑定邮箱失败:', err);
     } finally {
       setIsLoading(false);
     }

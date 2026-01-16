@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     server: {
-      port: 3500,
+      port: 8100,
       host: 'localhost',
       proxy: {
         '/qianwen': {
@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (p) => p.replace(/^\/qianwen/, '')
         },
         '/api': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:8001',
           changeOrigin: true,
           rewrite: (p) => {
             // 处理重复的/api前缀问题
@@ -37,23 +37,23 @@ export default defineConfig(({ mode }) => {
           }
         },
         '/avatars': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:8001',
           changeOrigin: true
         },
         '/uploads': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:8001',
           changeOrigin: true
         },
         '/business_license': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:8001',
           changeOrigin: true
         },
         '/companies_logo': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:8001',
           changeOrigin: true
         },
         '/User_Resume': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:8001',
           changeOrigin: true
         }
       },

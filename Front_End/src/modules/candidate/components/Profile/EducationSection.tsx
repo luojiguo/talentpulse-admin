@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Form, Input, DatePicker, Modal, List, message, Typography, Select, Row, Col } from 'antd';
+import { Button, Card, Form, Input, DatePicker, Modal, List, message, Typography, Select, Row, Col, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { candidateAPI } from '@/services/candidateService';
 import dayjs from 'dayjs';
@@ -21,6 +21,7 @@ const EducationSection: React.FC<EducationSectionProps> = ({ userId, dictionarie
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | number | null>(null);
     const [form] = Form.useForm();
+    const { modal } = App.useApp();
 
     const fetchExperiences = async () => {
         try {
@@ -64,7 +65,7 @@ const EducationSection: React.FC<EducationSectionProps> = ({ userId, dictionarie
     };
 
     const handleDelete = async (id: string | number) => {
-        Modal.confirm({
+        modal.confirm({
             title: '确认删除',
             content: '确定要删除这条教育经历吗？',
             onOk: async () => {
@@ -111,9 +112,9 @@ const EducationSection: React.FC<EducationSectionProps> = ({ userId, dictionarie
             <div className="flex justify-between items-center mb-8 pl-4 border-l-4 border-brand-500 transition-all">
                 <Title level={4} style={{ margin: 0 }} className="dark:text-white !font-bold !text-xl tracking-tight">教育经历</Title>
                 <div className="opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <Button 
-                        type="link" 
-                        icon={<PlusOutlined />} 
+                    <Button
+                        type="link"
+                        icon={<PlusOutlined />}
                         onClick={handleAdd}
                         className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-bold flex items-center gap-1"
                     >
@@ -160,16 +161,16 @@ const EducationSection: React.FC<EducationSectionProps> = ({ userId, dictionarie
                                 )}
                             </div>
                             <div className="flex gap-1 ml-4 transition-all duration-300 opacity-0 group-hover/item:opacity-100">
-                                <Button 
-                                    type="text" 
-                                    icon={<EditOutlined className="text-brand-600 dark:text-brand-400" />} 
+                                <Button
+                                    type="text"
+                                    icon={<EditOutlined className="text-brand-600 dark:text-brand-400" />}
                                     onClick={() => handleEdit(item)}
                                     className="hover:bg-brand-50 dark:hover:bg-brand-500/10 rounded-xl"
                                 />
-                                <Button 
-                                    type="text" 
-                                    danger 
-                                    icon={<DeleteOutlined />} 
+                                <Button
+                                    type="text"
+                                    danger
+                                    icon={<DeleteOutlined />}
                                     onClick={() => handleDelete(item.id)}
                                     className="hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl"
                                 />
@@ -262,7 +263,8 @@ const EducationSection: React.FC<EducationSectionProps> = ({ userId, dictionarie
                     </Form.Item>
                 </Form>
             </Modal>
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .profile-form .ant-form-item-label label {
                     font-size: 11px;
                     font-weight: 900;

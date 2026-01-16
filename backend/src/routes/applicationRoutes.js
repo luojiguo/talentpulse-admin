@@ -9,6 +9,7 @@ const { SERVER_EVENTS } = require('../constants/socketEvents');
 // 获取特定候选人的所有申请
 router.get('/candidate/:candidateId', asyncHandler(async (req, res) => {
   const { candidateId } = req.params;
+  // 查询特定候选人的申请记录，关联职位、公司及用户信息
   const result = await query(`
       SELECT 
         a.id, 
@@ -40,7 +41,6 @@ router.get('/candidate/:candidateId', asyncHandler(async (req, res) => {
 // 获取特定职位的所有申请
 router.get('/job/:jobId', asyncHandler(async (req, res) => {
   const { jobId } = req.params;
-  console.log('[DEBUG] GET /applications/job/:jobId - jobId:', jobId);
 
   const result = await query(`
       SELECT 
@@ -64,8 +64,6 @@ router.get('/job/:jobId', asyncHandler(async (req, res) => {
       WHERE a.job_id = $1
       ORDER BY a.created_at DESC
     `, [jobId]);
-
-  console.log('[DEBUG] Applications query for job', jobId, 'returned', result.rows.length, 'rows');
 
   res.json({
     status: 'success',
@@ -105,6 +103,8 @@ router.get('/', asyncHandler(async (req, res) => {
       LEFT JOIN companies co ON j.company_id = co.id
     `;
 
+  // 动态构建查询条件
+
   const queryParams = [];
   if (status) {
     queryText += ` WHERE a.status = $1`;
@@ -114,6 +114,7 @@ router.get('/', asyncHandler(async (req, res) => {
   queryText += ` ORDER BY a.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
   queryParams.push(parseInt(limit), parseInt(offset));
 
+  // 执行分页查询，设置较高的超时时间 (10s) 以防数据量大
   const result = await query(queryText, queryParams, 10000);
 
   res.json({
@@ -147,7 +148,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
     `, [id]);
 
   if (result.rows.length === 0) {
-    const error = new Error('Application not found');
+    const error = new Error('申请记录未找到');
     error.statusCode = 404;
     error.errorCode = 'APPLICATION_NOT_FOUND';
     throw error;
@@ -262,7 +263,7 @@ router.post('/', asyncHandler(async (req, res) => {
       }
     }
   } catch (updateError) {
-    console.error('Failed to send application notifications:', updateError);
+    console.error('发送申请通知失败:', updateError);
   }
 
   res.status(201).json({
@@ -295,7 +296,7 @@ router.patch('/:id/status', asyncHandler(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
-    const error = new Error('Application not found');
+    const error = new Error('申请记录未找到');
     error.statusCode = 404;
     error.errorCode = 'APPLICATION_NOT_FOUND';
     throw error;

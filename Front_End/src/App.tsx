@@ -6,7 +6,7 @@ import zhCN from 'antd/locale/zh_CN';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 
-// Set dayjs locale globally
+// 全局设置 dayjs 语言环境
 dayjs.locale('zh-cn');
 
 import { AdminApp } from './modules/admin/AdminApp';
@@ -38,7 +38,7 @@ const AppContent: React.FC = () => {
       const storedUser = localStorage.getItem('currentUser');
       const token = localStorage.getItem('token');
 
-      // Must have both user and token to be considered logged in
+      // 必须同时存在用户数据和token才视为已登录
       if (storedUser && token) {
         const parsedUser = JSON.parse(storedUser);
 
@@ -47,7 +47,7 @@ const AppContent: React.FC = () => {
           parsedUser.id = parseInt(parsedUser.id, 10);
         }
 
-        // Validate role exists
+        // 验证角色是否存在
         if (!parsedUser.role) {
           return null;
         }
@@ -55,15 +55,15 @@ const AppContent: React.FC = () => {
         return parsedUser;
       }
 
-      // If one is missing, clear both to ensure clean state
+      // 如果缺少其中一个，清除所有数据以确保状态干净
       if (storedUser || token) {
         localStorage.removeItem('currentUser');
         localStorage.removeItem('token');
-        localStorage.removeItem('user'); // Clean up potential legacy key
+        localStorage.removeItem('user'); // 清理可能的遗留key
       }
     } catch (error) {
-      console.error('Error parsing stored user:', error);
-      // On error, clear everything
+      // console.error('Error parsing stored user:', error);
+      // 出错时清除所有数据
       localStorage.removeItem('currentUser');
       localStorage.removeItem('token');
     }
@@ -210,7 +210,7 @@ const AppContent: React.FC = () => {
         message.error(data.message || '角色切换失败，请重试');
       }
     } catch (error) {
-      console.error('角色切换失败：', error);
+      // console.error('角色切换失败：', error);
       message.error('网络错误，请稍后重试');
     }
   };
@@ -258,7 +258,7 @@ const AppContent: React.FC = () => {
                 message.error(data.message || '角色切换失败，请重试');
               }
             } catch (error) {
-              console.error('角色切换失败：', error);
+              // console.error('角色切换失败：', error);
               message.error('网络错误，请稍后重试');
             }
             return;
@@ -268,7 +268,7 @@ const AppContent: React.FC = () => {
         // 未认证或未关联企业，打开模态框
         openSwitchModal(newRole);
       } catch (error) {
-        console.error('检查企业认证状态失败：', error);
+        // console.error('检查企业认证状态失败：', error);
         // 检查失败时，打开模态框
         openSwitchModal(newRole);
       }
@@ -303,7 +303,7 @@ const AppContent: React.FC = () => {
           message.error(data.message || '角色切换失败，请重试');
         }
       } catch (error) {
-        console.error('角色切换失败：', error);
+        // console.error('角色切换失败：', error);
         message.error('网络错误，请稍后重试');
       }
     }
@@ -332,7 +332,7 @@ const AppContent: React.FC = () => {
     });
   };
 
-  // Dropdown menu state
+  // 下拉菜单状态
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   return (

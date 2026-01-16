@@ -146,7 +146,9 @@ const OnboardingModal: React.FC<OnboardingModalProps> = ({
         };
 
         loadInitialData();
-    }, [open, initialValues, form, isEditing, propCandidateName, currentUserInfo]);
+        // NOTE: form 实例是稳定的,不需要作为依赖项
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initialValues, isEditing, propCandidateName, currentUserInfo]);
 
     const handleCandidateChange = async (candidateId: number) => {
         // Backend key is 'id' for the unique row ID, but we might want 'candidate_id' provided by backend view if available.

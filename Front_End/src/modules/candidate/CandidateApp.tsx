@@ -45,8 +45,8 @@ const RequireLogin = ({ children, currentUser }: { children: React.ReactNode, cu
 };
 
 const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSwitchRole, onUpdateUser, onLogin }) => {
-  // 使用 App.useApp() 获取 message 实例
-  const { message } = App.useApp();
+  // NOTE: 使用 App.useApp() 获取 message 和 modal 实例以支持动态主题
+  const { message, modal } = App.useApp();
   const [activeTab, setActiveTab] = useState('home');
   // Add setCurrentUser functionality by keeping local state that syncs with props
   const [localCurrentUser, setLocalCurrentUser] = useState<User | null>(currentUser);
@@ -1096,7 +1096,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         }, 1000);
 
         // 显示确认框，询问是否跳转到消息列表
-        Modal.confirm({
+        modal.confirm({
           title: '消息发送成功',
           content: '是否跳转到消息列表？',
           okText: '是',
@@ -1116,7 +1116,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       console.error('立即沟通失败:', error);
       message.error('立即沟通失败，请稍后重试');
       // 即使API调用失败，也可以让用户选择是否跳转到消息页面
-      Modal.confirm({
+      modal.confirm({
         title: '消息发送失败',
         content: '是否跳转到消息列表？',
         okText: '是',

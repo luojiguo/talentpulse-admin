@@ -74,6 +74,11 @@ export const userAPI = {
     return request.post('/users/bind-email', { email, code }) as Promise<any>;
   },
 
+  // 发送邮箱绑定验证码
+  sendEmailBindCode: (email: string) => {
+    return request.post('/users/send-email-bind-code', { email }) as Promise<any>;
+  },
+
   // 管理员更新用户状态（管理员）
   updateUserStatus: (id: string | number, status: 'active' | 'inactive' | 'suspended') => {
     return request.patch(`/users/${id}/status`, { status }) as Promise<any>;

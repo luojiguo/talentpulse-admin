@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Form, Input, Modal, List, message, Typography, Select, Row, Col } from 'antd';
+import { Button, Card, Form, Input, Modal, List, message, Typography, Select, Row, Col, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { candidateAPI } from '@/services/candidateService';
 
@@ -18,6 +18,7 @@ const ExpectedJobSection: React.FC<ExpectedJobSectionProps> = ({ userId, diction
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingId, setEditingId] = useState<string | number | null>(null);
     const [form] = Form.useForm();
+    const { modal } = App.useApp();
 
     const fetchItems = async () => {
         try {
@@ -58,7 +59,7 @@ const ExpectedJobSection: React.FC<ExpectedJobSectionProps> = ({ userId, diction
     };
 
     const handleDelete = async (id: string | number) => {
-        Modal.confirm({
+        modal.confirm({
             title: '确认删除',
             content: '确定要删除这条期望职位吗？',
             onOk: async () => {
@@ -111,9 +112,9 @@ const ExpectedJobSection: React.FC<ExpectedJobSectionProps> = ({ userId, diction
             <div className="flex justify-between items-center mb-10 pl-5 border-l-4 border-brand-500 transition-all">
                 <Title level={4} style={{ margin: 0 }} className="dark:text-white !font-black !text-2xl tracking-tight">期望职位</Title>
                 <div className="opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <Button 
-                        type="link" 
-                        icon={<PlusOutlined />} 
+                    <Button
+                        type="link"
+                        icon={<PlusOutlined />}
                         onClick={handleAdd}
                         className="text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 font-black flex items-center gap-2 bg-brand-50 dark:bg-brand-900/20 px-4 py-2 rounded-xl border border-brand-100 dark:border-brand-900/30"
                     >
@@ -167,16 +168,16 @@ const ExpectedJobSection: React.FC<ExpectedJobSectionProps> = ({ userId, diction
                                 </div>
                             </div>
                             <div className="flex gap-2 ml-4 transition-all duration-500 opacity-0 group-hover/item:opacity-100 translate-x-4 group-hover/item:translate-x-0">
-                                <Button 
-                                    type="text" 
-                                    icon={<EditOutlined className="text-brand-600 dark:text-brand-400" />} 
+                                <Button
+                                    type="text"
+                                    icon={<EditOutlined className="text-brand-600 dark:text-brand-400" />}
                                     onClick={() => handleEdit(item)}
                                     className="hover:bg-brand-50 dark:hover:bg-brand-900/30 rounded-xl w-10 h-10 flex items-center justify-center border border-transparent hover:border-brand-100 dark:hover:border-brand-900/30"
                                 />
-                                <Button 
-                                    type="text" 
-                                    danger 
-                                    icon={<DeleteOutlined />} 
+                                <Button
+                                    type="text"
+                                    danger
+                                    icon={<DeleteOutlined />}
                                     onClick={() => handleDelete(item.id)}
                                     className="hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-xl w-10 h-10 flex items-center justify-center border border-transparent hover:border-rose-100 dark:hover:border-rose-900/30"
                                 />
@@ -286,7 +287,8 @@ const ExpectedJobSection: React.FC<ExpectedJobSectionProps> = ({ userId, diction
                     </Form.Item>
                 </Form>
             </Modal>
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .profile-form .ant-form-item-label label {
                     font-size: 11px;
                     font-weight: 900;

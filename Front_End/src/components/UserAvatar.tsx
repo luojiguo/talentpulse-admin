@@ -7,9 +7,10 @@ interface UserAvatarProps {
   size?: number;
   className?: string;
   alt?: string;
+  style?: React.CSSProperties;
 }
 
-const UserAvatar: React.FC<UserAvatarProps> = ({ src, name, size = 40, className, alt }) => {
+const UserAvatar: React.FC<UserAvatarProps> = ({ src, name, size = 40, className, alt, style }) => {
   const [imgError, setImgError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const imgRef = React.useRef<HTMLImageElement>(null);
@@ -49,10 +50,13 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ src, name, size = 40, className
   const processedSrc = processAvatarUrl(src);
   const shouldShowImage = processedSrc && !imgError;
 
+  // Use default style if no className provided
+  const finalClassName = className || 'bg-gradient-to-br from-blue-400 to-blue-600 text-white';
+
   return (
     <div
-      className={`relative inline-flex items-center justify-center overflow-hidden rounded-full ${className}`}
-      style={{ width: size, height: size }}
+      className={`relative inline-flex items-center justify-center overflow-hidden rounded-full ${finalClassName}`}
+      style={{ width: size, height: size, ...style }}
     >
       {shouldShowImage ? (
         <>
@@ -75,7 +79,7 @@ const UserAvatar: React.FC<UserAvatarProps> = ({ src, name, size = 40, className
           />
         </>
       ) : (
-        <div className={`w-full h-full flex items-center justify-center font-bold ${className || 'bg-gradient-to-br from-blue-400 to-blue-600 text-white'}`}>
+        <div className="w-full h-full flex items-center justify-center font-bold">
           <span style={{ fontSize: size * 0.4 }}>
             {name ? name.charAt(0).toUpperCase() : '?'}
           </span>

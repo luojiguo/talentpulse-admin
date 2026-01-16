@@ -282,15 +282,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = (props) => {
                         // 渲染额外的头部操作按钮：预览 和 修改密码
                         renderExtraHeader={() => (
                             <div className="flex items-center gap-2 ml-4">
-                                <button 
-                                    onClick={() => setPasswordModalVisible(true)} 
-                                    className="px-4 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs font-bold hover:border-brand-300 hover:text-brand-600 dark:hover:border-brand-800 dark:hover:text-brand-400 transition-all active:scale-95"
+                                <button
+                                    onClick={() => setPasswordModalVisible(true)}
+                                    className="px-4 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-white text-xs font-bold hover:border-brand-300 hover:text-brand-600 dark:hover:border-brand-400 dark:hover:text-white transition-all active:scale-95"
                                 >
                                     修改密码
                                 </button>
-                                <button 
-                                    onClick={() => setShowPreview(true)} 
-                                    className="px-4 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20 text-brand-600 dark:text-brand-400 text-xs font-bold hover:bg-brand-100 dark:hover:bg-brand-500/20 transition-all active:scale-95"
+                                <button
+                                    onClick={() => setShowPreview(true)}
+                                    className="px-4 py-1.5 rounded-xl bg-brand-50 dark:bg-slate-800 border border-brand-100 dark:border-brand-500/50 text-brand-600 dark:text-white text-xs font-bold hover:bg-brand-100 dark:hover:bg-brand-900/30 transition-all active:scale-95"
                                 >
                                     预览简历
                                 </button>

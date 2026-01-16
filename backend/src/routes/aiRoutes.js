@@ -3,20 +3,20 @@ const router = express.Router();
 const { pool, query } = require('../config/db');
 const { asyncHandler } = require('../middleware/errorHandler');
 
-// OpenAI/DashScope API Configuration
+// OpenAI/DashScope API 配置
 // const AI_API_URL = process.env.QIANWEN_API_URL || process.env.VITE_QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-// Key read moved to handler to avoid init issues
+// Key 读取已移至处理程序内部以避免初始化问题
 
 /**
- * Score Resume API
- * Accepts candidate profile data and returns a score (0-100) and analysis.
+ * 简历评分接口
+ * 接收候选人资料并返回评分（0-100）和分析。
  */
 router.post('/score-resume', asyncHandler(async (req, res) => {
     const { profile } = req.body;
 
-    // Read config inside request to ensure dotenv has loaded
-    const AI_API_URL = process.env.QIANWEN_API_URL || process.env.VITE_QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-    const AI_API_KEY = process.env.QIANWEN_API_KEY || process.env.VITE_QIANWEN_API_KEY;
+    // 在请求内部读取配置以确保 dotenv 已加载
+    const AI_API_URL = process.env.QIANWEN_API_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+    const AI_API_KEY = process.env.QIANWEN_API_KEY;
 
     if (!profile) {
         const error = new Error('Profile data is required');
@@ -25,13 +25,13 @@ router.post('/score-resume', asyncHandler(async (req, res) => {
     }
 
     if (!AI_API_KEY) {
-        const error = new Error('AI API key is not configured');
+        const error = new Error('AI API Key 未配置');
         error.statusCode = 500;
         throw error;
     }
 
-    // Construct the prompt
-    // We strip unnecessary fields to save tokens and focus on content
+    // 构建提示词
+    // 我们移除不必要的字段以节省 Token 并专注于内容
     const cleanProfile = {
         name: profile.name,
         major: profile.major,
@@ -40,13 +40,13 @@ router.post('/score-resume', asyncHandler(async (req, res) => {
         summary: profile.summary, // Personal advantage
         work_experience_years: profile.work_experience_years,
         desired_position: profile.desired_position,
-        // We'll summarize/count lists instead of sending full raw list content if it's too long, 
-        // but for now let's send what we have assuming it fits in context window.
-        // Usually full resume text is fine for 32k/128k context windows.
+        // 如果列表过长，我们应该进行摘要/计数而不是发送完整的原始内容，
+        // 但目前假设它适合上下文窗口，先发送所有内容。
+        // 通常完整的简历文本适合 32k/128k 上下文窗口。
     };
 
-    // If separate arrays are passed, include them
-    const experiences = req.body.experiences || []; // Work/Project
+    // 如果传递了单独的数组，则包含它们
+    const experiences = req.body.experiences || []; // 工作/项目
     const educations = req.body.educations || [];
 
     const prompt = `
@@ -73,10 +73,10 @@ ${JSON.stringify(educations, null, 2)}
 }
 `;
 
-    // Call AI API using native https module to avoid dependency issues
+    // 使用原生 https 模块调用 AI API 以避免依赖问题
     const https = require('https');
 
-    // Parse URL
+    // 解析 URL
     const urlObj = new URL(AI_API_URL);
 
     const requestData = JSON.stringify({
@@ -139,7 +139,7 @@ ${JSON.stringify(educations, null, 2)}
         const aiData = await makeRequest();
         const content = aiData.choices?.[0]?.message?.content || '{}';
 
-        // Clean markdown code blocks if present
+        // 如果存在 Markdown 代码块，请清除
         const jsonStr = content.replace(/```json\n?|\n?```/g, '').trim();
 
         let result;
@@ -151,7 +151,7 @@ ${JSON.stringify(educations, null, 2)}
             result = { score: 80, analysis: 'AI评分生成失败，请稍后重试。' };
         }
 
-        // Persist to database if userId is provided
+        // 如果提供了 userId，将评分结果保存到数据库
         const userId = req.body.userId;
         if (userId) {
             try {
@@ -171,8 +171,8 @@ ${JSON.stringify(educations, null, 2)}
                     ]
                 );
             } catch (dbError) {
-                console.error('Failed to save score to DB:', dbError);
-                // Don't fail the response if DB save fails, just log it
+                console.error('保存评分到数据库失败:', dbError);
+                // 数据库保存失败不应影响 API 的响应，仅记录日志即可
             }
         }
 
@@ -182,9 +182,8 @@ ${JSON.stringify(educations, null, 2)}
         });
 
     } catch (error) {
-        console.error('AI Scoring Error Details:', {
+        console.error('AI 评分错误:', {
             message: error.message,
-            stack: error.stack,
             apiKeyConfigured: !!AI_API_KEY
         });
         res.status(500).json({

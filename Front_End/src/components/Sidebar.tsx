@@ -57,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
 
       {/* 侧边栏 */}
       <aside className={`
-        flex flex-col h-screen bg-slate-900 text-white fixed left-0 top-0 overflow-y-auto z-50
+        flex flex-col h-screen bg-slate-900 text-white fixed left-0 top-0 overflow-y-auto z-50 flex-shrink-0
         transform transition-all duration-300 ease-in-out
         ${isMobileOpen !== false ? 'translate-x-0' : '-translate-x-full'}
         ${isCollapsed ? 'w-16' : 'w-64'}
@@ -218,6 +218,6 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick, isColla
     aria-label={label}
   >
     {icon}
-    {!isCollapsed && <span className="font-medium text-sm">{label}</span>}
+    {!isCollapsed && <span className="font-medium text-[12px]">{label}</span>}
   </button>
 );

@@ -7,11 +7,11 @@ const { asyncHandler } = require('../middleware/errorHandler');
 router.get('/jobs', asyncHandler(async (req, res) => {
     const { recruiterId } = req.query;
 
-    console.log('[DEBUG] GET /recruiter/jobs - recruiterId:', recruiterId);
+
 
     if (!recruiterId) {
-        console.error('[ERROR] GET /recruiter/jobs - Missing recruiterId parameter');
-        const error = new Error('Recruiter ID is required');
+
+        const error = new Error('必须提供招聘者ID');
         error.statusCode = 400;
         error.errorCode = 'MISSING_RECRUITER_ID';
         throw error;
@@ -19,7 +19,7 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 
     // 首先获取招聘者的公司ID和用户ID
     // 支持通过招聘者ID或用户ID查询
-    console.log('[DEBUG] Querying recruiter info for ID:', recruiterId);
+
     // 首先尝试将参数视为 user_id 查询 (这是 RecruiterApp 的标准行为)
     // 同时也保留 id = $1 作为备选，但在 SQL 层面优先匹配 user_id
     // 注意：如果 user_id 和 id 碰巧相同但属于不同记录，这确实会产生歧义
@@ -32,18 +32,16 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 
     // 如果没找到，再尝试作为 recruiter_id 查询 (兼容可能的其他调用方式)
     if (recruiterResult.rows.length === 0) {
-        console.log('[DEBUG] No recruiter found by user_id, trying by recruiter_id:', recruiterId);
         recruiterResult = await query(
             'SELECT company_id, user_id, id as recruiter_id FROM recruiters WHERE id = $1 ORDER BY created_at DESC LIMIT 1',
             [recruiterId]
         );
     }
 
-    console.log('[DEBUG] Recruiter query result:', recruiterResult.rows.length, 'rows');
+
 
     if (recruiterResult.rows.length === 0) {
-        console.error('[ERROR] Recruiter not found for ID:', recruiterId);
-        const error = new Error('Recruiter not found');
+        const error = new Error('未找到该招聘者');
         error.statusCode = 404;
         error.errorCode = 'RECRUITER_NOT_FOUND';
         throw error;
@@ -51,10 +49,7 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 
     const { company_id, user_id, recruiter_id } = recruiterResult.rows[0];
 
-    console.log('[DEBUG] Recruiter info - company_id:', company_id, 'user_id:', user_id, 'recruiter_id:', recruiter_id);
-
     if (!company_id) {
-        console.warn('[WARN] Recruiter has no company_id, will return empty jobs list');
         return res.json({
             status: 'success',
             data: [],
@@ -64,7 +59,6 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 
     // 获取公司所有职位，包括发布者信息，并确保返回前端期望的字段名
     // 增加查询超时时间到30秒，因为涉及多个JOIN
-    console.log('[DEBUG] Fetching jobs for company_id:', company_id);
     const result = await query(`
             SELECT 
                 j.id,
@@ -141,7 +135,7 @@ router.get('/jobs', asyncHandler(async (req, res) => {
         urgency: job.urgency
     }));
 
-    console.log('[DEBUG] Jobs query returned', result.rows.length, 'rows');
+
 
     res.json({
         status: 'success',
@@ -154,11 +148,8 @@ router.get('/jobs', asyncHandler(async (req, res) => {
 router.get('/candidates', asyncHandler(async (req, res) => {
     const { recruiterId } = req.query;
 
-    console.log('[DEBUG] GET /recruiter/candidates - recruiterId:', recruiterId);
-
     if (!recruiterId) {
-        console.error('[ERROR] GET /recruiter/candidates - Missing recruiterId parameter');
-        const error = new Error('Recruiter ID is required');
+        const error = new Error('必须提供招聘者ID');
         error.statusCode = 400;
         error.errorCode = 'MISSING_RECRUITER_ID';
         throw error;
@@ -181,7 +172,6 @@ router.get('/candidates', asyncHandler(async (req, res) => {
     const actualRecruiterId = recruiterResult.rows[0].id;
 
     // 增加查询超时时间到30秒，因为涉及多个JOIN
-    console.log('[DEBUG] Fetching candidates for recruiterId:', actualRecruiterId);
     const result = await query(`
             SELECT DISTINCT
                 c.id,
@@ -214,7 +204,7 @@ router.get('/candidates', asyncHandler(async (req, res) => {
             ORDER BY a.created_at DESC
         `, [actualRecruiterId], 30000);
 
-    console.log('[DEBUG] Candidates query returned', result.rows.length, 'rows');
+
 
     res.json({
         status: 'success',

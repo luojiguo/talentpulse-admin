@@ -60,7 +60,7 @@ export const getChatWindowClasses = (
   isTablet: boolean,
   showChat: boolean
 ): string => {
-  const baseClasses = 'flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden relative';
+  const baseClasses = 'flex-1 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden relative transition-colors';
 
   if (isMobile) {
     // 手机端：全屏显示，不使用 fixed，而是通过路由切换
@@ -86,7 +86,7 @@ export const getMessageListClasses = (
   isTablet: boolean,
   showList: boolean
 ): string => {
-  const baseClasses = 'bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col overflow-hidden';
+  const baseClasses = 'bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden transition-colors';
 
   if (isMobile) {
     // 手机端：全宽，无边框和阴影

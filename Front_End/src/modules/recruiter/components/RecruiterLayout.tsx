@@ -84,13 +84,13 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
         <div className="recruiter-root min-h-screen flex flex-col transition-colors duration-300" style={{ backgroundColor: colors.background }}>
             {/* 顶部导航栏 */}
             <header
-                className="recruiter-header sticky top-0 z-30 shadow-sm backdrop-blur-md bg-opacity-90"
+                className="recruiter-header sticky top-0 z-30 shadow-sm backdrop-blur-md bg-opacity-90 transition-all duration-300 h-[60px]"
                 style={{
                     backgroundColor: mode === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(15, 23, 42, 0.8)',
                     borderBottom: `1px solid ${mode === 'light' ? colors.border : 'rgba(51, 65, 85, 0.5)'}`
                 }}
             >
-                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
+                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-full flex justify-between items-center">
                     {/* Logo和移动端菜单按钮 */}
                     <div className="flex items-center gap-3">
                         {/* 移动端菜单按钮 */}
@@ -148,7 +148,7 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
                                 <button
                                     key={item.name}
                                     onClick={() => navigate(item.path)}
-                                    className={`recruiter-nav-button px-5 py-2 text-sm font-semibold rounded-full transition-all duration-300 ${active ? 'shadow-sm translate-y-[-1px]' : 'hover:translate-y-[-1px]'
+                                    className={`recruiter-nav-button px-5 py-2 text-[12px] font-semibold rounded-full transition-all duration-300 ${active ? 'shadow-sm translate-y-[-1px]' : 'hover:translate-y-[-1px]'
                                         }`}
                                     style={{
                                         backgroundColor: active ? colors.primary : 'transparent',
