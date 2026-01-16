@@ -15,9 +15,10 @@ interface JobDetailScreenProps {
     setCollectedJobs: any;
     onChat: (jobId: number, recruiterId: number) => void;
     currentUser?: { id: number | string };
+    onOpenLogin?: () => void;
 }
 
-const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collectedJobs, setCollectedJobs, onChat, currentUser }) => {
+const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collectedJobs, setCollectedJobs, onChat, currentUser, onOpenLogin }) => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [job, setJob] = useState<JobPosting | null>(null);
@@ -92,7 +93,15 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
     }, [job?.id, currentUser?.id]);
 
     const toggleSaveJob = async () => {
-        if (!job?.id || !currentUser?.id || saving) return;
+        // Guest check
+        if (!currentUser) {
+            if (onOpenLogin) {
+                onOpenLogin();
+            }
+            return;
+        }
+
+        if (!job?.id || saving) return;
         setSaving(true);
         try {
             if (isSaved) {
@@ -113,7 +122,7 @@ const JobDetailScreen: React.FC<JobDetailScreenProps> = ({ jobs, onBack, collect
 
     // Calculate Similar Jobs (Simple logic: Same location or random, excluding current)
     const similarJobs = useMemo(() => {
-        if (!job) return [];
+        if (!job || !jobs) return [];
         return jobs.filter(j => j.id !== job.id).slice(0, 6); // Show up to 6 similar jobs
     }, [jobs, job]);
 

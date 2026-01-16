@@ -64,6 +64,28 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
         loadSessions();
     }, [currentUser]);
 
+    // 点击外部关闭下拉菜单
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (openMenuSessionId) {
+                // 检查点击是否在菜单外部
+                const target = event.target as HTMLElement;
+                const isMenuButton = target.closest('[data-menu-button]');
+                const isMenuContent = target.closest('[data-menu-content]');
+
+                if (!isMenuButton && !isMenuContent) {
+                    setOpenMenuSessionId(null);
+                }
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [openMenuSessionId]);
+
+
     const startNewChat = async () => {
         if (!currentUser?.id) return;
 
@@ -315,7 +337,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto overflow-x-visible px-4 py-2 space-y-3 custom-scrollbar">
                             {isSessionsLoading ? (
                                 <div className="text-center py-20 text-slate-400">
                                     <div className="inline-block w-8 h-8 border-4 border-brand-100 border-t-brand-500 rounded-full animate-spin mb-4"></div>
@@ -334,7 +356,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                         sessions.map(session => (
                                             <div
                                                 key={session.id}
-                                                className={`group p-4 rounded-2xl cursor-pointer transition-all duration-500 relative overflow-hidden ${currentSessionId === session.id
+                                                className={`group p-4 rounded-2xl cursor-pointer transition-all duration-500 relative ${currentSessionId === session.id
                                                     ? 'bg-white dark:bg-slate-800 shadow-xl shadow-brand-100/50 dark:shadow-none border border-brand-100 dark:border-slate-700'
                                                     : 'hover:bg-white/80 dark:hover:bg-slate-800/80 hover:shadow-lg hover:shadow-brand-50/50 dark:hover:shadow-none border border-transparent hover:border-brand-50 dark:hover:border-slate-700'}`}
                                             >
@@ -368,47 +390,48 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                                                 {session.title}
                                                             </h3>
                                                             <div className="flex items-center gap-2 mt-1.5">
-                                                                <div className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-wider">
+                                                                <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 font-black uppercase tracking-wider">
                                                                     <Target className="w-3 h-3" />
                                                                     {new Date(session.timestamp).toLocaleDateString()}
                                                                 </div>
                                                                 {session.messages.length > 0 && (
-                                                                    <span className="w-1 h-1 rounded-full bg-slate-200 dark:bg-slate-700"></span>
+                                                                    <span className="w-1 h-1 rounded-full bg-slate-400 dark:bg-slate-600"></span>
                                                                 )}
-                                                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-black">
+                                                                <span className="text-[10px] text-slate-600 dark:text-slate-400 font-black">
                                                                     {session.messages.length} 条消息
                                                                 </span>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center">
                                                             <button
+                                                                data-menu-button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     toggleMenu(session.id);
                                                                 }}
-                                                                className={`p-2 rounded-xl transition-all ${openMenuSessionId === session.id ? 'bg-brand-100 text-brand-600' : 'text-slate-300 hover:text-brand-500 hover:bg-brand-50 opacity-0 group-hover:opacity-100'}`}
+                                                                className={`p-2 rounded-xl transition-all ${openMenuSessionId === session.id ? 'bg-brand-100 text-brand-600' : 'text-slate-400 hover:text-brand-500 hover:bg-brand-50 dark:text-slate-500 dark:hover:text-brand-400 dark:hover:bg-slate-700'}`}
                                                             >
                                                                 <MoreVertical className="w-4 h-4" />
                                                             </button>
 
                                                             {/* Dropdown Menu */}
                                                             {openMenuSessionId === session.id && (
-                                                                <div className="absolute right-2 top-14 w-40 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-brand-50 dark:border-slate-700 z-50 py-1.5 overflow-hidden animate-in fade-in zoom-in duration-300 backdrop-blur-xl">
+                                                                <div data-menu-content className="absolute right-full left-0 mr-2 w-32 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border-2 border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden animate-in fade-in zoom-in duration-300">
                                                                     <button
                                                                         onClick={() => startRename(session.id)}
-                                                                        className="w-full text-left px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300 hover:bg-brand-50 dark:hover:bg-slate-700/50 flex items-center gap-3 transition-colors"
+                                                                        className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-brand-50 dark:hover:bg-slate-700/50 flex items-center gap-2 transition-colors"
                                                                     >
-                                                                        <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
-                                                                            <Edit2 className="w-4 h-4 text-brand-500" />
+                                                                        <div className="w-6 h-6 rounded-lg bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center">
+                                                                            <Edit2 className="w-3 h-3 text-brand-500" />
                                                                         </div>
                                                                         <span>重命名</span>
                                                                     </button>
                                                                     <button
                                                                         onClick={() => deleteSession(session.id)}
-                                                                        className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors"
+                                                                        className="w-full text-left px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors"
                                                                     >
-                                                                        <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
-                                                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                                                        <div className="w-6 h-6 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+                                                                            <Trash2 className="w-3 h-3 text-red-500" />
                                                                         </div>
                                                                         <span>删除对话</span>
                                                                     </button>
@@ -430,14 +453,8 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                 <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 relative">
                     {!currentSessionId ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-1000">
-                            <div className="relative mb-12">
-                                <div className="absolute inset-0 bg-brand-200 dark:bg-brand-500/20 blur-[100px] rounded-full opacity-50 animate-pulse"></div>
-                                <div className="relative w-40 h-40 bg-gradient-to-br from-brand-400 to-brand-600 rounded-[48px] flex items-center justify-center shadow-2xl shadow-brand-200 dark:shadow-none transform hover:scale-105 transition-transform duration-700 group">
-                                    <Sparkles className="w-20 h-20 text-white group-hover:rotate-12 transition-transform duration-500" />
-                                </div>
-                            </div>
                             <h2 className="text-5xl font-black text-slate-900 dark:text-white mb-6 tracking-tight">
-                                开启您的<span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-brand-400">智能职场</span>之旅
+                                开启您的<span className="text-brand-500" style={{ color: '#007AFF' }}>智能职场</span>之旅
                             </h2>
                             <p className="text-slate-500 dark:text-slate-400 max-w-lg text-xl font-medium leading-relaxed mb-12">
                                 我可以帮您修改简历、模拟面试、分析岗位匹配度，或者仅仅是聊聊职业规划。

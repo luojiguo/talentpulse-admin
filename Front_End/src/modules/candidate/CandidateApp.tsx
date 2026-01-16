@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
-import { Modal, message } from 'antd';
+import { Modal, App } from 'antd';
 import { SystemUser as User, JobPosting, UserProfile as Profile, Company, Conversation, Message } from '@/types/types';
 import { userAPI, jobAPI, companyAPI, messageAPI, candidateAPI } from '@/services/apiService';
 import { useApi } from '@/hooks/useApi';
@@ -24,18 +24,33 @@ import CompanyDetailScreen from './screens/CompanyDetailScreen';
 import EnterpriseVerificationScreen from './screens/EnterpriseVerificationScreen';
 
 import CandidateLayout from './components/CandidateLayout';
+import LoginModal from '../../components/auth/LoginModal';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface CandidateAppProps {
-  currentUser: User;
+  currentUser: User | null;
   onLogout: () => void;
   onSwitchRole: (newRole: string) => void;
   onUpdateUser: (user: User) => void;
+  onLogin: (user: User) => void;
 }
 
-const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSwitchRole, onUpdateUser }) => {
+// Internal Guard Component
+const RequireLogin = ({ children, currentUser }: { children: React.ReactNode, currentUser: User | null }) => {
+  if (!currentUser || currentUser.id === 0) {
+    // Prevent redirect loop if already on login (handled by App.tsx generally, but good for safety)
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSwitchRole, onUpdateUser, onLogin }) => {
+  // 使用 App.useApp() 获取 message 实例
+  const { message } = App.useApp();
+  const [activeTab, setActiveTab] = useState('home');
   // Add setCurrentUser functionality by keeping local state that syncs with props
-  const [localCurrentUser, setLocalCurrentUser] = useState<User>(currentUser);
+  const [localCurrentUser, setLocalCurrentUser] = useState<User | null>(currentUser);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const navigate = useNavigate();
 
   // Candidate Screen Props Management
@@ -85,6 +100,16 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   }, []);
   // 优化：并行获取所有初始数据，减少加载时间
   // 使用 useApi Hook 获取智能推荐的职位数据（并行加载）
+  // Handle Login Modal
+  const openLoginModal = () => setIsLoginModalOpen(true);
+  const closeLoginModal = () => setIsLoginModalOpen(false);
+
+  // Define onLoginClick wrapper safely (can be passed to children)
+  const handleLoginClick = () => {
+    openLoginModal();
+  };
+
+  // Fetch Recommended Jobs with Guard
   const {
     data: jobsData,
     loading: loadingJobs,
@@ -113,9 +138,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     data: followedCompaniesData,
     loading: loadingFollowedCompanies
   } = useApi<{ status: string; data: Company[] }>(
-    () => companyAPI.getFollowedCompanies(localCurrentUser.id) as any,
-    [localCurrentUser.id],
-    { autoFetch: true, cache: true } // 启用缓存
+    () => localCurrentUser?.id ? companyAPI.getFollowedCompanies(localCurrentUser.id) as any : Promise.resolve({ data: [] }),
+    [localCurrentUser?.id],
+    { autoFetch: !!localCurrentUser?.id, cache: true } // 启用缓存
   );
 
   useEffect(() => {
@@ -127,10 +152,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
   // Local setCurrentUser function that updates local state and ensures id is always a number
   const handleSetCurrentUser = (userOrUpdater: User | ((prevUser: User) => User)) => {
+    if (!localCurrentUser) return; // Guard against updates when no user
+
     // Determine the new user object based on the current localCurrentUser state
-    // Note: We use the localCurrentUser from closure. This is safe enough here as we don't expect
-    // rapid-fire batched updates for user profile changes.
     const newUser = typeof userOrUpdater === 'function'
+      // @ts-ignore - complex union type issue, runtime safe due to guard above
       ? userOrUpdater(localCurrentUser)
       : userOrUpdater;
 
@@ -142,7 +168,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     // Update local state
     setLocalCurrentUser(updatedUser);
 
-    // Update global state (Side effect - must be outside the setter)
+    // Update global state
     if (onUpdateUser) {
       onUpdateUser(updatedUser);
     }
@@ -153,7 +179,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
   // 获取用户对话列表
   const fetchConversations = useCallback(async () => {
-    if (!localCurrentUser.id) return;
+    if (!localCurrentUser?.id) return;
 
     // Check for token to avoid 401
     const token = localStorage.getItem('token');
@@ -216,7 +242,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         setConversationError('获取对话列表失败，请稍后重试');
       }
     }
-  }, [localCurrentUser.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
+  }, [localCurrentUser?.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
 
   // Socket.IO Integration
   useEffect(() => {
@@ -493,7 +519,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       console.error('获取对话详情失败:', error);
       // 不影响用户体验，仅记录错误
     }
-  }, [localCurrentUser.id]);
+  }, [localCurrentUser?.id]);
 
   // 加载更多历史消息
   const handleLoadMoreMessages = useCallback(async (conversationId: string | number, currentMessageCount: number) => {
@@ -583,7 +609,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
       console.log('准备发送消息:', {
         conversationId: activeConversationId,
-        senderId: localCurrentUser.id,
+        senderId: localCurrentUser?.id,
         receiverId: undefined,
         text,
         type,
@@ -717,7 +743,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       console.error('删除消息失败:', error);
       message.error('删除消息失败，请稍后重试');
     }
-  }, [localCurrentUser.id, fetchConversations]);
+  }, [localCurrentUser?.id, fetchConversations]);
 
   // Handle Delete Conversation -> Changed to Hide
   const handleDeleteConversation = useCallback(async (conversationId: string | number) => {
@@ -860,7 +886,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [localCurrentUser.id]);
+  }, [localCurrentUser?.id]);
 
   // 实时更新对话列表，每60秒刷新一次（只在有对话时刷新）
   useEffect(() => {
@@ -889,7 +915,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
 
   // 处理用户资料数据
-  const userProfile: Profile = userProfileData?.status === 'success' ? {
+  const userProfile: Profile = (localCurrentUser && userProfileData?.status === 'success') ? {
     id: localCurrentUser.id,
     name: userProfileData.data.name || localCurrentUser.name,
     phone: userProfileData.data.phone || '',
@@ -905,7 +931,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     experience: userProfileData.data.experience || '',
     avatar: userProfileData.data.avatar || localCurrentUser.avatar,
     wechat: userProfileData.data.wechat || localCurrentUser.wechat || ''
-  } : {
+  } : (localCurrentUser ? {
     id: localCurrentUser.id,
     name: localCurrentUser.name,
     phone: '',
@@ -921,20 +947,41 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     experience: '',
     avatar: localCurrentUser.avatar,
     wechat: localCurrentUser.wechat || ''
-  };
+  } : {
+    // Guest Profile
+    id: 0,
+    name: '游客',
+    phone: '',
+    email: '',
+    city: '',
+    preferredLocations: '',
+    expectedSalary: '',
+    avatar: '',
+    wechat: '',
+    jobStatus: '',
+    bio: '',
+    experience: ''
+  });
 
   // 更新localCurrentUser，确保包含wechat信息
   useEffect(() => {
-    if (userProfile.wechat && !localCurrentUser.wechat) {
+    if (localCurrentUser && userProfile.wechat && !localCurrentUser.wechat) {
       setLocalCurrentUser(prev => ({
-        ...prev,
+        ...prev!,
         wechat: userProfile.wechat
       }));
     }
-  }, [userProfile.wechat, localCurrentUser.wechat]);
+  }, [userProfile.wechat, localCurrentUser?.wechat]);
 
   // Handle Chat Redirect - 立即沟通功能
   const handleChatRedirect = async (jobId: string | number, recruiterId: string | number) => {
+    // Guest check
+    if (!localCurrentUser) {
+      message.warning('请先登录后进行沟通');
+      openLoginModal();
+      return;
+    }
+
     // 检查是否已经发送过消息给该招聘者，如果是则提示用户
     if (sentRecruiterIds.has(recruiterId)) {
       message.info('您已经发送过消息给该招聘者，短时间内只能发送一次默认消息');
@@ -1099,71 +1146,130 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           <LoadingSpinner fullScreen text="加载中..." />
         )}
         <Routes>
-          <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} userProfile={userProfile} onRefreshProfile={refetchProfile} onChat={handleChatRedirect} /></CandidateLayout>} />
-          <Route path="/job" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobListScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
-          <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} /></CandidateLayout>} />
-          <Route path="/company/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><CompanyDetailScreen /></CandidateLayout>} />
+          <Route path="/" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}><HomeScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} followedCompanies={followedCompanies} setFollowedCompanies={setFollowedCompanies} currentUser={localCurrentUser} userProfile={userProfile} onRefreshProfile={refetchProfile} onChat={handleChatRedirect} /></CandidateLayout>} />
+          <Route path="/job" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}><JobListScreen jobs={jobs} loadingJobs={loadingJobs} jobsError={typeof jobsError === 'string' ? jobsError : null} currentUser={localCurrentUser} onChat={handleChatRedirect} /></CandidateLayout>} />
+          <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} onOpenLogin={handleLoginClick} /></CandidateLayout>} />
+          <Route path="/company/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}><CompanyDetailScreen /></CandidateLayout>} />
 
           {/* Message Center Routes */}
           {/* Message Center Routes - Unified Responsive Route */}
           <Route path="/messages" element={
-            <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
-              <MessageCenterScreen
-                conversations={conversations}
-                jobs={jobs}
-                activeConversationId={activeConversationId}
-                onSelectConversation={handleSelectConversation}
-                onSendMessage={handleSendMessage}
-                onUploadImage={handleUploadImage}
-                onDeleteMessage={handleDeleteMessage}
-                onDeleteConversation={handleDeleteConversation}
-                onLoadMoreMessages={handleLoadMoreMessages}
-                searchText={searchText}
-                setSearchText={setSearchText}
-                filterUnread={filterUnread}
-                setFilterUnread={setFilterUnread}
-                currentUser={localCurrentUser}
-                conversationError={conversationError}
-                onPinConversation={handlePinConversation}
-                onHideConversation={handleHideConversation}
-              />
-            </CandidateLayout>
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}>
+                <MessageCenterScreen
+                  conversations={conversations}
+                  jobs={jobs}
+                  activeConversationId={activeConversationId}
+                  onSelectConversation={handleSelectConversation}
+                  onSendMessage={handleSendMessage}
+                  onUploadImage={handleUploadImage}
+                  onDeleteMessage={handleDeleteMessage}
+                  onDeleteConversation={handleDeleteConversation}
+                  onLoadMoreMessages={handleLoadMoreMessages}
+                  searchText={searchText}
+                  setSearchText={setSearchText}
+                  filterUnread={filterUnread}
+                  setFilterUnread={setFilterUnread}
+                  currentUser={localCurrentUser!}
+                  conversationError={conversationError}
+                  onPinConversation={handlePinConversation}
+                  onHideConversation={handleHideConversation}
+                />
+              </CandidateLayout>
+            </RequireLogin>
           }
           />
           <Route path="/messages/:conversationId" element={
-            <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
-              <MessageCenterScreen
-                conversations={conversations}
-                jobs={jobs}
-                activeConversationId={activeConversationId}
-                onSelectConversation={handleSelectConversation}
-                onSendMessage={handleSendMessage}
-                onUploadImage={handleUploadImage}
-                onDeleteMessage={handleDeleteMessage}
-                onDeleteConversation={handleDeleteConversation}
-                onLoadMoreMessages={handleLoadMoreMessages}
-                searchText={searchText}
-                setSearchText={setSearchText}
-                filterUnread={filterUnread}
-                setFilterUnread={setFilterUnread}
-                currentUser={localCurrentUser}
-                conversationError={conversationError}
-              />
-            </CandidateLayout>
-          }
-          />
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}>
+                <MessageCenterScreen
+                  conversations={conversations}
+                  jobs={jobs}
+                  activeConversationId={activeConversationId}
+                  onSelectConversation={handleSelectConversation}
+                  onSendMessage={handleSendMessage}
+                  onUploadImage={handleUploadImage}
+                  onDeleteMessage={handleDeleteMessage}
+                  onDeleteConversation={handleDeleteConversation}
+                  onLoadMoreMessages={handleLoadMoreMessages}
+                  searchText={searchText}
+                  setSearchText={setSearchText}
+                  filterUnread={filterUnread}
+                  setFilterUnread={setFilterUnread}
+                  currentUser={localCurrentUser!}
+                  conversationError={conversationError}
+                  onPinConversation={handlePinConversation}
+                  onHideConversation={handleHideConversation}
+                />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
 
-          <Route path="/mock-interview" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><MockInterviewScreen /></CandidateLayout>} />
-          <Route path="/ai-chat" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><AIChatScreen userProfile={userProfile} userResume={userResume} currentUser={localCurrentUser} /></CandidateLayout>} />
-          <Route path="/applications" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ApplicationsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-          <Route path="/saved" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><SavedItemsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-          <Route path="/interviews" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><InterviewsScreen currentUser={localCurrentUser} /></CandidateLayout>} />
-          <Route path="/enterprise-verification" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><EnterpriseVerificationScreen currentUser={localCurrentUser} profile={userProfile} onSwitchRole={onSwitchRole} /></CandidateLayout>} />
-          <Route path="/profile" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}><ProfileScreen currentUser={localCurrentUser} onUpdateUser={handleSetCurrentUser} /></CandidateLayout>} />
+          {/* Other Protected Routes */}
+          <Route path="/mock-interview" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <MockInterviewScreen />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
+
+          <Route path="/ai-chat" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <AIChatScreen userProfile={userProfile} userResume={userResume} currentUser={localCurrentUser!} />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
+
+          <Route path="/applications" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <ApplicationsScreen currentUser={localCurrentUser!} />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
+
+          <Route path="/saved" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <SavedItemsScreen currentUser={localCurrentUser!} />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
+
+          <Route path="/interviews" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <InterviewsScreen currentUser={localCurrentUser!} />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
+
+          <Route path="/enterprise-verification" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <EnterpriseVerificationScreen currentUser={localCurrentUser!} profile={userProfile} onSwitchRole={onSwitchRole} />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
+          <Route path="/profile" element={
+            <RequireLogin currentUser={localCurrentUser}>
+              <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
+                <ProfileScreen currentUser={localCurrentUser!} onUpdateUser={handleSetCurrentUser} />
+              </CandidateLayout>
+            </RequireLogin>
+          } />
 
           {/* Catch-all route to prevent blank screen on unknown paths (like /login when already logged in) */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+
+        <LoginModal
+          isOpen={isLoginModalOpen}
+          onClose={closeLoginModal}
+          onLoginSuccess={onLogin}
+        />
       </I18nProvider>
     </ThemeProvider>
   );
