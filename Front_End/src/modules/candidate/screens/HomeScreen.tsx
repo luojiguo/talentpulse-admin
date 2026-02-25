@@ -57,7 +57,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
   const [isAIPending, setIsAIPending] = useState(false);
   const [aiJobsError, setAIJobsError] = useState<string | null>(null);
 
-  // Simple search filtering
+  // 简单的搜索过滤
   const filteredJobs = useMemo(() => {
     if (!jobs || jobs.length === 0) return [];
     if (!searchText.trim()) return jobs;
@@ -76,7 +76,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     });
   }, [jobs, searchText]);
 
-  // Initial job fetch and triggers AI recommendation
+  // 初始职位获取并触发 AI 推荐
   useEffect(() => {
     if (propsJobs) {
       setLoadingJobs(propsLoadingJobs || false);
@@ -93,7 +93,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
 
       try {
         const response = currentUser?.id
-          ? await jobAPI.getRecommendedJobs(currentUser.id, true) // Pass true to trigger AI
+          ? await jobAPI.getRecommendedJobs(currentUser.id, true) // 传递 true 触发 AI
           : await jobAPI.getAllJobs();
 
 
@@ -101,7 +101,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
         if (isMounted && response && (response as any).status === 'success' && Array.isArray(response.data)) {
           const formattedJobs = formatJobData(response.data);
           setLocalJobs(formattedJobs);
-          // If a user is logged in, start polling for AI results
+          // 如果用户已登录，开始轮询 AI 结果
           if (currentUser?.id) {
             setIsAIPending(true);
           }
@@ -123,15 +123,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     return () => { isMounted = false; };
   }, [propsJobs, propsLoadingJobs, propsJobsError, currentUser?.id]);
 
-  // No backend filtering effect needed for simple search
-  // useEffect logic removed
+  // 简单的搜索过滤不需要后端过滤效果
+  // useEffect 逻辑已删除
 
 
-  // Poll for AI recommendations
+  // 轮询 AI 推荐
   useEffect(() => {
     if (!isAIPending || !currentUser?.id) return;
-    // ... existing AI polling logic ...
-    // Note: This block is inside the replacement to maintain context, but the key change is adding the socket listener below
+    //
+    // 注意：此块包含在替换中以保持上下文，但关键更改是添加下面的套接字侦听器
 
     let isMounted = true;
     const intervalId = setInterval(async () => {
@@ -170,9 +170,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     };
   }, [isAIPending, currentUser?.id]);
 
-  // Listen for real-time job updates
+  // 监听实时职位更新
   useEffect(() => {
-    // Connect socket if not connected (idempotent)
+    // 如果未连接，连接套接字（幂等）
     if (currentUser?.id) {
       socketService.connect(currentUser.id);
     }
@@ -183,19 +183,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       const handleNewJob = (newJobData: any) => {
         console.log('收到新职位推送:', newJobData);
 
-        // Format the new job data
+        // 格式化新职位数据
         const formattedNewJobs = formatJobData([newJobData]);
         if (formattedNewJobs.length > 0) {
           const newJob = formattedNewJobs[0];
 
-          // Update local jobs state
+          // 更新本地职位状态
           setLocalJobs(prevJobs => {
-            // Check if job already exists
+            // 检查职位是否已存在
             if (prevJobs.some(job => job.id === newJob.id)) {
               return prevJobs;
             }
 
-            // Add new job to the top
+            // 将新职位添加到顶部
             return [newJob, ...prevJobs];
           });
         }
@@ -206,12 +206,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
       const handleJobUpdate = (updatedJobData: any) => {
         console.log('收到职位更新推送:', updatedJobData);
 
-        // Format the updated job data
+        // 格式化更新后的职位数据
         const formattedUpdatedJobs = formatJobData([updatedJobData]);
         if (formattedUpdatedJobs.length > 0) {
           const updatedJob = formattedUpdatedJobs[0];
 
-          // Update local jobs state
+          // 更新本地职位状态
           setLocalJobs(prevJobs => {
             return prevJobs.map(job =>
               job.id === updatedJob.id ? updatedJob : job
@@ -323,7 +323,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ jobs: propsJobs, loadingJobs: p
     });
   };
 
-  // Modify companies data loading logic - 根据用户期望职位智能推荐公司
+  // 修改公司数据加载逻辑 - 根据用户期望职位智能推荐公司
   useEffect(() => {
     let isMounted = true;
 

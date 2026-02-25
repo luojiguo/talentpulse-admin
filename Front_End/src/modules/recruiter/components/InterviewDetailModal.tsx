@@ -4,47 +4,50 @@ import { Calendar, Clock, MapPin, User, FileText, CheckCircle, XCircle, AlertCir
 import moment from 'moment';
 import { useI18n } from '@/contexts/i18nContext';
 
+// 面试详情数据接口
 interface Interview {
     id: number;
     applicationId: number;
-    interviewDate: string;
-    interviewTime: string;
-    interviewTimeEnd?: string;
-    location: string;
-    interviewerId: number;
-    status: 'scheduled' | 'completed' | 'cancelled' | 'accepted' | 'rejected';
-    notes?: string;
-    interviewRound: number;
-    interviewType: '电话' | '视频' | '现场';
-    interviewerName?: string;
-    interviewerPosition?: string;
-    interviewResult?: '通过' | '未通过' | '待定';
-    interviewFeedback?: string;
-    candidateName?: string;
-    jobTitle?: string;
-    companyName?: string;
-    invitationSentAt?: string;
-    invitationExpiresAt?: string;
-    candidateResponseAt?: string;
+    interviewDate: string;    // 面试日期
+    interviewTime: string;    // 面试开始时间
+    interviewTimeEnd?: string; // 面试结束时间
+    location: string;         // 面试地点或在线链接
+    interviewerId: number;    // 面试官 ID
+    status: 'scheduled' | 'completed' | 'cancelled' | 'accepted' | 'rejected'; // 面试状态：已安排、已完成、已取消、候选人已接受、候选人已拒绝
+    notes?: string;           // 内部备注
+    interviewRound: number;   // 面试轮次（如：第1轮）
+    interviewType: '电话' | '视频' | '现场'; // 面试形式
+    interviewerName?: string; // 面试官姓名
+    interviewerPosition?: string; // 面试官职位
+    interviewResult?: '通过' | '未通过' | '待定'; // 面试结论
+    interviewFeedback?: string; // 面试评价
+    candidateName?: string;   // 候选人姓名
+    jobTitle?: string;        // 职位名称
+    companyName?: string;     // 公司名称
+    invitationSentAt?: string; // 邀请发送时间
+    invitationExpiresAt?: string; // 邀请过期时间
+    candidateResponseAt?: string; // 候选人反馈时间
 }
 
+// 面试详情模态框属性
 interface InterviewDetailModalProps {
-    open: boolean;
-    onCancel: () => void;
-    interview: Interview | null;
+    open: boolean;            // 模态框显示状态
+    onCancel: () => void;     // 关闭模态框的回调
+    interview: Interview | null; // 面试数据对象
 }
 
 const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCancel, interview }) => {
     const { language, t } = useI18n();
     if (!interview) return null;
 
+    // 根据面试状态获取对应的 Ant Design Tag 标签颜色
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'scheduled': return 'orange'; // Ant Design Tag colors: blue, green, red, orange, gold, lime, cyan, purple, magenta, volcano, geekblue
-            case 'completed': return 'green';
-            case 'cancelled': return 'red';
-            case 'accepted': return 'cyan';
-            case 'rejected': return 'magenta';
+            case 'scheduled': return 'orange'; // 已安排：橙色提醒
+            case 'completed': return 'green';  // 已完成：绿色代表通过
+            case 'cancelled': return 'red';    // 已取消：红色警告
+            case 'accepted': return 'cyan';    // 候选人已接受：青色
+            case 'rejected': return 'magenta'; // 候选人已拒绝：洋红色
             default: return 'default';
         }
     };
@@ -82,7 +85,7 @@ const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCan
                 </button>
             ]}
             width={720}
-            centered
+            centered // 垂直居中展示，提升大屏幕下的审美平衡
             className="custom-interview-detail-modal dark:custom-modal-dark"
         >
             <div className="py-2">
@@ -90,6 +93,7 @@ const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCan
                     <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50/50 dark:bg-blue-900/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
 
                     <div className="flex items-center gap-5 relative z-10">
+                        {/* 候选人头像占位：提取首字母大写展示 */}
                         <div className="w-16 h-16 rounded-[20px] bg-blue-600 flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-blue-200 dark:shadow-none">
                             {interview.candidateName ? interview.candidateName.charAt(0).toUpperCase() : '?'}
                         </div>
@@ -106,6 +110,7 @@ const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCan
                             {getStatusText(interview.status).toUpperCase()}
                         </Tag>
                         {interview.status === 'scheduled' && (
+                            // 动态倒计时动画：使用脉冲效果（pulse）提醒 HR 该面试即将进行
                             <div className="text-[10px] font-black text-blue-500 dark:text-blue-400 uppercase tracking-widest animate-pulse">Waiting for Interview</div>
                         )}
                     </div>
@@ -140,6 +145,7 @@ const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCan
                         </div>
                         <div className="col-span-2 space-y-1">
                             <div className="text-xs text-slate-400 font-bold">{language === 'zh' ? '面试地点 / 链接' : 'Location / Link'}</div>
+                            {/* NOTE: 面试地点可能包含 URL（视频面试），因此增加边框卡片样式以突出显示 */}
                             <div className="font-black text-slate-900 dark:text-white flex items-center gap-2 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
                                 <MapPin className="w-4 h-4 text-rose-500" />
                                 {interview.location || (language === 'zh' ? '面试地点未指定' : 'N/A')}
@@ -186,8 +192,10 @@ const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCan
                     </div>
                 )}
 
+                {/* 面试结果展示区域：根据结论（通过/未通过）动态切换背景色，强化结果导向 */}
                 {interview.interviewResult && (
                     <div className={`p-8 rounded-[32px] border relative overflow-hidden ${interview.interviewResult === '通过' ? 'bg-blue-600 text-white border-blue-500' : interview.interviewResult === '未通过' ? 'bg-slate-900 text-white border-slate-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border-slate-200 dark:border-slate-700'}`}>
+                        {/* 装饰性背景：仅在通过时显示发光效果 */}
                         {interview.interviewResult === '通过' && <div className="absolute right-0 bottom-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mb-16"></div>}
                         <div className="flex justify-between items-start relative z-10">
                             <div>
@@ -197,6 +205,7 @@ const InterviewDetailModal: React.FC<InterviewDetailModalProps> = ({ open, onCan
                                     {language === 'zh' ? (interview.interviewResult as string) : ((interview.interviewResult as any) === '通过' ? 'PASSED' : (interview.interviewResult as any) === '未通过' ? 'REJECTED' : (interview.interviewResult as string))}
                                 </div>
                                 {interview.interviewFeedback && (
+                                    // 评价文本区域：使用半透明毛玻璃背景（backdrop-blur），提升在深色背景上的可读性
                                     <div className={`text-sm font-medium p-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 leading-relaxed`}>
                                         {interview.interviewFeedback}
                                     </div>

@@ -584,7 +584,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
         });
     }, [onDeleteConversation]);
 
-    // WeChat Exchange Functions - 重新构建逻辑
+    // 微信交换逻辑
     const handleWechatExchange = () => {
         // 场景1: 检查用户是否已设置微信号
         if (!currentUser?.wechat || currentUser.wechat.trim() === '') {
@@ -641,7 +641,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
                     }
                     setPendingAction(null);
                 } else {
-                    // Fallback to sending if no pending action (legacy behavior)
+                    // 兼容旧逻辑
                     await handleSendWechatRequest();
                 }
             } else {
@@ -656,7 +656,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
     const handleSendWechatRequest = async () => {
         if (!activeConversationId || !currentUser) return;
 
-        // Check for duplicates
+        // 检查是否存在重复请求
         const hasPendingRequest = (activeConv?.messages || []).some((m: any) =>
             m.type === 'exchange_request' &&
             m.sender_id.toString() === currentUser.id.toString() &&
@@ -675,15 +675,15 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
 
         setIsSendingRequest(true);
         try {
-            // New logic: Send JSON content with status 'pending'
+            // 发送JSON格式的内容，包含状态'pending'
             const content = JSON.stringify({
                 status: 'pending',
                 msg: '请求交换微信',
-                initiator_wechat: currentUser.wechat // Include wechat ID for consistency
+                initiator_wechat: currentUser.wechat // 包含微信号以保持一致性
             });
             await onSendMessage(content, 'exchange_request');
             setExchangeRequestSent(true);
-            setShowExtrasMenu(false); // Close menu if open
+            setShowExtrasMenu(false); // 关闭菜单
             message.success('微信交换请求已发送');
         } catch (error) {
             console.error('发送微信交换请求失败:', error);
@@ -694,7 +694,7 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
     };
 
     const handleAcceptWechatExchange = async (messageId: number | string) => {
-        // Check if user has wechat
+        // 检查用户是否已设置微信号
         if (!currentUser?.wechat || currentUser.wechat.trim() === '') {
             setWechatInput('');
             setPendingAction({ type: 'accept', id: messageId });
@@ -707,10 +707,10 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
 
     const executeAcceptWechat = async (messageId: number | string) => {
         try {
-            // Call API to accept wechat exchange request (update status)
+            // 调用API接受微信交换请求（更新状态）
             await messageAPI.updateExchangeStatus(messageId, 'accept', currentUser.id);
             message.success('已同意微信交换');
-            // Refresh conversation to get updated messages
+            // 刷新对话以获取更新后的消息
             window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
         } catch (error) {
             console.error('同意微信交换失败:', error);
@@ -720,10 +720,10 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
 
     const handleRejectWechatExchange = async (messageId: number | string) => {
         try {
-            // Call API to reject wechat exchange request
+            // 调用API拒绝微信交换请求
             await messageAPI.updateExchangeStatus(messageId, 'reject', currentUser.id);
             message.success('已拒绝微信交换');
-            // Refresh conversation to get updated messages
+            // 刷新对话以获取更新后的消息
             window.dispatchEvent(new CustomEvent('refreshConversation', { detail: { conversationId: activeConversationId } }));
         } catch (error) {
             console.error('拒绝微信交换失败:', error);
@@ -782,10 +782,10 @@ const RecruiterMessageScreen: React.FC<RecruiterMessageScreenProps> = ({
             });
     }, [conversations, searchText]);
 
-    // Scroll selected conversation into view in sidebar
+    // 滚动选中的对话到侧边栏视图中
     useEffect(() => {
         if (activeConversationId && !isMobile) {
-            // Slight delay to ensure rendering
+            // 延迟以确保渲染完成
             setTimeout(() => {
                 const elm = document.getElementById(`conversation-${activeConversationId}`);
                 if (elm) {

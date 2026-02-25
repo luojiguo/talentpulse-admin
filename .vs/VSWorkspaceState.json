@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\Front_End",
+    "\\Front_End\\components",
+    "\\Front_End\\src",
+    "\\Front_End\\src\\components",
+    "\\Front_End\\src\\modules",
+    "\\Front_End\\src\\modules\\candidate\\components",
+    "\\Front_End\\src\\modules\\recruiter",
+    "\\Front_End\\src\\modules\\recruiter\\components"
+  ],
+  "SelectedNode": "\\Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx",
+  "PreviewInSolutionExplorer": false
+}

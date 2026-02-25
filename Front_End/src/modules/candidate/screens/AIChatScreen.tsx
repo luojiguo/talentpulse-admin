@@ -514,10 +514,13 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                                 }`}>
                                                 {msg.role === 'user' ? <User className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
                                             </div>
-                                            <div className={`p-5 rounded-[24px] shadow-sm ${msg.role === 'user'
-                                                ? 'bg-brand-500 text-white rounded-tr-none font-medium'
-                                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-brand-50 dark:border-slate-700 rounded-tl-none font-medium leading-relaxed'
-                                                }`}>
+                                            <div
+                                                className={`p-5 rounded-[24px] shadow-sm ${msg.role === 'user'
+                                                    ? 'rounded-tr-none font-medium'
+                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-brand-50 dark:border-slate-700 rounded-tl-none font-medium leading-relaxed'
+                                                    }`}
+                                                style={msg.role === 'user' ? { backgroundColor: '#F8F8F8', color: '#1F1F1F' } : {}}
+                                            >
                                                 {msg.text || msg.content}
                                             </div>
                                         </div>

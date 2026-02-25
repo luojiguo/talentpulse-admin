@@ -150,7 +150,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
         return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${colors[status]}`}>{labels[status] || status}</span>;
     };
 
-    // Fetch full user details when a user is selected
+    // 获取完整用户信息
     useEffect(() => {
         const fetchUserDetails = async () => {
             if (selectedUser?.id && selectedUser.roles?.includes('recruiter')) {
@@ -194,7 +194,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
             await userAPI.updateUserStatus(userId, newStatus);
             message.success(`用户状态已更新为 ${newStatus === 'active' ? '正常' : '已封禁'}`);
 
-            // Update local state
+            // 更新本地状态
             setUsers(prev => prev.map(u => {
                 if (u.id === userId) {
                     return { ...u, status: newStatus === 'active' ? 'Active' : 'Suspended' };
@@ -280,7 +280,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                             <td className="px-6 py-4 font-medium text-slate-900 dark:text-white overflow-hidden text-ellipsis whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
                                                     <div className="relative h-8 w-8 flex-shrink-0">
-                                                        {/* Base Layer: Initials */}
+                                                        {/* 头像 */}
                                                         <div className={`h-full w-full rounded-full flex items-center justify-center font-bold border border-white dark:border-slate-800 shadow-sm text-xs ${user.roles?.includes('candidate')
                                                             ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                                                             : user.roles?.includes('recruiter')
@@ -290,7 +290,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                             {user.name.charAt(0)}
                                                         </div>
 
-                                                        {/* Top Layer: Image */}
+                                                        {/* 头像 */}
                                                         {user.avatar && (
                                                             <img
                                                                 src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:8001${user.avatar}`}
@@ -625,7 +625,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                 </div>
             )}
 
-            {/* User Detail Panel */}
+            {/* 用户详情面板 */}
             {selectedUser && (
                 <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setSelectedUser(null)}>
                     <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-slate-800 shadow-2xl animate-in slide-in-from-right-1/4 duration-300 p-6 flex flex-col" onClick={e => e.stopPropagation()}>
@@ -637,7 +637,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                             {/* 头像展示 */}
                             <div className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-700/30 rounded-2xl border border-slate-100 dark:border-slate-700">
                                 <div className="relative h-24 w-24 flex-shrink-0">
-                                    {/* Base Layer: Initials */}
+                                    {/* 基础层：首字母 */}
                                     <div className={`h-full w-full rounded-full flex items-center justify-center text-3xl font-bold border-4 border-white dark:border-slate-800 shadow-lg ${selectedUser.roles?.includes('candidate')
                                         ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                                         : selectedUser.roles?.includes('recruiter')
@@ -647,7 +647,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                         {selectedUser.name.charAt(0)}
                                     </div>
 
-                                    {/* Top Layer: Image */}
+                                    {/* 头像 */}
                                     {selectedUser.avatar && (
                                         <img
                                             src={selectedUser.avatar.startsWith('http') ? selectedUser.avatar : `http://localhost:8001${selectedUser.avatar}`}
@@ -684,7 +684,7 @@ const SystemUsersView: React.FC<{ lang: Language }> = ({ lang }) => {
                                                         TRANSLATIONS[lang].roles.admin}
                                         </span>
                                     </p>
-                                    {/* Display Company for Recruiters */}
+                                    {/* 招聘者*/}
                                     {selectedUser.roles?.includes('recruiter') && (
                                         <>
                                             <p><strong className="dark:text-white">{lang === 'zh' ? '所属公司' : 'Company'}:</strong> {selectedUser.company_name || 'Loading...'}</p>

@@ -1,3 +1,14 @@
+/**
+ * CandidateApp.tsx - 求职者端核心控制台
+ * 
+ * 该组件是求职者模块的入口枢纽，负责如下核心逻辑：
+ * 1. 路由管理：集成 React Router v6，定义求职者端的所有功能路径。
+ * 2. 状态同步：维护全局用户信息、关注公司列表、收藏职位及即时通讯对话列表。
+ * 3. 实时通信 (Socket.IO)：建立持久连接，监听职位推送、消息到达及已读同步事件。
+ * 4. 业务闭环：封装了“立即沟通”这一关键业务流，涉及职位申请与私信开启的自动化联动。
+ * 
+ * TODO: 待重构部分逻辑至 Redux 或 Context 以进一步降低 Props 钻取。
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { Modal, App } from 'antd';
@@ -8,7 +19,7 @@ import { socketService } from '@/services/socketService';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { I18nProvider } from '@/contexts/i18nContext';
 
-// Import Candidate screens
+// 导入求职者
 import HomeScreen from './screens/HomeScreen';
 import JobDetailScreen from './screens/JobDetailScreen';
 import JobListScreen from './screens/JobListScreen';
@@ -35,10 +46,10 @@ interface CandidateAppProps {
   onLogin: (user: User) => void;
 }
 
-// Internal Guard Component
+// 内部守卫组件
 const RequireLogin = ({ children, currentUser }: { children: React.ReactNode, currentUser: User | null }) => {
   if (!currentUser || currentUser.id === 0) {
-    // Prevent redirect loop if already on login (handled by App.tsx generally, but good for safety)
+    // 防止重定向循环（由 App.tsx 通常处理，但为了安全起见）
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -48,17 +59,17 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // NOTE: 使用 App.useApp() 获取 message 和 modal 实例以支持动态主题
   const { message, modal } = App.useApp();
   const [activeTab, setActiveTab] = useState('home');
-  // Add setCurrentUser functionality by keeping local state that syncs with props
+  // 通过保留本地状态来添加 setCurrentUser 功能，该状态与 props 同步
   const [localCurrentUser, setLocalCurrentUser] = useState<User | null>(currentUser);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Candidate Screen Props Management
+  // 候选者屏幕属性管理
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const activeConversationIdRef = React.useRef<string | null>(null);
   const joinedConversationIdRef = React.useRef<string | null>(null);
 
-  // Sync ref with state
+  // 同步 ref 与 state，确保在 Socket 回调等异步闭包中始终能获取到最新的活跃会话 ID
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
@@ -76,7 +87,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // 消息相关状态
   const [conversationError, setConversationError] = useState<string | null>(null);
 
-  // Sync with external currentUser prop changes
+  // 同步外部 currentUser prop 更改
   useEffect(() => {
     setLocalCurrentUser(currentUser);
   }, [currentUser]);
@@ -98,18 +109,19 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       window.removeEventListener('userAvatarUpdated', handleAvatarUpdate);
     };
   }, []);
-  // 优化：并行获取所有初始数据，减少加载时间
-  // 使用 useApi Hook 获取智能推荐的职位数据（并行加载）
-  // Handle Login Modal
+  // 优化方案：并行获取所有初始数据（职位、资料、关注公司），显著减少白屏等待时间
+  // 使用 useApi Hook 封装请求逻辑，支持自动重试和状态管理
+
+  // 处理登录模态框的显示逻辑，确保未登录用户触发受限操作时能及时引导
   const openLoginModal = () => setIsLoginModalOpen(true);
   const closeLoginModal = () => setIsLoginModalOpen(false);
 
-  // Define onLoginClick wrapper safely (can be passed to children)
+  // 安全地定义 handleLoginClick 包装器，支持透传给底层子组件（如 Header 或 EmptyState）
   const handleLoginClick = () => {
     openLoginModal();
   };
 
-  // Fetch Recommended Jobs with Guard
+  // 通过 Guard 机制按需获取智能推荐职位，仅在用户登录状态下发起请求
   const {
     data: jobsData,
     loading: loadingJobs,
@@ -150,13 +162,12 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [followedCompaniesData]);
 
-  // Local setCurrentUser function that updates local state and ensures id is always a number
+  // Local setCurrentUser 函数，更新本地状态并确保 id 始终为数字
   const handleSetCurrentUser = (userOrUpdater: User | ((prevUser: User) => User)) => {
     if (!localCurrentUser) return; // Guard against updates when no user
 
-    // Determine the new user object based on the current localCurrentUser state
+    // 根据当前 localCurrentUser 状态确定新用户对象
     const newUser = typeof userOrUpdater === 'function'
-      // @ts-ignore - complex union type issue, runtime safe due to guard above
       ? userOrUpdater(localCurrentUser)
       : userOrUpdater;
 
@@ -165,10 +176,10 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       id: typeof newUser.id === 'string' ? parseInt(newUser.id, 10) : newUser.id
     };
 
-    // Update local state
+    // 更新本地状态
     setLocalCurrentUser(updatedUser);
 
-    // Update global state
+    // 更新全局状态
     if (onUpdateUser) {
       onUpdateUser(updatedUser);
     }
@@ -178,10 +189,12 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   // --- 所有回调函数均放在此处定义，确保初始化顺序 ---
 
   // 获取用户对话列表
+  // 由于后端会话是通过 user_id 关联的，因此对于招聘者来说，必须在 /:userId 之后定义
+  // 这里通过 currentUser.id 获取该用户所有的会话列表
   const fetchConversations = useCallback(async () => {
     if (!localCurrentUser?.id) return;
 
-    // Check for token to avoid 401
+    // 检查 token 以避免 401 错误，确保请求合法性
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -244,18 +257,18 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [localCurrentUser?.id, activeConversationId]); // 添加 activeConversationId 依赖以防丢失当前对话
 
-  // Socket.IO Integration
+  // Socket.IO 实时通信集成，负责消息推送、状态同步及在线状态管理
   useEffect(() => {
     if (localCurrentUser?.id) {
-      // Connect to socket
+      // 建立 Socket 连接并自动加入个人专属 Room
       const socket = socketService.connect(localCurrentUser.id);
 
-      // Listen for new messages
+      // 实时监听来自招聘者端或系统推送的新消息
       socketService.onNewMessage((message: any) => {
         console.log('Received new message via socket:', message);
 
         setConversations(prevConversations => {
-          // Check if conversation exists
+          // 检查当前会话的消息列表中是否已存在（可能由于 Socket 先行推送到位）该 ID 的消息
           const conversationExists = prevConversations.some(c => c.id.toString() === message.conversation_id.toString());
 
           if (conversationExists) {
@@ -265,23 +278,24 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                 const isCurrentConversation = currentActiveId && currentActiveId.toString() === message.conversation_id.toString();
 
                 const existingMessages = conv.messages || [];
-                // Avoid duplicates by ID (string comparison)
+                // 避免重复消息（基于 ID）
                 if (existingMessages.some(m => m.id?.toString() === message.id?.toString())) {
-                  // If it exists, it might be an update (like exchange accepted)
+                  // 如果存在，可能是更新（例如交换接受）
                   return {
                     ...conv,
                     messages: existingMessages.map(m => m.id?.toString() === message.id?.toString() ? { ...m, ...message } : m)
                   };
                 }
 
-                // Fuzzy Match Deduplication for Optimistic Updates
+                // 模糊去重逻辑（针对乐观更新）：
+                // 如果是“我”刚才发送的内容完全一致，且时间差在 5 秒内，则认为是后端对刚才请求的回调，更新为真实 ID 即可
                 const isFromMe = message.sender_id.toString() === localCurrentUser.id.toString();
                 if (isFromMe) {
                   const lastMsg = existingMessages[existingMessages.length - 1];
                   if (lastMsg &&
                     lastMsg.text === message.text &&
                     (Date.now() - new Date(lastMsg.time).getTime() < 5000)) {
-                    // Update optimistic message with real data
+                    // 使用后端返回的真实数据覆盖本地乐观生成的临时消息
                     const updatedMessages = [...existingMessages];
                     updatedMessages[updatedMessages.length - 1] = {
                       ...message,
@@ -309,8 +323,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
                   recruiter_name: !isFromMe ? (message.sender_name || conv.recruiter_name) : conv.recruiter_name,
                   recruiter_avatar: !isFromMe ? (message.sender_avatar || conv.recruiter_avatar) : conv.recruiter_avatar,
 
-                  candidateUnread: isCurrentConversation ? 0 : (conv.candidateUnread || 0) + 1, // Candidate unread logic
-                  unreadCount: isCurrentConversation ? 0 : (conv.unreadCount || 0) + 1, // Fallback
+                  // 未读计数逻辑：如果当前不在对应的聊天窗口，则增加候选人侧的未读数
+                  candidateUnread: isCurrentConversation ? 0 : (conv.candidateUnread || 0) + 1,
+                  unreadCount: isCurrentConversation ? 0 : (conv.unreadCount || 0) + 1,
                   messages: [...existingMessages, {
                     ...message,
                     sender_name: message.sender_name || (isFromMe ? '我' : '对方'),
@@ -321,8 +336,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               return conv;
             });
           } else {
-            // New conversation? Fetch everything
-            // For now, simpler to just fetch all conversations again to ensure sync
+            // 发现新的会话（可能是对方发起的或者后端同步延迟）
+            // 为了安全起见，直接全量重新拉取一遍会话列表，确保数据一致性
             fetchConversations();
             return prevConversations;
           }
@@ -376,34 +391,38 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
 
     return () => {
+      // 卸载组件时断开连接并注销所有监听事件，防止回调地狱和性能开销
       socketService.disconnect();
       socketService.offNewMessage();
       socketService.offMessageUpdated();
       socketService.offConversationUpdated();
     };
-  }, [localCurrentUser?.id]); // Only depend on User ID
+  }, [localCurrentUser?.id]); // 核心依赖：仅当用户 ID 变化时（如重新登录）重置套接字
 
-  // Handle joining conversation rooms when active conversation changes
+  // 自动加入/退出 Socket 会话房间，确保能收到特定会话的推送消息
   useEffect(() => {
     if (activeConversationId) {
       const prevJoinedId = joinedConversationIdRef.current;
+      // 切换会话时，先退出上一个房间再进入新房间
       if (prevJoinedId && prevJoinedId.toString() !== activeConversationId.toString()) {
         socketService.leaveConversation(prevJoinedId);
       }
       socketService.joinConversation(activeConversationId);
       joinedConversationIdRef.current = activeConversationId;
 
-      // Mark as read when entering room (handled by API call in handleSelectConversation, but good to keep in mind)
+      // 提示：进入房间后应立即标记该会话已读（在 handleSelectConversation 中统一处理）
     }
   }, [activeConversationId]);
 
-  // 保留一个长轮询作为备份，但延长间隔到5分钟，主要依靠Socket
+  // 容错备份：保留一个长轮询机制作为兜底，当 Socket 连接意外中断或处于极不稳定的网络环境时
+  // 仍能每隔 5 分钟尝试同步一次核心数据，确保用户端最终一致性
   useEffect(() => {
     const refreshInterval = setInterval(() => {
+      // 仅在页面可见时刷新，节省能耗和带宽
       if (document.visibilityState === 'visible') {
         fetchConversations();
       }
-    }, 300000); // 5分钟刷新一次作为兜底
+    }, 300000); // 5分钟刷新一次
 
     return () => clearInterval(refreshInterval);
   }, [fetchConversations]);
@@ -414,13 +433,13 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       const idToSet = typeof conversationId === 'string' ? parseInt(conversationId, 10) : conversationId;
       setActiveConversationId(idToSet.toString());
 
-      // 标记消息为已读 - 先调用，减少等待时间
+      // 关键交互逻辑：标记消息为已读。为了优化用户体验，先调用已读接口再发起详情查询，减少后端处理等待时间
       const markFunc = (messageAPI as any).markMessagesAsRead || messageAPI.markAsRead;
       if (markFunc) {
         await markFunc(idToSet, localCurrentUser.id);
       }
 
-      // 获取对话的详细消息，默认获取最新的15条，减少首屏渲染压力
+      // 分页拉取：获取会话的详细消息。初始仅获取最新的 15 条，大幅减轻首次加载时的 DOM 渲染压力
       const response = await (messageAPI as any).getConversationDetail(idToSet, limit, offset, 'desc');
       if ((response as any).status === 'success') {
         let messages: any[] = [];
@@ -585,7 +604,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, []);
 
-  // Handle Send Message
+  // 消息发送核心逻辑：支持文本、图片（通过其他入口触发）、交换请求等多种消息类型
   const handleSendMessage = useCallback(async (text: string, type: any = 'text', quotedMessage?: { id: string | number | null, text: string, senderName: string | null, type?: string }) => {
     if (!activeConversationId) return;
     // 对于exchange_request类型的消息，允许text为空
@@ -616,11 +635,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         quoted_message
       });
 
-      // 优化：发送消息的同时本地更新，提升响应速度
+      // 交互优化策略：乐观更新。虽然此处主要通过后端响应来驱动 UI，但 Socket 端也做了重复数据排除
       const response = await messageAPI.sendMessage({
         conversationId: activeConversationId,
         senderId: localCurrentUser.id,
-        receiverId: undefined, // 后端会自动根据conversationId查找接收者
+        receiverId: undefined, // 后端根据 conversationId 自动路由到对应接收者
         text,
         type,
         quoted_message
@@ -661,7 +680,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
               quoted_message: quoted_message as any
             };
 
-            // Deduplication: Check if message (from socket) already exists
+            // 去重逻辑：检查当前会话的消息列表中是否已存在（可能由于 Socket 先行推送到位）该 ID 的消息
             const msgExists = (c.messages || []).some(m => m.id.toString() === newMessage.id.toString());
             if (msgExists) {
               return c;
@@ -706,7 +725,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [activeConversationId, conversations, localCurrentUser, fetchConversations]);
 
-  // Handle Delete Message
+  // 消息撤回/删除功能：执行软删除操作，仅对当前视图进行清理，确保后端记录与用户端同步
   const handleDeleteMessage = useCallback(async (conversationId: string | number, messageId: number | string) => {
     try {
       // 调用后端API删除消息，传入deletedBy参数
@@ -745,7 +764,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [localCurrentUser?.id, fetchConversations]);
 
-  // Handle Delete Conversation -> Changed to Hide
+  // 会话列表清理：由于业务逻辑倾向于保留沟通记录，此处的“删除”实际上是“隐藏（Hide）”操作
   const handleDeleteConversation = useCallback(async (conversationId: string | number) => {
     try {
       // 优化：改为"隐藏"而非"删除"
@@ -786,7 +805,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           return conv;
         });
 
-        // Re-sort: Pinned first, then time
+        // 重新排序逻辑：置顶会话始终位于列表最上方，其余按更新时间倒序排列
         return updated.sort((a: any, b: any) => {
           if (a.candidatePinned !== b.candidatePinned) {
             return a.candidatePinned ? -1 : 1;
@@ -809,7 +828,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
         action: 'hide'
       });
 
-      // Optimistic removal
+      // 乐观更新：立即在 UI 上移除会话，提升响应速度，随后等待后端同步
       setConversations(prev => prev.filter(conv => conv.id.toString() !== conversationId.toString()));
 
       if (activeConversationId?.toString() === conversationId.toString()) {
@@ -822,9 +841,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   };
 
-  // Handle Upload Image Message
-
-  // Handle Upload Image Message
+  // 处理图片消息上传流程：先调用上传 API 获取 URL，再构造消息对象更新本地状态
   const handleUploadImage = useCallback(async (conversationId: string | number, file: File, quotedMessage?: any) => {
     try {
       // 找到当前对话
@@ -932,6 +949,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     avatar: userProfileData.data.avatar || localCurrentUser.avatar,
     wechat: userProfileData.data.wechat || localCurrentUser.wechat || ''
   } : (localCurrentUser ? {
+    // 处理备用的本地用户数据结构
     id: localCurrentUser.id,
     name: localCurrentUser.name,
     phone: '',
@@ -948,7 +966,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     avatar: localCurrentUser.avatar,
     wechat: localCurrentUser.wechat || ''
   } : {
-    // Guest Profile
+    // 游客 (Guest) 资料，仅展示基础默认信息
     id: 0,
     name: '游客',
     phone: '',
@@ -973,9 +991,9 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     }
   }, [userProfile.wechat, localCurrentUser?.wechat]);
 
-  // Handle Chat Redirect - 立即沟通功能
+  // “立即沟通”重定向逻辑：该功能是核心闭环，涉及申请记录生成、对话创建及消息发送
   const handleChatRedirect = async (jobId: string | number, recruiterId: string | number) => {
-    // Guest check
+    // 游客权限检查：强制登录
     if (!localCurrentUser) {
       message.warning('请先登录后进行沟通');
       openLoginModal();
@@ -988,7 +1006,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
       return;
     }
 
-    // Find the job title and recruiter info
+    // 获取职位及招聘者基本信息，用于构造打招呼消息的上下文
     const job = jobs.find(j => j.id.toString() === jobId.toString());
     const jobTitle = job?.title || '该职位';
     const companyName = job?.company_name || '该公司';
@@ -998,7 +1016,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
     const recruiterAvatar = job?.recruiter_avatar || '';
     const recruiterPosition = job?.recruiter_position || 'HR';
 
-    // Create default message with format: 打招呼+介绍自己+应聘的岗位
+    // 构造默认打招呼语：格式包含“姓名+应聘职位+了解详情意图”
     const defaultMessage = `您好！我是${userProfile.name || localCurrentUser.name}，我想应聘${jobTitle}职位，想了解更多相关信息。`;
 
     try {
@@ -1151,8 +1169,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
           <Route path="/job/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}><JobDetailScreen jobs={jobs} onBack={() => window.history.back()} collectedJobs={collectedJobs} setCollectedJobs={setCollectedJobs} onChat={handleChatRedirect} currentUser={localCurrentUser} onOpenLogin={handleLoginClick} /></CandidateLayout>} />
           <Route path="/company/:id" element={<CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}><CompanyDetailScreen /></CandidateLayout>} />
 
-          {/* Message Center Routes */}
-          {/* Message Center Routes - Unified Responsive Route */}
+          {/* 消息中心路由：采用统一的响应式组件 MessageCenterScreen 处理列表与详情 */}
           <Route path="/messages" element={
             <RequireLogin currentUser={localCurrentUser}>
               <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole} onOpenLogin={handleLoginClick}>
@@ -1205,7 +1222,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
             </RequireLogin>
           } />
 
-          {/* Other Protected Routes */}
+          {/* 其他受保护路由：必须登录后才可访问的功能模块 */}
           <Route path="/mock-interview" element={
             <RequireLogin currentUser={localCurrentUser}>
               <CandidateLayout currentUser={localCurrentUser} onLogout={onLogout} onSwitchRole={onSwitchRole}>
@@ -1261,7 +1278,7 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
             </RequireLogin>
           } />
 
-          {/* Catch-all route to prevent blank screen on unknown paths (like /login when already logged in) */}
+          {/* 兜底路由：匹配所有未知路径，自动重定向至首页，防止出现白屏或 404 挂起 */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 

@@ -1,0 +1,109 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\RecruiterMessageScreen.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Front_End\\src\\modules\\recruiter\\components\\RecruiterMessageScreen.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\RecruiterJobDetail.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Front_End\\src\\modules\\recruiter\\components\\RecruiterJobDetail.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\views\\CandidatesView.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Front_End\\src\\modules\\recruiter\\views\\CandidatesView.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\candidate\\components\\CandidateLayout.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Front_End\\src\\modules\\candidate\\components\\CandidateLayout.tsx||{0F2454B1-A556-402D-A7D0-1FDE7F99DEE0}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "SetInterviewResultModal.tsx",
+              "DocumentMoniker": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx",
+              "RelativeDocumentMoniker": "Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx",
+              "ToolTip": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx",
+              "RelativeToolTip": "Front_End\\src\\modules\\recruiter\\components\\SetInterviewResultModal.tsx",
+              "ViewState": "AgIAAGIAAAAAAAAAAAAIwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-02-25T06:29:56.82Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "RecruiterMessageScreen.tsx",
+              "DocumentMoniker": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\RecruiterMessageScreen.tsx",
+              "RelativeDocumentMoniker": "Front_End\\src\\modules\\recruiter\\components\\RecruiterMessageScreen.tsx",
+              "ToolTip": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\RecruiterMessageScreen.tsx",
+              "RelativeToolTip": "Front_End\\src\\modules\\recruiter\\components\\RecruiterMessageScreen.tsx",
+              "ViewState": "AgIAAJcBAAAAAAAAAAAlwKoBAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-02-25T06:23:48.58Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "RecruiterJobDetail.tsx",
+              "DocumentMoniker": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\RecruiterJobDetail.tsx",
+              "RelativeDocumentMoniker": "Front_End\\src\\modules\\recruiter\\components\\RecruiterJobDetail.tsx",
+              "ToolTip": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\components\\RecruiterJobDetail.tsx",
+              "RelativeToolTip": "Front_End\\src\\modules\\recruiter\\components\\RecruiterJobDetail.tsx",
+              "ViewState": "AgIAAK8AAAAAAAAAAAAAAL4AAAAuAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-02-25T06:23:30.703Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "CandidatesView.tsx",
+              "DocumentMoniker": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\views\\CandidatesView.tsx",
+              "RelativeDocumentMoniker": "Front_End\\src\\modules\\recruiter\\views\\CandidatesView.tsx",
+              "ToolTip": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\recruiter\\views\\CandidatesView.tsx",
+              "RelativeToolTip": "Front_End\\src\\modules\\recruiter\\views\\CandidatesView.tsx",
+              "ViewState": "AgIAAAwBAAAAAAAAAAAAAAwBAAAgAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-02-25T06:23:12.004Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "CandidateLayout.tsx",
+              "DocumentMoniker": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\candidate\\components\\CandidateLayout.tsx",
+              "RelativeDocumentMoniker": "Front_End\\src\\modules\\candidate\\components\\CandidateLayout.tsx",
+              "ToolTip": "C:\\Users\\28349\\Desktop\\temp\\talentpulse-admin\\Front_End\\src\\modules\\candidate\\components\\CandidateLayout.tsx",
+              "RelativeToolTip": "Front_End\\src\\modules\\candidate\\components\\CandidateLayout.tsx",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAATAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003213|",
+              "WhenOpened": "2026-02-25T06:22:57.413Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

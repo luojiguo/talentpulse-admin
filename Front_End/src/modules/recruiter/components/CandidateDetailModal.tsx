@@ -3,17 +3,18 @@ import { X, Mail, Phone, MapPin, Briefcase, Calendar, GraduationCap, FileText, D
 import { api } from '../../../services/apiService';
 import { useI18n } from '@/contexts/i18nContext';
 
+// 候选人详情模态框的属性定义
 interface CandidateDetailModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    candidate: any; // Using any for flexibility with the fetched data structure
+    isOpen: boolean;    // 控制模态框显隐
+    onClose: () => void; // 关闭模态框的回调函数
+    candidate: any;      // 候选人基本信息，使用 any 以兼容从消息列表或申请列表传来的不同数据结构
 }
 
 export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOpen, onClose, candidate }) => {
     const { language, t } = useI18n();
-    const [activeTab, setActiveTab] = useState('overview');
-    const [loading, setLoading] = useState(true);
-    const [details, setDetails] = useState<any>({
+    const [activeTab, setActiveTab] = useState('overview'); // 当前激活的页签：overview(概览), experience(简历), education(教育), resume(附件)
+    const [loading, setLoading] = useState(true);          // 数据加载状态
+    const [details, setDetails] = useState<any>({          // 存储从后端拉取的详细履历数据
         workExperiences: [],
         educationExperiences: [],
         projectExperiences: [],
@@ -21,6 +22,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
     });
 
     useEffect(() => {
+        // 当模态框打开且候选人 ID 存在时，触发详细数据抓取
         if (isOpen && candidate && candidate.userId) {
             fetchCandidateDetails();
         }
@@ -31,14 +33,15 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
         try {
             const userId = candidate.userId;
 
-            // Parallel fetching for performance (excluding resumes to show only relevant one)
+            // NOTE: 使用 Promise.all 并行请求，减少前端等待时间。
+            // 工作经历、教育背景、项目经验分别存储在不同的表中，通过 API 分开获取。
             const [workRes, eduRes, projRes] = await Promise.all([
                 api.get(`/candidates/${userId}/work-experiences`),
                 api.get(`/candidates/${userId}/education-experiences`),
                 api.get(`/candidates/${userId}/project-experiences`)
             ]);
 
-            // Use application specific resume if available
+
             const resumes = candidate.applicationResume ? [{
                 id: 'application_resume',
                 resume_file_url: candidate.applicationResume.url,
@@ -61,32 +64,35 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
 
     if (!isOpen) return null;
 
-    // Helper to format date
+    // 辅助函数：将 ISO 格式的日期字符串转换为中文阅读习惯的“2023年5月”格式
     const formatDate = (dateString: string) => {
-        if (!dateString) return '至今';
+        if (!dateString) return '至今'; // 若日期为空，通常代表该经历目前仍在进行中
         return new Date(dateString).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
     };
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
             <div className="bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col border border-white/20 dark:border-slate-800 animate-in zoom-in-95 duration-300">
-                {/* Header */}
+                {/* 顶部个人背景区域：展示头像、姓名、职位概览及关闭按钮 */}
                 <div className="p-8 border-b border-slate-100 dark:border-slate-800/50 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20 relative overflow-hidden">
                     <div className="absolute right-0 top-0 w-64 h-64 bg-blue-100/30 dark:bg-blue-900/10 rounded-full blur-3xl -mr-32 -mt-32"></div>
 
                     <div className="flex items-center gap-6 relative z-10">
                         <div className="relative h-24 w-24 flex-shrink-0">
+                            {/* 默认头像占位：使用姓名首字母，配合蓝色渐变背景，提升视觉品牌感 */}
                             <div className="h-full w-full rounded-[24px] bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-blue-200 dark:shadow-none border-4 border-white dark:border-slate-800">
                                 {candidate.candidateName?.charAt(0)}
                             </div>
+                            {/* 实际头像展示：支持远程和本地地址，使用 object-cover 确保不缩放变形 */}
                             {candidate.avatar && (
                                 <img
                                     src={candidate.avatar.startsWith('http') ? candidate.avatar : `http://localhost:8001${candidate.avatar}`}
                                     alt={candidate.candidateName}
                                     className="absolute inset-0 h-full w-full rounded-[24px] object-cover border-4 border-white dark:border-slate-800 shadow-md"
-                                    onError={(e) => e.currentTarget.style.display = 'none'}
+                                    onError={(e) => e.currentTarget.style.display = 'none'} // 容错处理：若图片加载失败则显示底层的首字母占位
                                 />
                             )}
+                            {/* 设计说明：右下角绿色圆点代表候选人当前“活跃/在线”状态感 */}
                             <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-green-500 border-4 border-white dark:border-slate-900 rounded-full shadow-sm"></div>
                         </div>
                         <div>
@@ -126,9 +132,9 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                     </button>
                 </div>
 
-                {/* Body */}
+                {/* 主体内容区：左侧页签导航 + 右侧详情显示 */}
                 <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-                    {/* Sidebar / Tabs */}
+                    {/* 左侧侧边栏：页签切换控制 */}
                     <div className="w-full md:w-64 bg-slate-50 dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800/50 p-6 flex md:flex-col gap-3 overflow-x-auto md:overflow-visible shrink-0">
                         <button
                             onClick={() => setActiveTab('overview')}
@@ -160,16 +166,17 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                         </button>
                     </div>
 
-                    {/* Content */}
+                    {/* 右侧主详情区域：支持纵向滚动 */}
                     <div className="flex-1 overflow-y-auto p-8 lg:p-12 bg-white dark:bg-slate-900">
                         {loading ? (
+                            // 加载状态提示：使用自定义旋转动画，并配合 tracking-widest 的视觉间距，营造高端感
                             <div className="h-full flex flex-col items-center justify-center gap-4 text-slate-400">
                                 <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
                                 <span className="text-sm font-black tracking-widest uppercase">Fetching Profile...</span>
                             </div>
                         ) : (
                             <div className="max-w-3xl">
-                                {/* Overview Tab */}
+                                {/* 档案总览：显示自我评价、核心技能和联系信息 */}
                                 {activeTab === 'overview' && (
                                     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                         <section>
@@ -177,6 +184,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                                                 <User className="w-6 h-6 text-blue-600" />
                                                 {language === 'zh' ? '能力概览' : 'Ability Overview'}
                                             </h3>
+                                            {/* 设计说明：通过 shadow-inner 营造卡片内陷感，与上方标题形成层次 */}
                                             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-[28px] p-8 text-slate-600 dark:text-slate-300 leading-relaxed font-medium border border-slate-100 dark:border-slate-800/50 shadow-inner">
                                                 {candidate.summary || (language === 'zh' ? '该候选人暂未填写个人职业概览。' : 'No summary provided by the candidate.')}
                                             </div>
@@ -229,7 +237,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                                     </div>
                                 )}
 
-                                {/* Experience Tab */}
+                                {/* 简历详情：显示工作履历和项目实战经验 */}
                                 {activeTab === 'experience' && (
                                     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                         <section>
@@ -251,6 +259,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                                                                     {formatDate(exp.start_date)} — {formatDate(exp.end_date)}
                                                                 </span>
                                                             </div>
+                                                            {/* 履历描述：使用 whitespace-pre-line 保留用户输入的换行符，提升阅读体验 */}
                                                             <p className="text-slate-600 dark:text-slate-400 text-sm whitespace-pre-line leading-relaxed font-medium bg-slate-50 dark:bg-slate-800/30 p-6 rounded-3xl mt-4 border border-slate-100 dark:border-slate-800/50">
                                                                 {exp.description}
                                                             </p>
@@ -288,6 +297,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                                                                 {proj.description}
                                                             </p>
                                                             {proj.project_link && (
+                                                                // 外部链接按钮：使用 active:scale-95 提供微小的点击反馈
                                                                 <a
                                                                     href={proj.project_link}
                                                                     target="_blank"
@@ -310,7 +320,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                                     </div>
                                 )}
 
-                                {/* Education Tab */}
+                                {/* 教育背景：显示历届就读学校及专业信息 */}
                                 {activeTab === 'education' && (
                                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                         <h3 className="text-xl font-black text-slate-900 dark:text-white mb-8 flex items-center gap-3">
@@ -351,7 +361,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                                     </div>
                                 )}
 
-                                {/* Resume Tab */}
+                                {/* 投递附件：显示并提供简历原文的下载/查阅功能 */}
                                 {activeTab === 'resume' && (
                                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                         <h3 className="text-xl font-black text-slate-900 dark:text-white mb-8 flex items-center gap-3">
@@ -409,7 +419,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                     </div>
                 </div>
 
-                {/* Footer */}
+                {/* 底部操作区：由于是详情展示，提供“稍后处理”和“邮件联系”两个核心动作 */}
                 <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-4 rounded-b-[32px] px-10">
                     <button
                         onClick={onClose}
@@ -421,6 +431,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({ isOp
                         onClick={() => window.open(`mailto:${candidate.email}`)}
                         className="px-10 py-3 bg-blue-600 text-white font-black text-sm rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 dark:shadow-none active:scale-95"
                     >
+                        {/* 交互说明：点击后自动唤起系统默认邮件客户端 */}
                         {language === 'zh' ? '立即取得联系' : 'Contact Immediately'}
                     </button>
                 </div>

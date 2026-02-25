@@ -7,7 +7,7 @@ import { analyticsAPI } from '@/services/apiService';
 import { InsightStatus, Language } from '@/types/types';
 import { Button, Drawer, Switch, Empty } from 'antd';
 
-// Widget Definition Interface
+// 控件定义接口
 interface WidgetConfig {
   id: string;
   type: 'kpi' | 'chart';
@@ -19,28 +19,28 @@ interface WidgetConfig {
   chartOption?: any;
   height?: number;
 }
-
+// 统计分析视图
 const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ lang, theme }) => {
   const t = TRANSLATIONS[lang].analytics;
   const aiT = TRANSLATIONS[lang].dashboard;
   const common = TRANSLATIONS[lang].common;
 
-  // --- State ---
+  // 状态
   const [loading, setLoading] = useState<boolean>(true);
   const [editMode, setEditMode] = useState<boolean>(false);
 
-  // Data States
+  // 数据状态
   const [funnelData, setFunnelData] = useState<any[]>([]);
   const [sourceQualityData, setSourceQualityData] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [competitionData, setCompetitionData] = useState<any[]>([]);
   const [topCompaniesData, setTopCompaniesData] = useState<any[]>([]);
 
-  // AI Insights
+  // AI 洞察
   const [aiStatus, setAiStatus] = useState<InsightStatus>(InsightStatus.IDLE);
   const [aiText, setAiText] = useState<string>('');
   const [aiCollapsed, setAiCollapsed] = useState(false);
-  // --- Data Fetching ---
+  // 数据获取
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -69,7 +69,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     fetchData();
   }, []);
 
-  // --- AI Analysis ---
+  // AI 分析
   const handleAnalyze = async () => {
     setAiStatus(InsightStatus.LOADING);
     // 传入更完整的数据供AI分析
@@ -103,13 +103,13 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     }
   };
 
-  // --- ECharts Options Configuration ---
+  // ECharts 配置
   const axisColor = theme === 'dark' ? '#94a3b8' : '#64748b';
   const gridColor = theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(203, 213, 225, 0.4)';
   const primary = theme === 'dark' ? '#6366f1' : '#4f46e5';
   const accent = theme === 'dark' ? '#10b981' : '#059669';
 
-  // Funnel Chart
+  // 漏斗图
   const funnelOption = {
     color: ['#4f46e5', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'],
     tooltip: { trigger: 'item', formatter: '{b} : {c}' },
@@ -134,7 +134,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     ]
   };
 
-  // Source Quality Chart
+  // 来源质量图
   const sourceOption = {
     tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
     legend: { textStyle: { color: axisColor }, top: 10 },
@@ -150,7 +150,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
   };
 
 
-  // Competition Options
+  // 竞争程度图
   const competitionOption = {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '15%', right: '8%', bottom: '3%', containLabel: true },
@@ -170,7 +170,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     }]
   };
 
-  // Top Companies Options
+  // 热门公司图
   const topCompaniesOption = {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -194,7 +194,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     }]
   };
 
-  // Category Pie
+  // 职位类别图
   const categoryOption = {
     tooltip: { trigger: 'item' },
     legend: { bottom: '0%', left: 'center', textStyle: { color: axisColor }, itemWidth: 10, itemHeight: 10 },
@@ -214,7 +214,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     ]
   };
 
-  // Trend Chart
+  // 趋势图
   const trendOption = {
     tooltip: { trigger: 'axis' },
     legend: { data: [t.visitors, t.registrants], textStyle: { color: axisColor }, top: 10 },
@@ -227,7 +227,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     ]
   };
 
-  // --- Widgets Configuration System ---
+  // 仪表盘配置
   const [widgets, setWidgets] = useState<WidgetConfig[]>([
     { id: 'kpi_users', type: 'kpi', title: t.totalUsers, visible: true, colSpan: 1, kpiData: { label: t.totalUsers, value: 0, icon: <Users size={20} />, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' } },
     { id: 'kpi_jobs', type: 'kpi', title: t.activeJobs, visible: true, colSpan: 1, kpiData: { label: t.activeJobs, value: 0, icon: <Briefcase size={20} />, color: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' } },
@@ -241,7 +241,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     { id: 'chart_source', type: 'chart', title: t.source, visible: true, colSpan: 2, chartOption: sourceOption, height: 400 },
   ]);
 
-  // Sync data to widgets
+  // 同步数据到仪表盘
   useEffect(() => {
     const s = stats.stats || {};
     setWidgets(prev => prev.map(w => {
@@ -265,7 +265,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
 
   return (
     <div className="space-y-6 relative pb-20">
-      {/* Header / Toolbar */}
+      {/* 头部/工具栏 */}
       <div className="flex flex-wrap justify-between items-center bg-white/80 dark:bg-slate-800/80 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 backdrop-blur-md">
         <div>
           <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
@@ -294,7 +294,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
         </div>
       </div>
 
-      {/* AI Insight Box */}
+      {/* AI洞察框 */}
       {aiStatus !== InsightStatus.IDLE && (
         <div className={`p-6 rounded-2xl border-2 shadow-xl animate-in fade-in slide-in-from-top-4 duration-500 ${aiStatus === InsightStatus.ERROR ? 'bg-rose-50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-900/30' : 'bg-indigo-50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-900/30'}`}>
           <div className="flex items-center justify-between mb-4">
@@ -329,7 +329,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
         </div>
       )}
 
-      {/* Config Drawer for Edit Mode */}
+      {/* 配置抽屉 */}
       <Drawer title={<span className="font-black uppercase tracking-widest">{t.customLayout}</span>} onClose={() => setEditMode(false)} open={editMode} size="default" className="dark:bg-slate-900">
         <div className="space-y-6">
           <p className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wide">{t.selectingWidget}</p>
@@ -344,7 +344,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
         </div>
       </Drawer>
 
-      {/* Main Grid Layout */}
+      {/* 主网格布局 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {widgets.filter(w => w.type === 'kpi' && w.visible).map(widget => (
           <div key={widget.id} className="relative group overflow-hidden bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">

@@ -8,48 +8,48 @@ import { userAPI, jobAPI, companyAPI, analyticsAPI, applicationAPI, activityAPI 
 import { InsightStatus, StatMetric, Language, UserRole, ApplicationTrendData } from '@/types/types';
 import { useApi } from '@/hooks/useApi';
 
-// Components
+// 组件
 import Header from './components/Header';
 import InsightPanel from './components/InsightPanel';
 
-// Views
-import DashboardHome from './views/DashboardHome';
-import SystemUsersView from './views/SystemUsersView';
-import CompaniesView from './views/CompaniesView';
-import CandidatesView from './views/CandidatesView';
-import JobsView from './views/JobsView';
-import ApplicationsView from './views/ApplicationsView';
-import ApplicationDetailView from './views/ApplicationDetailView';
-import InterviewsView from './views/InterviewsView';
-import OnboardingsView from './views/OnboardingsView';
-import SystemLogsView from './views/SystemLogsView';
-import AnalyticsView from './views/AnalyticsView';
-import SettingsView from './views/SettingsView';
-import CertificationReviewsView from './views/CertificationReviewsView';
-import NotificationsView from './views/NotificationsView';
-
+// 视图
+import DashboardHome from './views/DashboardHome';  // 仪表盘
+import SystemUsersView from './views/SystemUsersView';  // 系统用户
+import CompaniesView from './views/CompaniesView';  // 公司
+import CandidatesView from './views/CandidatesView';  // 候选人
+import JobsView from './views/JobsView';  // 职位
+import ApplicationsView from './views/ApplicationsView';  // 申请
+import ApplicationDetailView from './views/ApplicationDetailView';  // 申请详情
+import InterviewsView from './views/InterviewsView';  // 面试
+import OnboardingsView from './views/OnboardingsView';  // 入职
+import SystemLogsView from './views/SystemLogsView';  // 系统日志
+import AnalyticsView from './views/AnalyticsView';  // 分析
+import SettingsView from './views/SettingsView';  // 设置
+import CertificationReviewsView from './views/CertificationReviewsView';  // 证书审核
+import NotificationsView from './views/NotificationsView';  // 通知
+// 属性
 interface AdminAppProps {
   currentUser: any;
   onLogout: () => void;
 }
-
+// 管理员应用
 export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => {
   const userRole = currentUser.role;
   const location = useLocation();
 
-  // Persistent language and theme settings
+  // 语言和主题设置
   const [lang, setLang] = useState<Language>(() => {
     return (localStorage.getItem('admin_lang') as Language) || 'zh';
   });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('admin_theme') as 'light' | 'dark') || 'light';
   });
-
+  // 侧边栏状态
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const t = TRANSLATIONS[lang];
 
-  // Apply theme and persist preferences
+  // 应用主题和持久化设置
   useEffect(() => {
     localStorage.setItem('admin_lang', lang);
   }, [lang]);
@@ -63,18 +63,18 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
     }
   }, [theme]);
 
-  // AI Insight State
+  // AI洞察状态
   const [insightStatus, setInsightStatus] = useState<InsightStatus>(InsightStatus.IDLE);
   const [insightText, setInsightText] = useState<string | null>(null);
 
-  // Real data state
+  // 真实数据状态
   const [stats, setStats] = useState<StatMetric[]>([]);
   const [trends, setTrends] = useState<ApplicationTrendData[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Get current view from URL
+  // 获取当前视图
   const getCurrentView = () => {
     const path = location.pathname;
     // 精确匹配或作为前缀匹配（处理子路径，如 /admin/jobs/:id）
@@ -96,7 +96,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
 
   const currentView = getCurrentView();
 
-  // Fetch real data from API - 优化：使用useApi Hook，启用缓存和并行加载
+  // 优化：使用useApi Hook，启用缓存和并行加载
   const { data: dashboardData, loading: dashboardLoading } = useApi<{ status: string; data: any }>(
     () => analyticsAPI.getDashboardData() as any,
     [lang],
@@ -108,7 +108,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
     if ((dashboardData as any)?.status === 'success' && dashboardData.data) {
       const data = dashboardData.data;
 
-      // Set stats data from API response
+      // 设置统计数据
       setStats([
         { id: '1', icon: 'users', label: t.dashboard.total_users, value: data.stats.totalUsers, change: 12, trend: 'up' },
         { id: '2', icon: 'shield', label: t.dashboard.hr_users, value: data.stats.hrUsers, change: 8, trend: 'up' },
@@ -120,7 +120,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
         { id: '8', icon: 'zap', label: t.dashboard.hired, value: data.stats.hired, change: 14, trend: 'up' },
       ]);
 
-      // Set other data from API response
+      // 设置其他数据
       setTrends(data.trends || []);
       // 将categories数据用于职位分类分布图表
       setCategories(data.categories || []);
@@ -147,7 +147,7 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
     setLoading(dashboardLoading && !dashboardData);
   }, [dashboardData, dashboardLoading, t]);
 
-  // Handle AI Insight Generation - 根据当前页面调用对应的AI分析
+  // 根据当前页面调用对应的AI分析
   const handleGenerateInsight = async () => {
     try {
       setInsightStatus(InsightStatus.LOADING);

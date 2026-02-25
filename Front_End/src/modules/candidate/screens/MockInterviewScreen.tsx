@@ -54,7 +54,8 @@ const MockInterviewScreen = () => {
                     <button
                         onClick={handleStart}
                         disabled={!targetRole.trim()}
-                        className="w-full py-4 bg-brand-600 text-white text-lg font-bold rounded-xl hover:bg-brand-700 transition shadow-lg shadow-brand-200 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        className="w-full py-4 text-white text-lg font-bold rounded-xl transition shadow-lg disabled:cursor-not-allowed"
+                        style={{ backgroundColor: targetRole.trim() ? '#007AFF' : '#D1D5DB' }}
                     >
                         开始面试
                     </button>
@@ -110,7 +111,8 @@ const MockInterviewScreen = () => {
                         <button
                             onClick={handleSend}
                             disabled={isLoading || !input.trim()}
-                            className="px-6 bg-brand-600 text-white rounded-xl font-bold hover:bg-brand-700 transition shadow-sm disabled:bg-gray-300 disabled:cursor-not-allowed flex flex-col items-center justify-center"
+                            className="px-6 text-white rounded-xl font-bold transition shadow-sm disabled:cursor-not-allowed flex flex-col items-center justify-center"
+                            style={{ backgroundColor: (input.trim() && !isLoading) ? '#007AFF' : '#D1D5DB' }}
                         >
                             <SendIcon size={20} />
                             <span className="text-xs mt-1">发送</span>
