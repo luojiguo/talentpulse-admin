@@ -3,7 +3,7 @@ import { MessageSquare, User, Mic2, Send as SendIcon, Trash2, MoreVertical, Edit
 import { aiSessionAPI } from '@/services/apiService';
 import { chatWithCandidateAI } from '@/services/aiService';
 
-// Types for AI Chat persistence
+
 interface AIChatSession {
     id: string;
     title: string;
@@ -12,7 +12,7 @@ interface AIChatSession {
 }
 
 const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
-    // Session State
+    //状态管理
     const [sessions, setSessions] = useState<AIChatSession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -22,12 +22,12 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
 
     const [input, setInput] = useState('');
 
-    // Menu and Rename State
+    // 菜单和重命名状态
     const [openMenuSessionId, setOpenMenuSessionId] = useState<string | null>(null);
     const [isRenaming, setIsRenaming] = useState<string | null>(null);
     const [renameInput, setRenameInput] = useState('');
 
-    // Initialize/Load Sessions from Backend API
+    // 初始化/加载会话
     useEffect(() => {
         const loadSessions = async () => {
             if (!currentUser?.id) return;
@@ -160,7 +160,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
             newTitle = generateSessionTitle(prompt);
         }
 
-        // Optimistic UI Update
+        // 乐观UI更新
         const updatedSession: AIChatSession = {
             ...currentSession as AIChatSession,
             id: currentSessionId,
@@ -174,28 +174,28 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
         setIsLoading(true);
 
         try {
-            // Prepare user context for AI service, with safe defaults for undefined values
+            // 准备用户上下文，包含安全默认值
             const userContext = `用户个人信息：${userProfile.name || '未知'}, 所在城市: ${userProfile.city || '未知'}, 期望薪资: ${userProfile.expectedSalary || '未知'}, 状态: ${userProfile.jobStatus || '未知'}. 核心技能: ${(userResume?.skills || []).join(', ') || '未知'}.`;
 
-            // Call actual AI service
+            // 调用实际的AI服务
             const aiResponseText = await chatWithCandidateAI(prompt, userContext);
 
-            // Create AI response object
+            // 创建AI响应对象
             const aiResponse = {
                 role: 'ai',
                 text: aiResponseText
             };
 
-            // Update session with AI response
+            // 更新会话
             const finalSession = {
                 ...updatedSession,
                 messages: [...updatedSession.messages, aiResponse]
             };
 
-            // Update the session in the database with the new title and messages
+            // 更新数据库中的会话
             await aiSessionAPI.updateAISession(currentSessionId, finalSession.messages, finalSession.title);
 
-            // Update state with final session
+            // 更新状态
             const completeFinalSession: AIChatSession = {
                 ...finalSession,
                 id: currentSessionId,
@@ -209,12 +209,12 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
         }
     };
 
-    // Track the last message count to determine if we should scroll
+    // 跟踪最后的消息数量以确定是否需要滚动
     const [lastMessageCount, setLastMessageCount] = useState(0);
 
-    // Scroll to bottom when messages change
+    // 消息变化时滚动到底部
     useEffect(() => {
-        // Only scroll to bottom if new messages were added (not deleted)
+        // 只有在新消息被添加（而不是删除）时才滚动到底部
         // or we're loading (indicating a new message is being generated)
         const messageCount = currentSession.messages.length;
         const shouldScroll = messageCount > lastMessageCount || isLoading;
@@ -223,22 +223,22 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Update last message count for next comparison
+        // 更新最后的消息数量用于下一次比较
         setLastMessageCount(messageCount);
     }, [currentSession.messages, isLoading]);
 
-    // Delete a chat session
+    // 删除聊天会话
     const deleteSession = async (sessionId: string) => {
         if (!currentUser?.id) return;
 
         try {
             await aiSessionAPI.deleteAISession(sessionId);
 
-            // Update state to remove the deleted session
+            // 更新状态以删除已删除的会话
             const updatedSessions = sessions.filter(session => session.id !== sessionId);
             setSessions(updatedSessions);
 
-            // If the deleted session was the current one, switch to another session or start a new one
+            // 如果删除的会话是当前会话，切换到另一个会话或开始新会话
             if (currentSessionId === sessionId) {
                 if (updatedSessions.length > 0) {
                     setCurrentSessionId(updatedSessions[0].id);
@@ -247,35 +247,35 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                 }
             }
 
-            // Close the menu after deletion
+            // 删除后关闭菜单
             setOpenMenuSessionId(null);
         } catch (error) {
             console.error("Failed to delete AI session:", error);
         }
     };
 
-    // Toggle the menu for a session
+    // 切换会话菜单
     const toggleMenu = (sessionId: string) => {
         setOpenMenuSessionId(openMenuSessionId === sessionId ? null : sessionId);
     };
 
-    // Start renaming a session
+    // 开始重命名会话
     const startRename = (sessionId: string) => {
         const session = sessions.find(s => s.id === sessionId);
         if (session) {
             setRenameInput(session.title);
             setIsRenaming(sessionId);
-            setOpenMenuSessionId(null); // Close the menu
+            setOpenMenuSessionId(null); // 关闭菜单
         }
     };
 
-    // Cancel renaming
+    // 取消重命名
     const cancelRename = () => {
         setIsRenaming(null);
         setRenameInput('');
     };
 
-    // Save the new name
+    // 保存新的名称
     const saveRename = async () => {
         if (!isRenaming || !renameInput.trim() || !currentUser?.id) {
             cancelRename();
@@ -283,7 +283,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
         }
 
         try {
-            // Update the session title in the database
+            // 更新数据库中的会话标题
             const updatedSession = sessions.find(s => s.id === isRenaming);
             if (updatedSession) {
                 const finalSession = {
@@ -291,14 +291,14 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                     title: renameInput.trim()
                 };
 
-                // Update state optimistically
+                // 乐观更新状态
                 setSessions(prev => prev.map(s => s.id === isRenaming ? finalSession : s));
 
-                // Call API to update the session
+                // 调用API更新会话
                 await aiSessionAPI.updateAISession(isRenaming, finalSession.messages);
             }
 
-            // Close the rename input
+            // 关闭重命名输入
             cancelRename();
         } catch (error) {
             console.error("Failed to rename AI session:", error);
@@ -309,7 +309,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
     return (
         <div className="max-w-7xl mx-auto h-[calc(100vh-80px)] flex flex-col py-6 px-4 animate-in fade-in duration-700">
             <div className="flex-1 bg-white dark:bg-slate-900 rounded-[32px] shadow-2xl shadow-brand-100/20 dark:shadow-none border border-white/20 dark:border-slate-800 overflow-hidden flex transition-all duration-500">
-                {/* Sidebar */}
+                {/* 侧边栏 */}
                 {isSidebarOpen && (
                     <div className="w-80 border-r border-brand-50 dark:border-slate-800 flex flex-col bg-blue-50/50 dark:bg-slate-900/40 backdrop-blur-xl">
                         <div className="p-8 border-b border-brand-50 dark:border-slate-800">
@@ -365,7 +365,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                                 )}
 
                                                 {isRenaming === session.id ? (
-                                                    // Rename Input
+                                                    // 重命名输入
                                                     <div className="flex items-center gap-2">
                                                         <input
                                                             type="text"
@@ -383,7 +383,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                                         />
                                                     </div>
                                                 ) : (
-                                                    // Session Info with Menu Button
+                                                    // 会话信息和菜单按钮
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div onClick={() => setCurrentSessionId(session.id)} className="flex-1 min-w-0">
                                                             <h3 className={`font-black text-sm truncate transition-colors ${currentSessionId === session.id ? 'text-brand-600 dark:text-brand-400' : 'text-slate-700 dark:text-slate-300'}`}>
@@ -414,7 +414,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                                                 <MoreVertical className="w-4 h-4" />
                                                             </button>
 
-                                                            {/* Dropdown Menu */}
+                                                            {/* 下拉菜单 */}
                                                             {openMenuSessionId === session.id && (
                                                                 <div data-menu-content className="absolute right-full left-0 mr-2 w-32 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border-2 border-slate-200 dark:border-slate-700 z-50 py-1 overflow-hidden animate-in fade-in zoom-in duration-300">
                                                                     <button
@@ -449,7 +449,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                     </div>
                 )}
 
-                {/* Main Chat Area */}
+                {/* 主聊天区域 */}
                 <div className="flex-1 flex flex-col bg-white dark:bg-slate-900 relative">
                     {!currentSessionId ? (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-1000">
@@ -485,7 +485,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                         </div>
                     ) : (
                         <>
-                            {/* Chat Header */}
+                            {/* 聊天标题 */}
                             <div className="px-8 py-6 border-b border-brand-50 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-10">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-brand-50 dark:bg-brand-900/30 rounded-2xl flex items-center justify-center border border-brand-100 dark:border-slate-800">
@@ -503,7 +503,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                 </div>
                             </div>
 
-                            {/* Messages */}
+                            {/* 消息 */}
                             <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar bg-slate-50/30 dark:bg-slate-900/20">
                                 {currentSession.messages.map((msg: any, idx: number) => (
                                     <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4 duration-500`}>
@@ -543,7 +543,7 @@ const AIChatScreen = ({ userProfile, userResume, currentUser }: any) => {
                                 <div ref={messagesEndRef} />
                             </div>
 
-                            {/* Input Area */}
+                            {/* 输入区域 */}
                             <div className="p-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-brand-50 dark:border-slate-800">
                                 <div className="max-w-4xl mx-auto relative group">
                                     <div className="absolute inset-0 bg-brand-400/10 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500"></div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Routes, Route, useParams, useNavigate, Navigate } from 'react-router-dom';
 import {
     LayoutDashboard, Users, Briefcase, Settings, LogOut,
@@ -343,8 +343,11 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                 setConversations(prevConversations => {
                     return realConversations.map((newConv: any) => {
                         const existingConv = prevConversations.find(c => c.id === newConv.id);
+                        const isActive = activeConversationId && newConv.id.toString() === activeConversationId.toString();
                         return {
                             ...newConv,
+                            unreadCount: isActive ? 0 : (newConv.unreadCount || 0),
+                            recruiterUnread: isActive ? 0 : (newConv.recruiterUnread || 0),
                             messages: existingConv ? (existingConv.messages || []) : []
                         };
                     });
@@ -378,10 +381,9 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
     // Socket.IO Integration
     useEffect(() => {
         if (currentUser?.id) {
-            const socket = socketService.connect(currentUser.id);
-
+            socketService.connect(currentUser.id, 'recruiter');
+            
             socketService.onNewMessage((message: any) => {
-                console.log('Received new message via socket:', message);
 
                 setConversations(prevConversations => {
                     const conversationExists = prevConversations.some(c => c.id.toString() === message.conversation_id.toString());
@@ -527,11 +529,12 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                         const recruiterUnread = updatedConversation.recruiter_unread ?? updatedConversation.recruiterUnread;
                         const updatedAt = updatedConversation.updated_at ?? updatedConversation.updatedAt;
 
+                        const isActive = activeConversationIdRef.current && conv.id.toString() === activeConversationIdRef.current.toString();
                         return {
                             ...conv,
                             candidateUnread: candidateUnread ?? conv.candidateUnread,
-                            recruiterUnread: recruiterUnread ?? conv.recruiterUnread,
-                            unreadCount: recruiterUnread ?? conv.unreadCount,
+                            recruiterUnread: isActive ? 0 : (recruiterUnread ?? conv.recruiterUnread),
+                            unreadCount: isActive ? 0 : (recruiterUnread ?? conv.unreadCount),
                             updated_at: updatedAt ?? conv.updated_at
                         };
                     });
@@ -547,6 +550,27 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
             socketService.offMessageUpdated();
             socketService.offConversationUpdated();
         };
+    }, [currentUser.id]);
+
+    // Handle selecting a conversation
+    const handleSelectConversation = useCallback(async (conversationId: string | number) => {
+        const idStr = conversationId.toString();
+        setActiveConversationId(idStr);
+
+        // Immediately clear unread count in local state
+        setConversations(prev => prev.map(conv => {
+            if (conv.id.toString() === idStr) {
+                return { ...conv, unreadCount: 0, recruiterUnread: 0 };
+            }
+            return conv;
+        }));
+
+        // Call API to mark as read
+        try {
+            await messageAPI.markAsRead(conversationId, currentUser.id);
+        } catch (error) {
+            console.error('标记已读失败:', error);
+        }
     }, [currentUser.id]);
 
     // Join conversation room
@@ -573,17 +597,33 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                         if (realConversations.length !== prevConversations.length) {
                             return realConversations.map((newConv: any) => {
                                 const exist = prevConversations.find(p => p.id === newConv.id);
-                                return exist ? { ...newConv, messages: exist.messages } : newConv;
+                                const isActive = activeConversationIdRef.current && newConv.id.toString() === activeConversationIdRef.current.toString();
+                                return { 
+                                    ...newConv, 
+                                    unreadCount: isActive ? 0 : (newConv.unreadCount || 0),
+                                    recruiterUnread: isActive ? 0 : (newConv.recruiterUnread || 0),
+                                    messages: exist ? exist.messages : [] 
+                                };
                             });
                         }
 
                         let hasChanges = false;
                         const updatedConversations = prevConversations.map(prevConv => {
                             const newConv = realConversations.find((c: any) => c.id === prevConv.id);
-                            if (newConv && newConv.updated_at !== prevConv.updated_at) {
+                            if (!newConv) return prevConv;
+                            
+                            const isActive = activeConversationIdRef.current && newConv.id.toString() === activeConversationIdRef.current.toString();
+                            const newUnread = isActive ? 0 : (newConv.unreadCount || 0);
+                            const newRecruiterUnread = isActive ? 0 : (newConv.recruiterUnread || 0);
+
+                            if (newConv.updated_at !== prevConv.updated_at || 
+                                prevConv.unreadCount !== newUnread || 
+                                prevConv.recruiterUnread !== newRecruiterUnread) {
                                 hasChanges = true;
                                 return {
                                     ...newConv,
+                                    unreadCount: newUnread,
+                                    recruiterUnread: newRecruiterUnread,
                                     messages: prevConv.messages || []
                                 };
                             }
@@ -681,7 +721,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
         if (conversations.length > 0 && !activeConversationId) {
             // 延迟选择第一个对话，确保UI已渲染
             const timer = setTimeout(() => {
-                setActiveConversationId(conversations[0].id.toString());
+                handleSelectConversation(conversations[0].id.toString());
             }, 100);
             return () => clearTimeout(timer);
         }
@@ -1507,7 +1547,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
 
                                                 if (existingConv) {
                                                     // Conversation exists, select it
-                                                    setActiveConversationId(existingConv.id);
+                                                    handleSelectConversation(existingConv.id);
                                                     // Navigate to messages
                                                     navigate('/recruiter/messages/' + existingConv.id);
                                                 } else {
@@ -1534,7 +1574,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                                                             // The response usually contains the created conversation
                                                             const newConvId = (res as any).data.conversation_id || (res as any).data.id;
                                                             if (newConvId) {
-                                                                setActiveConversationId(newConvId);
+                                                                handleSelectConversation(newConvId);
                                                                 navigate('/recruiter/messages/' + newConvId);
                                                             }
                                                         }
@@ -1562,7 +1602,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                                         candidates={candidates}
                                         jobs={jobs}
                                         activeConversationId={activeConversationId}
-                                        onSelectConversation={setActiveConversationId}
+                                        onSelectConversation={handleSelectConversation}
                                         onSendMessage={handleSendMessage}
                                         onDeleteMessage={handleDeleteMessage}
                                         onDeleteConversation={handleDeleteConversation}
@@ -1584,7 +1624,7 @@ export const RecruiterApp: React.FC<RecruiterAppProps> = ({ onLogout, onSwitchRo
                                         candidates={candidates}
                                         jobs={jobs}
                                         activeConversationId={activeConversationId}
-                                        onSelectConversation={setActiveConversationId}
+                                        onSelectConversation={handleSelectConversation}
                                         onSendMessage={handleSendMessage}
                                         onDeleteMessage={handleDeleteMessage}
                                         onDeleteConversation={handleDeleteConversation}

@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
 import { TRANSLATIONS } from '@/constants/constants';
-import { generateDashboardInsight } from '@/services/aiService';
+import { generateDashboardInsight, generateAnalyticsInsight } from '@/services/aiService';
 import { generatePageInsight, PageType } from '@/services/pageInsightService';
-import { userAPI, jobAPI, companyAPI, analyticsAPI, applicationAPI, activityAPI } from '@/services/apiService';
+import { userAPI, jobAPI, companyAPI, analyticsAPI, applicationAPI, activityAPI, candidateAPI, interviewAPI, onboardingAPI, api } from '@/services/apiService';
 import { InsightStatus, StatMetric, Language, UserRole, ApplicationTrendData } from '@/types/types';
 import { useApi } from '@/hooks/useApi';
 
@@ -171,8 +171,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
 
         case 'users':
           // 用户管理分析
+          const usersRes = await userAPI.getAllUsers();
           insight = await generatePageInsight('users', {
-            users: [], // TODO: 从SystemUsersView获取数据
+            users: usersRes.data?.list || usersRes.data || [],
             totalUsers: stats.find(s => s.id === '1')?.value || 0,
             roleDistribution: {},
             recentGrowth: 0
@@ -181,8 +182,9 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
 
         case 'jobs':
           // 职位管理分析
+          const jobsRes = await jobAPI.getAllJobs();
           insight = await generatePageInsight('jobs', {
-            jobs: [], // TODO: 从JobsView获取数据
+            jobs: jobsRes.data?.list || jobsRes.data || [],
             activeJobs: stats.find(s => s.id === '6')?.value || 0,
             totalApplications: stats.find(s => s.id === '7')?.value || 0,
             avgApplicationsPerJob: 0
@@ -190,32 +192,67 @@ export const AdminApp: React.FC<AdminAppProps> = ({ currentUser, onLogout }) => 
           break;
 
         case 'applications':
-          insight = await generatePageInsight('applications', {}, lang);
+          const applicationsRes = await applicationAPI.getAllApplications();
+          insight = await generatePageInsight('applications', { applications: applicationsRes.data || [] }, lang);
           break;
 
         case 'candidates':
-          insight = await generatePageInsight('candidates', {}, lang);
+          const candidatesRes = await candidateAPI.getAllCandidates();
+          insight = await generatePageInsight('candidates', { candidates: candidatesRes.data || [] }, lang);
           break;
 
         case 'interviews':
-          insight = await generatePageInsight('interviews', {}, lang);
+          const interviewsRes = await interviewAPI.getAllInterviews();
+          insight = await generatePageInsight('interviews', { interviews: interviewsRes.data || [] }, lang);
           break;
 
         case 'onboardings':
-          insight = await generatePageInsight('onboardings', {}, lang);
+          const onboardingsRes = await onboardingAPI.getAllOnboardings();
+          insight = await generatePageInsight('onboardings', { onboardings: onboardingsRes.data || [] }, lang);
           break;
 
         case 'companies':
-          insight = await generatePageInsight('companies', {}, lang);
+          const companiesRes = await companyAPI.getAllCompanies({});
+          insight = await generatePageInsight('companies', { companies: companiesRes.data?.list || companiesRes.data || [] }, lang);
           break;
 
         case 'certifications':
-          insight = await generatePageInsight('certifications', {}, lang);
+          const certRes = await api.get('/certification/admin/pending');
+          insight = await generatePageInsight('certifications', { certifications: certRes.data?.data || certRes.data || [] }, lang);
           break;
 
         case 'analytics':
-          // Analytics页面有自己的AI分析按钮,这里不处理
-          insight = lang === 'zh' ? '请在数据分析页面使用AI分析功能。' : 'Please use AI analysis on the Analytics page.';
+          const [funnelRes, sourceRes, competitionRes, topCompaniesRes, dashboardRes] = await Promise.all([
+            analyticsAPI.getFunnelData(),
+            analyticsAPI.getSourceQuality(),
+            analyticsAPI.getJobCompetition(),
+            analyticsAPI.getTopCompanies(),
+            analyticsAPI.getDashboardData()
+          ]);
+          const result = await generateAnalyticsInsight(
+            funnelRes.data || [],
+            dashboardRes.data?.trends || [],
+            sourceRes.data || [],
+            lang,
+            {
+              stats: dashboardRes.data?.stats,
+              competitionData: competitionRes.data || [],
+              topCompaniesData: topCompaniesRes.data || [],
+              categories: dashboardRes.data?.categories
+            }
+          );
+          if (result) {
+            insight = result
+              .replace(/#{1,6}\s/g, '')
+              .replace(/\*\*(.+?)\*\*/g, '$1')
+              .replace(/\*(.+?)\*/g, '$1')
+              .replace(/`(.+?)`/g, '$1')
+              .replace(/^\s*[-*+]\s/gm, '• ')
+              .replace(/^\s*\d+\.\s/gm, (match) => match.replace(/\d+\./, (num) => `${num.replace('.', '.')}`))
+              .trim();
+          } else {
+             insight = lang === 'zh' ? '暂无分析内容。' : 'No insights available.';
+          }
           break;
 
         default:

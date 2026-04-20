@@ -191,27 +191,86 @@ ${langInstruction} 语气专业简洁。`;
     ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };
 
-// 4-9. 其他页面分析函数(简化实现)
+// 4. 申请管理分析
 const generateApplicationsInsight = async (data: any, language: Language): Promise<string> => {
-    return language === 'zh' ? '申请管理分析功能开发中...' : 'Applications analysis coming soon...';
+    const { applications = [] } = data;
+    const total = applications.length;
+    const langInstruction = language === 'zh'
+        ? '用中文输出,不使用Markdown格式,用"•"开头列举要点。'
+        : 'Respond in English, plain text only, use "•" for bullet points.';
+    const prompt = `你是招聘申请管理数据专家。分析以下求职申请数据:\n总申请数: ${total}\n申请样本: ${JSON.stringify(applications.slice(0, 10))}\n\n请提供:\n1. 申请转化与匹配度分析(2条)\n2. 申请处理效率建议\n3. 面试转化优化建议\n\n${langInstruction} 语气专业简洁。`;
+    return await callQianwen([
+        { role: 'system', content: 'You are an application management expert. Provide plain text insights.' },
+        { role: 'user', content: prompt }
+    ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };
 
+// 5. 候选人库分析
 const generateCandidatesInsight = async (data: any, language: Language): Promise<string> => {
-    return language === 'zh' ? '候选人分析功能开发中...' : 'Candidates analysis coming soon...';
+    const { candidates = [] } = data;
+    const total = candidates.length;
+    const langInstruction = language === 'zh'
+        ? '用中文输出,不使用Markdown格式,用"•"开头列举要点。'
+        : 'Respond in English, plain text only, use "•" for bullet points.';
+    const prompt = `你是人才库管理专家。分析以下候选人数据:\n总人数: ${total}\n候选人样本: ${JSON.stringify(candidates.slice(0, 10))}\n\n请提供:\n1. 人才库质量和经验标签分布(2条)\n2. 候选人活跃度分析\n3. 盘活人才库的建议(2条)\n\n${langInstruction} 语气专业简洁。`;
+    return await callQianwen([
+        { role: 'system', content: 'You are a talent pool management expert. Provide plain text insights.' },
+        { role: 'user', content: prompt }
+    ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };
 
+// 6. 面试管理分析
 const generateInterviewsInsight = async (data: any, language: Language): Promise<string> => {
-    return language === 'zh' ? '面试管理分析功能开发中...' : 'Interviews analysis coming soon...';
+    const { interviews = [] } = data;
+    const total = interviews.length;
+    const langInstruction = language === 'zh'
+        ? '用中文输出,不使用Markdown格式,用"•"开头列举要点。'
+        : 'Respond in English, plain text only, use "•" for bullet points.';
+    const prompt = `你是面试流程优化专家。分析以下面试安排数据:\n总面试数: ${total}\n面试样本: ${JSON.stringify(interviews.slice(0, 10))}\n\n请提供:\n1. 面试流转效率分析(2条)\n2. 面试官负载状况评估\n3. 面试通过率及建议(2条)\n\n${langInstruction} 语气专业简洁。`;
+    return await callQianwen([
+        { role: 'system', content: 'You are an interview process expert. Provide plain text insights.' },
+        { role: 'user', content: prompt }
+    ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };
 
+// 7. 入职管理分析
 const generateOnboardingsInsight = async (data: any, language: Language): Promise<string> => {
-    return language === 'zh' ? '入职管理分析功能开发中...' : 'Onboardings analysis coming soon...';
+    const { onboardings = [] } = data;
+    const total = onboardings.length;
+    const langInstruction = language === 'zh'
+        ? '用中文输出,不使用Markdown格式,用"•"开头列举要点。'
+        : 'Respond in English, plain text only, use "•" for bullet points.';
+    const prompt = `你是新员工体验与入职管理专家。分析以下入职数据:\n总入职记录: ${total}\n入职样本: ${JSON.stringify(onboardings.slice(0, 10))}\n\n请提供:\n1. 员工入职效率评估(2条)\n2. 资料提交与合规预警\n3. 改善新员工体验的建议(2条)\n\n${langInstruction} 语气专业简洁。`;
+    return await callQianwen([
+        { role: 'system', content: 'You are an onboarding process expert. Provide plain text insights.' },
+        { role: 'user', content: prompt }
+    ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };
 
+// 8. 合作企业分析
 const generateCompaniesInsight = async (data: any, language: Language): Promise<string> => {
-    return language === 'zh' ? '企业管理分析功能开发中...' : 'Companies analysis coming soon...';
+    const { companies = [] } = data;
+    const total = companies.length;
+    const langInstruction = language === 'zh'
+        ? '用中文输出,不使用Markdown格式,用"•"开头列举要点。'
+        : 'Respond in English, plain text only, use "•" for bullet points.';
+    const prompt = `你是企业客户成功运营专家。分析以下入驻企业数据:\n合作企业总数: ${total}\n企业样本: ${JSON.stringify(companies.slice(0, 10))}\n\n请提供:\n1. 企业入驻活跃度与行业特征(2条)\n2. 招聘需求特征画像\n3. 提升B端企业生态留存的建议(2条)\n\n${langInstruction} 语气专业简洁。`;
+    return await callQianwen([
+        { role: 'system', content: 'You are a B2B enterprise success expert. Provide plain text insights.' },
+        { role: 'user', content: prompt }
+    ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };
 
+// 9. 认证审核分析
 const generateCertificationInsight = async (data: any, language: Language): Promise<string> => {
-    return language === 'zh' ? '认证审核分析功能开发中...' : 'Certification analysis coming soon...';
+    const { certifications = [] } = data;
+    const total = certifications.length;
+    const langInstruction = language === 'zh'
+        ? '用中文输出,不使用Markdown格式,用"•"开头列举要点。'
+        : 'Respond in English, plain text only, use "•" for bullet points.';
+    const prompt = `你是企业风控合规专家。分析以下资质认证审核数据:\n待处理认证总数: ${total}\n审核样本: ${JSON.stringify(certifications.slice(0, 10))}\n\n请提供:\n1. 企业认证效率及审核压力(2条)\n2. 常见企业卡点分析\n3. 风控审核流程优化建议(2条)\n\n${langInstruction} 语气专业简洁。`;
+    return await callQianwen([
+        { role: 'system', content: 'You are a compliance risk expert. Provide plain text insights.' },
+        { role: 'user', content: prompt }
+    ]) || (language === 'zh' ? '暂无分析内容。' : 'No insights available.');
 };

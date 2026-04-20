@@ -9,14 +9,15 @@ export const jobAPI = {
   getAllJobs: (params?: { page?: number; limit?: number; recruiterId?: string | number, companyId?: string | number, location?: string, experience?: string, degree?: string, type?: string, work_mode?: string }) => request.get('/jobs', { params: { ...params, limit: params?.limit || 1000 }, timeout: 60000 }),
 
   // 获取智能推荐的职位（基于用户信息）
-  getRecommendedJobs: (userId: string | number, triggerAI: boolean = false) => {
+  // NOTE: 后端路由读取 useAI 参数，统一使用此名称
+  getRecommendedJobs: (userId: string | number, useAI: boolean = false) => {
     return request.get(`/jobs/recommended/${userId}`, {
-      params: { triggerAI },
+      params: { useAI },
       timeout: 60000
     });
   },
 
-  // Check AI recommendation status
+  // 获取智能推荐状态
   getRecommendedJobsStatus: (userId: string | number) => {
     return request.get(`/jobs/recommended/${userId}/status`);
   },
@@ -38,7 +39,7 @@ export const jobAPI = {
   deleteJob: (id: string | number) => {
     return request.delete(`/jobs/${id}`);
   },
-  
+
   // 根据公司ID获取职位
   getJobsByCompanyId: (companyId: string | number) => {
     return request.get('/jobs', { params: { companyId }, timeout: 60000 });

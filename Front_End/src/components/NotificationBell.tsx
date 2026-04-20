@@ -50,18 +50,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ role }) => {
         // Socket.IO Listener
         // Socket.IO Listener
         const handleNewNotification = (data: any) => {
-            // Optimistically add to list and increment count
-            setNotifications(prev => [{
-                id: data.id,
-                title: data.title,
-                content: '新通知', // Content might not be fully carried in payload depending on impl, better fetch detail or adjust payload
-                type: data.type,
-                created_at: new Date().toISOString(),
-                is_read: false
-            } as Notification, ...prev]);
-            setUnreadCount(prev => prev + 1);
-
-            // Refresh to be sure
+            console.log('Received system notification via socket:', data);
+            // 收到通知后立即刷新列表和未读数
             fetchNotifications();
         };
 

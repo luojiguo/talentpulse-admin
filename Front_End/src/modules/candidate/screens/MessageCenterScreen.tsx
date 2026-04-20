@@ -5,7 +5,7 @@ import { Conversation, JobPosting, Message, MergedConversation } from '@/types/t
 import { formatDateTime } from '@/utils/dateUtils';
 import { useDeviceType } from '@/hooks/useMediaQuery';
 import { resumeAPI, messageAPI, userAPI } from '@/services/apiService';
-import { message, Modal, Input } from 'antd';
+import { message, Modal, Input, App } from 'antd';
 
 // 修复文件名编码问题的函数
 const fixFilenameEncoding = (filename: string): string => {
@@ -125,11 +125,11 @@ const WeChatCard: React.FC<{
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-brand-100 dark:border-brand-800 p-4 min-w-[240px]">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#007AFF' }}>We</div>
-                    <span className="text-gray-900 dark:text-slate-100 font-medium text-sm">微信交换成功</span>
+                    <span className="!text-slate-900 dark:!text-slate-100 font-medium text-sm">微信交换成功</span>
                 </div>
-                <div className="bg-brand-50/50 dark:bg-brand-900/20 p-3 rounded border border-brand-100 dark:border-brand-800 mb-3">
-                    <p className="text-xs text-brand-600 dark:text-brand-400 mb-1">对方微信号</p>
-                    <p className="text-base font-semibold text-brand-700 dark:text-brand-400 select-all font-mono">{displayWechat}</p>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded border border-gray-200 dark:border-slate-700 mb-3">
+                    <div className="text-xs !text-slate-600 dark:!text-slate-400 mb-1">对方微信号</div>
+                    <div className="text-base font-bold !text-slate-900 dark:!text-slate-100 select-all font-mono">{displayWechat}</div>
                 </div>
                 <button
                     onClick={() => onCopy(displayWechat)}
@@ -149,9 +149,9 @@ const WeChatCard: React.FC<{
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-brand-100 dark:border-brand-800 p-4 min-w-[200px]">
                 <div className="flex items-center gap-2 mb-2">
                     <div className="w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#007AFF' }}>We</div>
-                    <span className="text-gray-900 dark:text-slate-100 font-medium text-sm">请求交换微信</span>
+                    <span className="!text-slate-900 dark:!text-slate-100 font-medium text-sm">请求交换微信</span>
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">我的微信号：<span className="font-semibold font-mono text-gray-900 dark:text-slate-100">{wechat}</span></p>
+                <div className="text-xs !text-slate-600 dark:!text-slate-400 mb-3">我的微信号：<span className="font-semibold font-mono !text-slate-900 dark:!text-slate-100">{wechat}</span></div>
                 <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                     <div className="w-3 h-3 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-400 rounded-full animate-spin mr-2"></div>
                     等待对方回复...
@@ -194,8 +194,8 @@ const WeChatCard: React.FC<{
 
 
 // Helper to format message preview text (handle JSON for wechat exchange and resumes)
-const formatMessagePreview = (content: string | undefined): string => {
-    if (!content) return '';
+const formatMessagePreview = (content: any): string => {
+    if (!content) return '暂无消息';
 
     // Check if content looks like JSON
     if (typeof content === 'string' && (content.startsWith('{') || content.includes('"type"'))) {
@@ -209,14 +209,21 @@ const formatMessagePreview = (content: string | undefined): string => {
             if (parsed.type === 'file') return '[文件]';
             if (parsed.type === 'resume') return '[简历]';
             if (parsed.type === 'interview_invitation') return '[面试邀请]';
+            if (parsed.type === 'exchange_request' || (parsed.type as any) === 'wechat_card') return '[微信交换请求]';
 
-            // Fallback
+            // Fallback for custom JSON messages
+            if (parsed.text) return parsed.text;
+            
             return content;
         } catch (e) {
             return content;
         }
     }
-    return content;
+    
+    // 如果是数字（比如用户发送了 "1"），统统转为字符串
+    if (typeof content === 'number') return content.toString();
+    
+    return String(content) || '暂无消息';
 };
 
 
@@ -264,7 +271,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
     // Pending action state for WeChat modal
     const [pendingAction, setPendingAction] = useState<{ type: 'send' | 'accept', id?: string | number } | null>(null);
 
-    // 使用精确的设备类型判断
+    const { modal } = App.useApp();
     const { isMobile, isTablet, isDesktop } = useDeviceType();
 
     const activeConv = React.useMemo(() =>
@@ -619,11 +626,11 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                     jobTitle: c.job_title || c.jobTitle || '职位',
                     companyName: c.company_name,
                     updatedAt: c.updatedAt || c.lastTime,
-                    lastMessage: c.lastMessage
+                    lastMessage: c.lastMessage || c.last_message || (c.messages && c.messages.length > 0 ? c.messages[c.messages.length - 1].text : '') || '暂无消息'
                 })),
                 unreadCount: convsForRecruiter.reduce((sum, c) => sum + (c.unreadCount || 0), 0),
                 lastTime: latestConv.lastTime || latestConv.updatedAt,
-                lastMessage: latestConv.lastMessage
+                lastMessage: latestConv.lastMessage || latestConv.last_message || (latestConv.messages && latestConv.messages.length > 0 ? latestConv.messages[latestConv.messages.length - 1].text : '') || '暂无消息'
             };
 
             merged.push(mergedConv);
@@ -1089,7 +1096,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                             <div className="flex items-center gap-2">
                                 <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">消息列表</h2>
                                 {conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0) > 0 && (
-                                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                    <span className="bg-[#007AFF] text-white text-xs font-bold px-2 py-0.5 rounded-full">
                                         {conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0)}
                                     </span>
                                 )}
@@ -1164,7 +1171,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 });
                                             }
                                         }}
-                                        className={`relative group p-4 border-b border-gray-50 dark:border-slate-700 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-slate-800/50 
+                                        className={`relative group p-4 border-b border-gray-50 dark:border-slate-700 cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-slate-800/50 h-[103px] flex flex-col justify-center
                                             ${isActive && !isMobile ? 'bg-brand-50 dark:bg-brand-900/30 border-l-4 border-l-brand-600 dark:border-l-brand-500 shadow-sm z-10' : 'border-l-4 border-l-transparent'}`}
                                     >
                                         <div className="flex justify-between mb-1">
@@ -1183,37 +1190,53 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                     <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{displayJobTitle} • {conv.company_name || '未知公司'}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col items-end gap-1">
+                                            <div className="flex flex-col items-end justify-between h-full py-0.5">
                                                 <span className="text-xs text-gray-400">{formatDateTime(conv.lastTime).split(' ')[0]}</span>
-                                                {conv.unreadCount > 0 && (
-                                                    <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                                                        {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
-                                                    </span>
-                                                )}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        const confirmText = conv.isMerged && conv.allJobs && conv.allJobs.length > 1
-                                                            ? `确定删除与${recruiterName}的所有${conv.allJobs.length}个职位对话吗？`
-                                                            : '确定删除此对话吗？';
-                                                        if (window.confirm(confirmText)) {
-                                                            // 如果是合并的对话，删除所有相关对话
-                                                            if (conv.isMerged && conv.relatedConversationIds) {
-                                                                conv.relatedConversationIds.forEach((id: string) => {
-                                                                    onDeleteConversation(id);
-                                                                });
-                                                            } else {
-                                                                onDeleteConversation(conv.id);
-                                                            }
-                                                        }
-                                                    }}
-                                                    className="p-1 text-gray-300 hover:text-red-500"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                <div className="flex flex-col items-end gap-1.5">
+                                                    {conv.unreadCount > 0 && (
+                                                        <span className="text-xs bg-[#007AFF] text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-sm">
+                                                            {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const confirmText = conv.isMerged && conv.allJobs && conv.allJobs.length > 1
+                                                                ? `确定删除与${recruiterName}的所有${conv.allJobs.length}个职位对话吗？`
+                                                                : `确定删除与${recruiterName}的对话吗？`;
+
+                                                            modal.confirm({
+                                                                title: '确认删除对话',
+                                                                content: (
+                                                                    <div className="pt-2">
+                                                                        <p>{confirmText}</p>
+                                                                        <p className="text-sm text-gray-500 mt-2">删除后将无法恢复此会话的聊天记录。</p>
+                                                                    </div>
+                                                                ),
+                                                                okText: '确定',
+                                                                cancelText: '取消',
+                                                                okType: 'danger',
+                                                                centered: true,
+                                                                icon: <Trash2 className="text-red-500" />,
+                                                                onOk: () => {
+                                                                    if (conv.isMerged && conv.relatedConversationIds) {
+                                                                        conv.relatedConversationIds.forEach((id: string) => {
+                                                                            onDeleteConversation(id);
+                                                                        });
+                                                                    } else {
+                                                                        onDeleteConversation(conv.id);
+                                                                    }
+                                                                }
+                                                            });
+                                                        }}
+                                                        className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
-                                        <p className="text-xs text-gray-500 dark:text-slate-400 truncate mt-2 pl-12">{formatMessagePreview(conv.lastMessage)}</p>
+                                        <p className="text-xs text-gray-500 dark:text-slate-400 truncate mt-2 pl-12">{formatMessagePreview(conv.lastMessage || (conv as any).last_message || '暂无消息')}</p>
                                     </div>
                                 );
                             })
@@ -1476,10 +1499,9 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                         )}
                                                         <div
                                                             className={`max-w-[70%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm cursor-pointer select-text
-                                                        ${isMe ? 'bg-brand-500 text-white rounded-bl-lg' : 'bg-white dark:bg-slate-800 border border-gray-100/50 dark:border-slate-700 text-gray-800 dark:text-slate-200 rounded-br-lg'}
+                                                        ${isMe ? 'bg-[#007AFF] dark:bg-slate-700 text-white dark:text-slate-100 rounded-bl-lg' : 'bg-white dark:bg-slate-800 border border-gray-100/50 dark:border-slate-700 text-gray-800 dark:text-slate-200 rounded-br-lg'}
                                                         hover:shadow-md transition-shadow
                                                     `}
-                                                            style={{ backgroundColor: isMe ? '#007AFF' : undefined }}
                                                             onContextMenu={(e) => handleContextMenu(e, msg, isMe)}
                                                         >
 
@@ -1498,7 +1520,7 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                 // Keep legacy support or remove if fully deprecated. 
                                                                 // User asked to "Replace/Refine", but having fallback is good.
                                                                 // For now keeping it but focus on wechat_card as primary.
-                                                                <div className="bg-white rounded-lg shadow-sm border border-brand-100 overflow-hidden min-w-[260px] max-w-[300px]">
+                                                                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-brand-100 dark:border-slate-700 overflow-hidden min-w-[260px] max-w-[300px]">
                                                                     {/* Legacy exchange request rendering... */}
                                                                     {(() => {
                                                                         let status = 'pending';
@@ -1519,39 +1541,39 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                         if (status === 'pending') {
                                                                             return (
                                                                                 <div>
-                                                                                    <div className="p-4 bg-brand-50/30">
+                                                                                    <div className="p-4 bg-brand-50/30 dark:bg-slate-700/50">
                                                                                         <div className="flex items-start gap-3 mb-3">
                                                                                             <div className="w-10 h-10 rounded bg-brand-500 flex items-center justify-center shrink-0" style={{ backgroundColor: '#007AFF' }}>
                                                                                                 <span className="text-white text-xl font-bold">We</span>
                                                                                             </div>
-                                                                                            <p className="text-gray-900 font-medium text-[15px] leading-snug">
+                                                                                            <p className="text-gray-900 dark:text-slate-100 font-medium text-[15px] leading-snug">
                                                                                                 {isMe ? '您发起了微信交换请求' : '我想要和您交换微信，您是否同意'}
                                                                                             </p>
                                                                                         </div>
-                                                                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                                                                                             为保障您的安全建议在平台内沟通，微信沟通中需特别保护您的个人信息，谨防受骗。
                                                                                         </p>
                                                                                     </div>
 
                                                                                     {!isMe ? (
-                                                                                        <div className="flex border-t border-gray-100">
+                                                                                        <div className="flex border-t border-gray-100 dark:border-slate-700">
                                                                                             <button
                                                                                                 onClick={() => handleRejectWechatRequest(msg.id)}
-                                                                                                className="flex-1 py-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors font-medium"
+                                                                                                className="flex-1 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors font-medium"
                                                                                             >
                                                                                                 拒绝
                                                                                             </button>
-                                                                                            <div className="w-px bg-gray-100"></div>
+                                                                                            <div className="w-px bg-gray-100 dark:bg-slate-700"></div>
                                                                                             <button
                                                                                                 onClick={() => handleAcceptWechatRequest(msg.id)}
-                                                                                                className="flex-1 py-3 text-sm text-brand-600 hover:bg-brand-50 transition-colors font-medium"
+                                                                                                className="flex-1 py-3 text-sm text-brand-600 dark:text-blue-400 hover:bg-brand-50 dark:hover:bg-slate-700 transition-colors font-medium"
                                                                                             >
                                                                                                 同意
                                                                                             </button>
                                                                                         </div>
                                                                                     ) : (
-                                                                                        <div className="p-3 bg-gray-50 text-center border-t border-gray-100">
-                                                                                            <span className="text-xs text-gray-400">等待对方验证...</span>
+                                                                                        <div className="p-3 bg-gray-50 dark:bg-slate-700/50 text-center border-t border-gray-100 dark:border-slate-700">
+                                                                                            <span className="text-xs text-gray-400 dark:text-slate-400">等待对方验证...</span>
                                                                                         </div>
                                                                                     )}
                                                                                 </div>
@@ -1568,14 +1590,13 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                                             <span className="text-white text-xl font-bold">We</span>
                                                                                         </div>
                                                                                         <div>
-                                                                                            <p className="text-gray-500 text-xs mb-0.5">{displayName}的微信号</p>
-                                                                                            <p className="text-gray-900 font-medium text-base select-all">{otherWechat || '未知'}</p>
+                                                                                            <p className="text-gray-500 dark:text-gray-400 text-xs mb-0.5">{displayName}的微信号</p>
+                                                                                            <p className="text-gray-900 dark:text-slate-100 font-medium text-base select-all">{otherWechat || '未知'}</p>
                                                                                         </div>
                                                                                     </div>
                                                                                     <button
                                                                                         onClick={() => handleCopyWechat(otherWechat)}
-                                                                                        className="w-full py-2 bg-brand-50 text-brand-600 text-sm font-medium rounded hover:bg-brand-100 transition-colors"
-                                                                                        style={{ backgroundColor: '#EFF6FF', color: '#007AFF' }}
+                                                                                        className="w-full py-2 bg-brand-50 dark:bg-slate-700 text-brand-600 dark:text-blue-400 text-sm font-medium rounded hover:bg-brand-100 dark:hover:bg-slate-600 transition-colors"
                                                                                     >
                                                                                         复制微信号
                                                                                     </button>
@@ -1583,9 +1604,9 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                             );
                                                                         } else if (status === 'rejected') {
                                                                             return (
-                                                                                <div className="p-4 flex items-center gap-3 text-gray-400">
-                                                                                    <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center shrink-0">
-                                                                                        <span className="text-gray-400 text-xl font-bold">We</span>
+                                                                                <div className="p-4 flex items-center gap-3 text-gray-400 dark:text-gray-500">
+                                                                                    <div className="w-10 h-10 rounded bg-gray-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                                                                                        <span className="text-gray-400 dark:text-slate-500 text-xl font-bold">We</span>
                                                                                     </div>
                                                                                     <span className="text-sm">{isMe ? '对方拒绝了请求' : '您拒绝了请求'}</span>
                                                                                 </div>
@@ -1939,16 +1960,16 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                                 key={resume.id || index}
                                                                 onClick={() => setSelectedResume(resume)}
                                                                 className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isSelected
-                                                                    ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20'
+                                                                    ? 'border-brand-500 bg-brand-100 dark:bg-brand-900/40'
                                                                     : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50'
                                                                     }`}
                                                             >
                                                                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected
+                                                                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors shadow-sm ${isSelected
                                                                         ? 'border-brand-500 bg-brand-500'
-                                                                        : 'border-gray-300'
+                                                                        : 'border-gray-400 dark:border-slate-500 bg-white dark:bg-slate-800'
                                                                         }`}>
-                                                                        {isSelected && <Check className="w-4 h-4 text-white" />}
+                                                                        {isSelected && <Check className="w-5 h-5 text-slate-900 stroke-[3]" />}
                                                                     </div>
                                                                     <div className="text-brand-600 flex-shrink-0">
                                                                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -1980,8 +2001,8 @@ const MessageCenterScreen: React.FC<MessageCenterScreenProps> = ({
                                                 onClick={handleConfirmSendResume}
                                                 disabled={!selectedResume}
                                                 className={`w-full py-2.5 rounded-xl font-medium transition-all ${selectedResume
-                                                    ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-md'
-                                                    : 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                                                    ? 'bg-slate-900 dark:bg-brand-600 text-white hover:bg-slate-800 dark:hover:bg-brand-700 shadow-md'
+                                                    : 'bg-gray-100 border border-gray-200 dark:bg-slate-800/50 dark:border-slate-700/50 text-gray-400 dark:text-gray-600 cursor-not-allowed'
                                                     }`}
                                             >
                                                 {selectedResume ? `发送简历` : '请选择一份简历'}

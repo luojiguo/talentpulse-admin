@@ -225,8 +225,11 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
 
           const mergedConversations = candidateConversations.map((conv: any) => {
             const convIdStr = conv.id.toString();
+            const isActive = activeConversationId && convIdStr === activeConversationId.toString();
             return {
               ...conv,
+              unreadCount: isActive ? 0 : (conv.unreadCount || 0),
+              candidateUnread: isActive ? 0 : (conv.candidateUnread || 0),
               lastTime: conv.lastTime || conv.last_time || conv.updated_at || new Date().toISOString(),
               lastMessage: conv.lastMessage || conv.last_message || '暂无消息',
               messages: existingMessagesMap.get(convIdStr) || (conv.messages || [])
@@ -261,9 +264,8 @@ const CandidateApp: React.FC<CandidateAppProps> = ({ currentUser, onLogout, onSw
   useEffect(() => {
     if (localCurrentUser?.id) {
       // 建立 Socket 连接并自动加入个人专属 Room
-      const socket = socketService.connect(localCurrentUser.id);
-
-      // 实时监听来自招聘者端或系统推送的新消息
+      socketService.connect(localCurrentUser.id, 'candidate');
+      
       socketService.onNewMessage((message: any) => {
         console.log('Received new message via socket:', message);
 

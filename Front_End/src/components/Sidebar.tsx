@@ -65,10 +65,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, lan
       `}>
         <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} gap-3 border-b border-slate-800`}>
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 flex items-center justify-center">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
             </div>
-            {!isCollapsed && <span className="text-xl font-bold tracking-tight">TalentPulse</span>}
+            {!isCollapsed && (
+              <span className="font-bold tracking-tight flex items-baseline gap-1">
+                <span className="text-xl">管理员</span>
+                <span className="text-sm text-slate-300">admin</span>
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* 桌面端收缩/扩展按钮 */}

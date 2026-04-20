@@ -15,10 +15,16 @@ class SocketService {
         return SocketService.instance;
     }
 
-    public connect(userId: string | number): Socket {
+    private currentUserId: string | number | null = null;
+    private currentRole: string | null = null;
+
+    public connect(userId: string | number, role?: string): Socket {
         if (this.socket) {
             return this.socket;
         }
+
+        this.currentUserId = userId;
+        if (role) this.currentRole = role;
 
         // 确定 Socket.IO 服务器地址
         const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
@@ -37,9 +43,13 @@ class SocketService {
 
         this.socket.on('connect', () => {
             // console.log('Socket connected:', this.socket?.id);
-            // getGlobalMessage().success('消息服务连接成功');
-            // 连接成功后，加入用户个人房间
-            this.socket?.emit(CLIENT_EVENTS.JOIN_USER, userId);
+            // 连接成功后，加入用户个人房间和角色房间
+            if (this.currentUserId) {
+                this.socket?.emit(CLIENT_EVENTS.JOIN_USER, this.currentUserId);
+            }
+            if (this.currentRole) {
+                this.socket?.emit(CLIENT_EVENTS.JOIN_ROLE, this.currentRole);
+            }
         });
 
         this.socket.on('disconnect', (reason) => {
@@ -61,8 +71,13 @@ class SocketService {
         this.socket.on('reconnect', (attemptNumber) => {
             // console.log('Socket reconnected after', attemptNumber, 'attempts');
             getGlobalMessage().success('消息服务重连成功');
-            // 重连成功后，重新加入用户个人房间
-            this.socket?.emit(CLIENT_EVENTS.JOIN_USER, userId);
+            // 重连成功后，重新加入房间
+            if (this.currentUserId) {
+                this.socket?.emit(CLIENT_EVENTS.JOIN_USER, this.currentUserId);
+            }
+            if (this.currentRole) {
+                this.socket?.emit(CLIENT_EVENTS.JOIN_ROLE, this.currentRole);
+            }
         });
 
         this.socket.on('reconnect_failed', () => {

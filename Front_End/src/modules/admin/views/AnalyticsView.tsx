@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { Sparkles, Layout, Settings, X, BarChart3, Users, Briefcase, TrendingUp, AlertCircle } from 'lucide-react';
 import { TRANSLATIONS } from '@/constants/constants';
-import { generateAnalyticsInsight } from '@/services/aiService';
 import { analyticsAPI } from '@/services/apiService';
-import { InsightStatus, Language } from '@/types/types';
+import { Language } from '@/types/types';
 import { Button, Drawer, Switch, Empty } from 'antd';
 
 // 控件定义接口
@@ -36,10 +35,6 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
   const [competitionData, setCompetitionData] = useState<any[]>([]);
   const [topCompaniesData, setTopCompaniesData] = useState<any[]>([]);
 
-  // AI 洞察
-  const [aiStatus, setAiStatus] = useState<InsightStatus>(InsightStatus.IDLE);
-  const [aiText, setAiText] = useState<string>('');
-  const [aiCollapsed, setAiCollapsed] = useState(false);
   // 数据获取
   useEffect(() => {
     const fetchData = async () => {
@@ -69,39 +64,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
     fetchData();
   }, []);
 
-  // AI 分析
-  const handleAnalyze = async () => {
-    setAiStatus(InsightStatus.LOADING);
-    // 传入更完整的数据供AI分析
-    const result = await generateAnalyticsInsight(
-      funnelData,
-      stats.trends || [],
-      sourceQualityData,
-      lang,
-      {
-        stats: stats.stats,
-        competitionData,
-        topCompaniesData,
-        categories: stats.categories
-      }
-    );
-    if (result) {
-      // 去除Markdown格式符号,只保留纯文本
-      const cleanText = result
-        .replace(/#{1,6}\s/g, '') // 去除标题符号 # ## ###
-        .replace(/\*\*(.+?)\*\*/g, '$1') // 去除粗体 **text**
-        .replace(/\*(.+?)\*/g, '$1') // 去除斜体 *text*
-        .replace(/`(.+?)`/g, '$1') // 去除代码符号 `code`
-        .replace(/^\s*[-*+]\s/gm, '• ') // 将列表符号统一为 •
-        .replace(/^\s*\d+\.\s/gm, (match) => match.replace(/\d+\./, (num) => `${num.replace('.', '.')}`)) // 保留数字列表
-        .trim();
-
-      setAiText(cleanText);
-      setAiStatus(InsightStatus.SUCCESS);
-    } else {
-      setAiStatus(InsightStatus.ERROR);
-    }
-  };
+ 
 
   // ECharts 配置
   const axisColor = theme === 'dark' ? '#94a3b8' : '#64748b';
@@ -266,7 +229,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
   return (
     <div className="space-y-6 relative pb-20">
       {/* 头部/工具栏 */}
-      <div className="flex flex-wrap justify-between items-center bg-white/80 dark:bg-slate-800/80 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 backdrop-blur-md">
+      <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-3">
             <div className="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-500/20">
@@ -276,14 +239,7 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
             {loading && <span className="text-[10px] font-black text-indigo-500 animate-pulse ml-2 uppercase tracking-widest">{common.loading}</span>}
           </h2>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleAnalyze}
-            disabled={aiStatus === InsightStatus.LOADING || loading}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-sm font-black rounded-xl border border-indigo-100 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-          >
-            <Sparkles size={16} /> {t.aiInsight}
-          </button>
+        <div>
           <button
             onClick={() => setEditMode(!editMode)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-black rounded-xl transition-all shadow-sm active:scale-95 ${editMode ? 'bg-rose-600 text-white shadow-rose-500/20' : 'bg-slate-800 dark:bg-slate-700 text-white shadow-slate-500/10'}`}
@@ -293,41 +249,6 @@ const AnalyticsView: React.FC<{ lang: Language, theme: 'light' | 'dark' }> = ({ 
           </button>
         </div>
       </div>
-
-      {/* AI洞察框 */}
-      {aiStatus !== InsightStatus.IDLE && (
-        <div className={`p-6 rounded-2xl border-2 shadow-xl animate-in fade-in slide-in-from-top-4 duration-500 ${aiStatus === InsightStatus.ERROR ? 'bg-rose-50 dark:bg-rose-900/10 border-rose-200 dark:border-rose-900/30' : 'bg-indigo-50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-900/30'}`}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${aiStatus === InsightStatus.ERROR ? 'bg-rose-600' : 'bg-indigo-600'} text-white`}>
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <h3 className={`font-black uppercase tracking-widest ${aiStatus === InsightStatus.ERROR ? 'text-rose-800 dark:text-rose-400' : 'text-indigo-900 dark:text-indigo-400'}`}>{aiT.ai_title}</h3>
-            </div>
-            <button
-              onClick={() => setAiCollapsed(!aiCollapsed)}
-              className="p-2 rounded-lg hover:bg-white/50 dark:hover:bg-slate-800/50 transition-colors"
-            >
-              {aiCollapsed ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={aiStatus === InsightStatus.ERROR ? 'text-rose-600' : 'text-indigo-600'}>
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={aiStatus === InsightStatus.ERROR ? 'text-rose-600' : 'text-indigo-600'}>
-                  <polyline points="18 15 12 9 6 15"></polyline>
-                </svg>
-              )}
-            </button>
-          </div>
-          {!aiCollapsed && (
-            <div className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line font-medium italic pl-11">
-              {aiStatus === InsightStatus.LOADING && <span className="animate-pulse">{t.thinking}</span>}
-              {aiStatus === InsightStatus.ERROR && <div className="flex items-center gap-2 text-rose-600 font-bold"><AlertCircle size={16} /> {t.failed}</div>}
-              {aiStatus === InsightStatus.SUCCESS && aiText}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 配置抽屉 */}
       <Drawer title={<span className="font-black uppercase tracking-widest">{t.customLayout}</span>} onClose={() => setEditMode(false)} open={editMode} size="default" className="dark:bg-slate-900">

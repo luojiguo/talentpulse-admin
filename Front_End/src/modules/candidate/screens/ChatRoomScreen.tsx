@@ -691,7 +691,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                                         <div className="wechat-exchange-card p-3 rounded-lg bg-white/80">
                                                             {msg.status === 'pending' ? (
                                                                 <>
-                                                                    <p className="text-sm mb-3">{isCurrentUser ? '您已发送微信交换请求，等待对方回应' : '对方想与您交换微信号'}</p>
+                                                                    <div className="text-sm mb-3 !text-gray-800">{isCurrentUser ? '您已发送微信交换请求，等待对方回应' : '对方想与您交换微信号'}</div>
                                                                     {!isCurrentUser && (
                                                                         <div className="flex gap-2">
                                                                             <button
@@ -711,14 +711,14 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                                                 </>
                                                             ) : msg.status === 'accepted' ? (
                                                                 <div className="space-y-2">
-                                                                    <p className="text-sm text-gray-600">微信交换已完成</p>
+                                                                    <div className="text-sm !text-gray-700 font-medium">微信交换已完成</div>
                                                                     <div className="flex items-center justify-between p-2 bg-gray-100 rounded-md">
-                                                                        <span className="text-sm font-medium">{isCurrentUser ? '对方微信号' : '我的微信号'}</span>
+                                                                        <div className="text-sm font-bold !text-gray-700">{isCurrentUser ? '对方微信号' : '我的微信号'}</div>
                                                                         <div className="flex items-center gap-2">
-                                                                            <span className="text-sm font-mono">{isCurrentUser ? (msg.sender_wechat || '未获取') : (msg.receiver_wechat || currentUser?.wechat)}</span>
+                                                                            <div className="text-base font-mono font-bold !text-gray-900 select-all">{isCurrentUser ? (msg.sender_wechat || '未获取') : (msg.receiver_wechat || currentUser?.wechat)}</div>
                                                                             <button
                                                                                 onClick={() => copyWechatToClipboard(isCurrentUser ? (msg.sender_wechat || '') : (msg.receiver_wechat || currentUser?.wechat || ''))}
-                                                                                className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-colors"
+                                                                                className="p-1.5 !text-brand-600 hover:text-brand-700 hover:bg-brand-100 rounded-md transition-colors"
                                                                                 title="复制微信号"
                                                                             >
                                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -729,9 +729,9 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                                                     </div>
                                                                 </div>
                                                             ) : msg.status === 'rejected' ? (
-                                                                <p className="text-sm text-gray-600">{isCurrentUser ? '对方已拒绝微信交换请求' : '您已拒绝微信交换请求'}</p>
+                                                                <div className="text-sm !text-gray-600">{isCurrentUser ? '对方已拒绝微信交换请求' : '您已拒绝微信交换请求'}</div>
                                                             ) : (
-                                                                <p className="text-sm text-gray-600">微信交换请求</p>
+                                                                <div className="text-sm !text-gray-600">微信交换请求</div>
                                                             )}
                                                         </div>
                                                     )}
@@ -1055,11 +1055,11 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                                 <button
                                                     key={resume.id || index}
                                                     onClick={() => setSelectedResume(resume)}
-                                                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isSelected ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                                                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${isSelected ? 'border-brand-500 bg-brand-100' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
                                                 >
                                                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected ? 'border-brand-500 bg-brand-500' : 'border-gray-300'}`}>
-                                                            {isSelected && <Check className="w-4 h-4 text-white" />}
+                                                        <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors shadow-sm ${isSelected ? 'border-brand-500 bg-brand-500' : 'border-gray-400 bg-white'}`}>
+                                                            {isSelected && <Check className="w-5 h-5 text-slate-900 stroke-[3]" />}
                                                         </div>
                                                         <div className="text-brand-600 flex-shrink-0">
                                                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -1090,7 +1090,7 @@ const ChatRoomScreen: React.FC<ChatRoomScreenProps> = ({
                                 <button
                                     onClick={handleConfirmSendResume}
                                     disabled={!selectedResume}
-                                    className={`w-full py-2.5 rounded-xl font-medium transition-all ${selectedResume ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                    className={`w-full py-2.5 rounded-xl font-medium transition-all ${selectedResume ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-md' : 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed'}`}
                                 >
                                     {selectedResume ? `发送简历` : '请选择一份简历'}
                                 </button>

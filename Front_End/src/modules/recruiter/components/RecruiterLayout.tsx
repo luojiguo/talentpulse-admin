@@ -90,7 +90,7 @@ export const RecruiterLayout: React.FC<RecruiterLayoutProps> = ({ onLogout, onSw
                     borderBottom: `1px solid ${mode === 'light' ? colors.border : 'rgba(51, 65, 85, 0.5)'}`
                 }}
             >
-                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-full flex justify-between items-center">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex justify-between items-center">
                     {/* Logo和移动端菜单按钮 */}
                     <div className="flex items-center gap-3">
                         {/* 移动端菜单按钮 */}

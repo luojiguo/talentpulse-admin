@@ -97,9 +97,9 @@ const WeChatCard: React.FC<{
                     <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-200 dark:shadow-none">We</div>
                     <span className="text-gray-900 dark:text-slate-200 font-bold text-sm">微信交换成功</span>
                 </div>
-                <div className="bg-blue-50/50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30 mb-3">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-bold">对方微信号</p>
-                    <p className="text-base font-black text-blue-700 dark:text-blue-400 select-all font-mono tracking-tight">{displayWechat}</p>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700 mb-3">
+                    <div className="text-xs !text-slate-600 dark:!text-slate-400 mb-1 font-bold">对方微信号</div>
+                    <div className="text-base font-black !text-slate-900 dark:!text-slate-100 select-all font-mono tracking-tight">{displayWechat}</div>
                 </div>
                 <button
                     onClick={() => onCopy(displayWechat)}
@@ -122,7 +122,7 @@ const WeChatCard: React.FC<{
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">已发送请求，等待对方同意...</p>
                 <div className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-                    我的微信号: <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">{wechat}</span>
+                    我的微信号: <span className="font-mono !text-slate-900 dark:!text-slate-100 font-bold">{wechat}</span>
                 </div>
             </div>
         );
